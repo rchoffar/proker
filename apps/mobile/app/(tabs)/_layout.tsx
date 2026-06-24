@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import {
   LayoutDashboard,
