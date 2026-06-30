@@ -1,6 +1,6 @@
 import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { colors, radius, shadow } from '../../design-system/theme';
+import { radius, shadow } from '../../design-system/theme';
 
 type Variant = 'default' | 'gold' | 'dark';
 
@@ -20,20 +20,18 @@ export function GlassCard({ children, variant = 'default', style, padding = 16 }
     style,
   ];
 
+  const blurIntensity = variant === 'gold' ? 55 : variant === 'dark' ? 65 : 40;
+
   if (Platform.OS === 'ios') {
     return (
       <View style={[containerStyle, styles.overflow]}>
-        <BlurView
-          intensity={20}
-          tint="dark"
-          style={StyleSheet.absoluteFill}
-        />
+        <BlurView intensity={blurIntensity} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={[styles.innerBorder, variant === 'gold' && styles.innerBorderGold]} />
         <View style={styles.inner}>{children}</View>
       </View>
     );
   }
 
-  // Android fallback: solid semi-transparent background
   return (
     <View style={[containerStyle, styles.androidFallback]}>
       {children}
@@ -45,8 +43,8 @@ const styles = StyleSheet.create({
   base: {
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.glassBorder,
-    backgroundColor: colors.glass,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    backgroundColor: 'rgba(10, 10, 15, 0.65)',
     ...shadow.card,
   },
   overflow: {
@@ -55,15 +53,28 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
   },
+  innerBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+  },
+  innerBorderGold: {
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+  },
   gold: {
-    borderColor: colors.glassBorderGold,
-    backgroundColor: colors.glassGoldFill,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'rgba(10, 10, 15, 0.82)',
   },
   dark: {
-    backgroundColor: colors.bgElevated,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(10, 10, 15, 0.92)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
   },
   androidFallback: {
-    backgroundColor: 'rgba(17, 17, 24, 0.92)',
+    backgroundColor: 'rgba(12, 12, 18, 0.93)',
   },
 });

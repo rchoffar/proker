@@ -12,9 +12,62 @@ export interface User {
   id: string;
   name: string;
   avatar?: string;
-  bankroll: number;
   createdAt: string;
   settings: UserSettings;
+}
+
+export interface Player {
+  id: string;
+  name: string;
+  notes?: string;
+}
+
+export interface Stake {
+  id: string;
+  date: string;
+  playerId: string;
+  festivalId?: string;
+  tournamentId?: string;
+  buyIn: number;
+  percentage: number;
+  settled: boolean;
+  cashed?: boolean;
+  theirCashout?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Country {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface Organizer {
+  id: string;
+  name: string;
+}
+
+export interface Festival {
+  id: string;
+  name: string;
+  location?: string;
+  countryId?: string;
+  organizerId?: string;
+}
+
+export interface Tournament {
+  id: string;
+  festivalId: string;
+  name: string;
+  buyIn: number;
+  totalPlayers?: number;
+}
+
+export interface Backing {
+  playerId: string;
+  profitShare: number;  // % of cashout they receive
+  buyInShare: number;   // % of buy-in they contribute (0 = action only, no buy-in contribution)
 }
 
 export interface BaseSession {
@@ -25,18 +78,17 @@ export interface BaseSession {
   buyIn: number;
   cashOut: number;
   durationHours: number;
+  backings?: Backing[];
   notes?: string;
   createdAt: string;
 }
 
 export interface TournamentSession extends BaseSession {
   type: 'tournament';
-  tournamentName?: string;
+  tournamentId: string;
   reEntries: number;
-  totalInvested: number;
   cashed: boolean;
   position?: number;
-  totalPlayers?: number;
 }
 
 export interface CashSession extends BaseSession {

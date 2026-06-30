@@ -1,35 +1,36 @@
 export const colors: Record<string, string> = {
-  // Background layers
-  bgBase: '#0A0A0F',
-  bgElevated: '#111118',
-  bgOverlay: '#1A1A25',
+  // Backgrounds (light)
+  bgBase: '#FFFFFF',
+  bgElevated: '#F5F5F7',
+  bgOverlay: '#EBEBEE',
 
-  // Glass
-  glass: 'rgba(255, 255, 255, 0.06)',
-  glassHover: 'rgba(255, 255, 255, 0.09)',
-  glassStrong: 'rgba(255, 255, 255, 0.12)',
-  glassBorder: 'rgba(255, 255, 255, 0.08)',
-  glassBorderGold: 'rgba(255, 215, 0, 0.20)',
-  glassGoldFill: 'rgba(255, 215, 0, 0.06)',
-
-  // Accent
-  gold: '#FFD700',
-  goldSoft: '#E6C200',
-  goldGlow: 'rgba(255, 215, 0, 0.15)',
+  // Dark glass (cards on white background)
+  glass: 'rgba(10, 10, 15, 0.72)',
+  glassHover: 'rgba(10, 10, 15, 0.80)',
+  glassStrong: 'rgba(10, 10, 15, 0.90)',
+  glassBorder: 'rgba(255, 255, 255, 0.14)',
+  glassBorderStrong: 'rgba(255, 255, 255, 0.22)',
 
   // Semantic
   profit: '#00C878',
-  profitBg: 'rgba(0, 200, 120, 0.10)',
+  profitBg: 'rgba(0, 200, 120, 0.15)',
   loss: '#FF4757',
-  lossBg: 'rgba(255, 71, 87, 0.10)',
+  lossBg: 'rgba(255, 71, 87, 0.15)',
   warning: '#FF9F43',
   neutral: '#8A8A9A',
 
-  // Text
+  // Text — inside dark cards
   textPrimary: '#FFFFFF',
-  textSecondary: '#8A8A9A',
-  textTertiary: '#5A5A6E',
-  textInverse: '#0A0A0F',
+  textSecondary: 'rgba(255, 255, 255, 0.58)',
+  textTertiary: 'rgba(255, 255, 255, 0.32)',
+
+  // Text — on white background
+  textOnLight: '#0A0A0F',
+  textOnLightSecondary: '#6B6B7E',
+  textOnLightTertiary: '#9A9AAC',
+
+  // Actions
+  textInverse: '#FFFFFF',
 };
 
 export const spacing = {
@@ -77,15 +78,8 @@ export const shadow = {
   card: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 24,
     elevation: 8,
-  },
-  gold: {
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 6,
   },
 } as const;
