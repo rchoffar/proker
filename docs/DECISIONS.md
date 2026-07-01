@@ -167,17 +167,23 @@ tracker.session.buy_in_label = "Buy-in"
 
 ---
 
-## ADR-009 — Fonts: Inter via @expo-google-fonts
+## ADR-009 — Fonts: Jost + Geist via @expo-google-fonts
 
-**Date:** 2026-06-24
-**Status:** Decided
+**Date:** 2026-06-24 (superseded 2026-07-01)
+**Status:** Decided (revised)
 
-**Decision:** Inter font family loaded via `@expo-google-fonts/inter`.
+**Original decision:** Inter font family loaded via `@expo-google-fonts/inter`.
 
-**Why:**
-- Inter is designed for screens — excellent legibility at all sizes
-- Tabular number variant (`Inter_400Regular_Italic` etc.) for financial data
-- Expo Google Fonts handles loading and fallback gracefully
+**Revised decision:** Jost 300 (thin, display titles only) + Geist 400–800 (everything else),
+loaded via `@expo-google-fonts/jost` and `@expo-google-fonts/geist`.
+
+**Why the change:**
+- The "Frosted Glass" redesign (see DS-005/DS-006) calls for a distinct, elegant thin display face
+  for screen/sheet titles, paired with a cleaner grotesque for body/numbers — Inter alone didn't
+  give enough typographic contrast for the new hierarchy
+- Both font packages are on the same `@expo-google-fonts/*` distribution as Inter was, so the
+  loading mechanism (`useFonts` in `app/_layout.tsx`) is unchanged, just the font families passed to it
+- Geist's tabular figures work the same way Inter's did for financial data
 
 ---
 
@@ -200,17 +206,75 @@ tracker.session.buy_in_label = "Buy-in"
 
 ---
 
+## ADR-011 — Bottom sheets: custom `BottomSheet` primitive, not a third-party library
+
+**Date:** 2026-07-01
+**Status:** Decided
+
+**Decision:** Build a small custom `BottomSheet` component (`src/components/ui/BottomSheet.tsx`)
+using RN's `Modal` (`transparent`, `animationType="none"`) plus Reanimated-driven
+`translateY`/backdrop-opacity animation, rather than adopting `@gorhom/bottom-sheet` or a similar
+library. No gesture-handler pan-to-dismiss — only tap-backdrop / tap-✕ dismissal, per the design
+spec's actual interaction requirements.
+
+**Why:**
+- The design spec's sheet requirements (380ms slide, 200ms backdrop fade, tap-to-dismiss, adaptive
+  height via inner scroll) are fully satisfiable without a gesture-driven drag handle
+- The codebase already used plain `Modal` for every sheet/detail-view before this redesign
+  (`AddSessionModal`, `FilterSheet`, `TournamentDetailModal` all did) — a custom primitive keeps
+  that convention and avoids a new dependency for a "nice to have" (drag-to-dismiss) that wasn't
+  actually requested
+- `react-native-reanimated` (ADR-003) and `expo-blur` (already used by `GlassCard`) are the only
+  dependencies needed; `react-native-gesture-handler` is already installed for tab/list gestures
+  elsewhere but isn't pulled into this component
+- Pan-to-dismiss is a documented, low-risk follow-up (`// TODO(pan-to-dismiss)` in the component)
+  if ever wanted — the primitive already centralizes the `translateY` shared value a gesture would
+  drive
+
+**Ruled out:**
+- `@gorhom/bottom-sheet`: full-featured (snap points, gesture handling, keyboard avoidance) but a
+  new dependency for functionality the design doesn't call for
+- Keeping the old per-screen `Modal` + `BlurView` boilerplate duplicated across `AddSessionSheet`
+  and `FilterSheet`: would have meant re-implementing the same slide/fade timing twice
+
+---
+
 ## Design Decisions
 
-### DS-001 — Dark theme only in V1
+### DS-001 — Dark theme only in V1 *(superseded by DS-005, 2026-07-01)*
 
-One theme to build, one to perfect. Light theme deferred to V2.
+~~One theme to build, one to perfect. Light theme deferred to V2.~~ Superseded by a full redesign
+to a light "Frosted Glass" system — see DS-005.
 
-### DS-002 — Gold (#FFD700) as primary accent, not neon green
+### DS-002 — Gold (#FFD700) as primary accent, not neon green *(superseded by DS-006, 2026-07-01)*
 
-Gold reads as premium, WSOP-trophy, status. More aligned with professional player identity than neon green which reads "crypto/gaming."
+~~Gold reads as premium, WSOP-trophy, status. More aligned with professional player identity than
+neon green which reads "crypto/gaming."~~ Superseded — see DS-006. The "green reserved for
+profit, red for loss" principle carries forward unchanged; only the *primary/CTA* accent moved
+from gold to emerald.
 
-Green is reserved semantically for profit, red for loss. This keeps color meaning clear.
+### DS-005 — Light "Frosted Glass" theme, not dark
+
+**Date:** 2026-07-01
+
+A design handoff (external, `design_handoff_proker_glass` package) specified a full visual/UX
+redesign: a bright, layered-gradient environment with frosted-glass cards, replacing the deep-black
+canvas from DS-001. Implemented across every screen (`docs/DESIGN_SYSTEM.md` §2–3). Dark surfaces
+still exist (charcoal `GlassCard` `variant="dark"`) but only as a *rhythm* device against the light
+background, not as the app's base theme.
+
+**Why:** User-directed redesign to match the provided handoff. The bento-grid / floating-pill-nav /
+data-first-typography principles from the original design philosophy carry forward unchanged —
+only the light/dark polarity and the color language (DS-006) changed.
+
+### DS-006 — Single emerald accent (#0E9E62 / #17E58A), not gold
+
+Replaces DS-002. The redesign's rule is stricter than before: there is now exactly **one**
+chromatic color in the whole app — emerald green — reserved for money, positive results, and
+primary actions/CTAs. Loss is red, everything else is neutral ink-grey. This meant removing every
+other incidental brand color found in the pre-redesign code (gold `#FFD700`, an indigo `#6366F1`
+used for the Staking row/pill, and a 3-color buy-in-tier coding in the Tournament Finder) in favor
+of neutral treatments, per the "near-monochrome" principle.
 
 ### DS-003 — Floating pill tab bar, not full-width
 

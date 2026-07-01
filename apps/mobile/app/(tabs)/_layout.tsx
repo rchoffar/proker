@@ -1,21 +1,41 @@
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
-import {
-  LayoutDashboard,
-  TrendingUp,
-  Search,
-  Dices,
-  User,
-} from 'lucide-react-native';
+import { LayoutDashboard, TrendingUp, Search, User } from 'lucide-react-native';
+import { EnvironmentBackground } from '../../src/components/ui/EnvironmentBackground';
 import { FloatingTabBar } from '../../src/components/ui/FloatingTabBar';
-import { GlobalFAB } from '../../src/components/ui/GlobalFAB';
+import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
+import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
+import { useAppStore } from '../../src/store/useAppStore';
 
 export default function TabLayout() {
+  const [showAddSession, setShowAddSession] = useState(false);
+  const { festivals, tournaments, players, addSession, addStake, addFestival, addTournament, addPlayer } = useAppStore();
+
+  const handleSave = useCallback(
+    (record: SaveRecord) => {
+      for (const p of record.newPlayers ?? []) {
+        if (!players.find((existing) => existing.id === p.id)) addPlayer(p);
+      }
+      if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
+        addFestival(record.newFestival);
+      }
+      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
+        addTournament(record.newTournament);
+      }
+      if (record.session) addSession(record.session);
+      if (record.stake) addStake(record.stake);
+      setShowAddSession(false);
+    },
+    [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
+  );
+
   return (
     <View style={{ flex: 1 }}>
+      <EnvironmentBackground />
       <Tabs
-        tabBar={(props) => <FloatingTabBar {...props} />}
-        screenOptions={{ headerShown: false }}
+        tabBar={(props) => <FloatingTabBar {...props} onAddPress={() => setShowAddSession(true)} />}
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
       >
         <Tabs.Screen
           name="index"
@@ -36,19 +56,21 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="degen"
-          options={{
-            tabBarIcon: ({ color }) => <Dices color={color} size={22} strokeWidth={1.5} />,
-          }}
-        />
-        <Tabs.Screen
           name="profile"
           options={{
             tabBarIcon: ({ color }) => <User color={color} size={22} strokeWidth={1.5} />,
           }}
         />
       </Tabs>
-      <GlobalFAB />
+
+      <AddSessionSheet
+        visible={showAddSession}
+        onClose={() => setShowAddSession(false)}
+        onSave={handleSave}
+        festivals={festivals}
+        tournaments={tournaments}
+        players={players}
+      />
     </View>
   );
 }

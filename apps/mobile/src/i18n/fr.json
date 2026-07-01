@@ -12,7 +12,7 @@
     "greeting_evening": "Bonsoir",
     "bankroll_label": "Bankroll",
     "profit_label": "Profit net",
-    "profit_month": "ce mois",
+    "profit_month": "ce mois-ci",
     "profit_alltime": "total",
     "roi_label": "ROI",
     "hourly_label": "Taux horaire",

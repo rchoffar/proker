@@ -6,6 +6,7 @@ export interface UserSettings {
   language: 'fr' | 'en';
   currency: Currency;
   notifications: boolean;
+  theme: 'light' | 'dark';
 }
 
 export interface User {
@@ -62,6 +63,9 @@ export interface Tournament {
   name: string;
   buyIn: number;
   totalPlayers?: number;
+  startDate?: string; // ISO date, when known
+  guaranteed?: number; // guaranteed prize pool
+  featured?: boolean; // "Coup de cœur" pin
 }
 
 export interface Backing {

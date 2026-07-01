@@ -4,23 +4,27 @@ import { useState, useMemo, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Search, SlidersHorizontal } from 'lucide-react-native';
-import { BackgroundCanvas } from '../../src/components/ui/BackgroundCanvas';
 import { TournamentCard } from '../../src/components/finder/TournamentCard';
 import { TournamentDetailModal } from '../../src/components/finder/TournamentDetailModal';
 import { FilterSheet, DEFAULT_FILTERS, countActiveFilters } from '../../src/components/finder/FilterSheet';
-import { AddSessionModal } from '../../src/components/tracker/AddSessionModal';
+import { CoupDeCoeurCard } from '../../src/components/tournaments/CoupDeCoeurCard';
+import { SectionLabel } from '../../src/components/ui/SectionLabel';
+import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { colors, fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
+import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
+import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament, TournamentSession } from '../../src/types';
 import type { FilterState } from '../../src/components/finder/FilterSheet';
-import type { SaveRecord } from '../../src/components/tracker/AddSessionModal';
+import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 
 export default function FinderScreen() {
+  const { colors } = useTheme();
   const { tournaments, festivals, sessions, players, countries, organizers, addSession, addStake, addFestival, addTournament, addPlayer } = useAppStore();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [addSessionTournament, setAddSessionTournament] = useState<Tournament | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [animKey, setAnimKey] = useState(0);
 
@@ -81,6 +85,8 @@ export default function FinderScreen() {
   }, [tournaments, festivals, filters, search]);
 
   const activeFilterCount = countActiveFilters(filters);
+  const showCoupDeCoeur = activeFilterCount === 0 && search.trim() === '';
+  const featured = useMemo(() => tournaments.find((t) => t.featured) ?? null, [tournaments]);
 
   const selectedFestival = selectedTournament
     ? festivals.find((f) => f.id === selectedTournament.festivalId)
@@ -107,21 +113,20 @@ export default function FinderScreen() {
       if (record.session) addSession(record.session);
       if (record.stake) addStake(record.stake);
       setShowAddModal(false);
+      setAddSessionTournament(null);
     },
     [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
   );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <BackgroundCanvas />
-
       <View key={animKey} style={styles.stack}>
         {/* Header */}
         <Animated.View
           entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}
           style={styles.header}
         >
-          <Text style={styles.title}>Tournois</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Tournois</Text>
         </Animated.View>
 
         {/* Search + filter row */}
@@ -129,12 +134,12 @@ export default function FinderScreen() {
           entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}
           style={styles.searchRow}
         >
-          <View style={styles.searchContainer}>
-            <Search size={16} color={colors.textOnLightTertiary} strokeWidth={1.5} />
+          <View style={[styles.searchContainer, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
+            <Search size={16} color={colors.textTertiary} strokeWidth={1.5} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.textPrimary }]}
               placeholder="Rechercher un tournoi..."
-              placeholderTextColor={colors.textOnLightTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={search}
               onChangeText={setSearch}
               clearButtonMode="while-editing"
@@ -143,18 +148,20 @@ export default function FinderScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+            style={[
+              styles.filterButton,
+              { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
+              activeFilterCount > 0 && { borderColor: colors.accent, backgroundColor: colors.accentTint },
+            ]}
             onPress={() => setFilterSheetVisible(true)}
             activeOpacity={0.7}
           >
             <SlidersHorizontal
               size={15}
-              color={activeFilterCount > 0 ? '#0A0A0F' : colors.textOnLightSecondary}
+              color={activeFilterCount > 0 ? colors.accent : colors.textSecondary}
               strokeWidth={1.5}
             />
-            {activeFilterCount > 0 && (
-              <Text style={styles.filterCount}>{activeFilterCount}</Text>
-            )}
+            {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
         </Animated.View>
 
@@ -165,8 +172,8 @@ export default function FinderScreen() {
         >
           {filteredTournaments.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>Aucun tournoi trouvé</Text>
-              <Text style={styles.emptySubText}>Essayez de modifier vos filtres</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun tournoi</Text>
+              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Essayez de modifier vos filtres</Text>
             </View>
           ) : (
             <FlatList
@@ -175,6 +182,19 @@ export default function FinderScreen() {
               style={styles.list}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                showCoupDeCoeur && featured ? (
+                  <View style={styles.coupDeCoeurWrap}>
+                    <SectionLabel style={styles.coupDeCoeurLabel}>Coup de cœur</SectionLabel>
+                    <CoupDeCoeurCard
+                      tournament={featured}
+                      festival={festivals.find((f) => f.id === featured.festivalId)}
+                      onPress={() => setSelectedTournament(featured)}
+                    />
+                    <SectionLabel style={styles.allLabel}>Tous les tournois</SectionLabel>
+                  </View>
+                ) : null
+              }
               renderItem={({ item }) => (
                 <TournamentCard
                   tournament={item}
@@ -208,18 +228,26 @@ export default function FinderScreen() {
         sessions={selectedTournamentSessions}
         onClose={() => setSelectedTournament(null)}
         onAddSession={() => {
+          const tournament = selectedTournament;
+          // Close the detail sheet first, then open the add-session sheet once its
+          // dismiss animation has finished — opening both at once makes the two
+          // BottomSheets fight each other instead of a clean close-then-open transition.
           setSelectedTournament(null);
-          setShowAddModal(true);
+          setTimeout(() => {
+            setAddSessionTournament(tournament);
+            setShowAddModal(true);
+          }, 350);
         }}
       />
 
-      <AddSessionModal
+      <AddSessionSheet
         visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={() => { setShowAddModal(false); setAddSessionTournament(null); }}
         onSave={handleSave}
         festivals={festivals}
         tournaments={tournaments}
         players={players}
+        initialTournament={addSessionTournament}
       />
     </SafeAreaView>
   );
@@ -228,7 +256,6 @@ export default function FinderScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.bgBase,
   },
   stack: {
     flex: 1,
@@ -240,10 +267,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs,
   },
   title: {
-    color: colors.textOnLight,
-    fontSize: fontSize['2xl'],
-    fontFamily: fontFamily.extrabold,
-    letterSpacing: -0.5,
+    fontSize: fontSize.display,
+    fontFamily: fontFamily.display,
+    letterSpacing: -1,
   },
   searchRow: {
     flexDirection: 'row',
@@ -258,15 +284,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-    backgroundColor: 'rgba(0,0,0,0.03)',
     gap: spacing.sm,
   },
   searchInput: {
     flex: 1,
-    color: colors.textOnLight,
     fontSize: fontSize.base,
     fontFamily: fontFamily.regular,
     padding: 0,
@@ -277,19 +300,13 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.10)',
-    backgroundColor: 'rgba(0,0,0,0.04)',
   },
-  filterButtonActive: {
-    borderColor: colors.profit,
-    backgroundColor: colors.profit,
-  },
-  filterCount: {
-    color: '#0A0A0F',
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.bold,
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   listWrapper: {
     flex: 1,
@@ -301,6 +318,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingBottom: 120,
   },
+  coupDeCoeurWrap: {
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  coupDeCoeurLabel: {
+    marginBottom: 2,
+  },
+  allLabel: {
+    marginTop: spacing.md,
+    marginBottom: 2,
+  },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -308,12 +336,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: colors.textOnLightSecondary,
     fontSize: fontSize.md,
     fontFamily: fontFamily.semibold,
   },
   emptySubText: {
-    color: colors.textOnLightTertiary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
   },

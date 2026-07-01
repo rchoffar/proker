@@ -1,7 +1,8 @@
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { X, MapPin, Clock, Trophy, Banknote, FileText, Users } from 'lucide-react-native';
-import { colors, fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
+import { X, MapPin, Clock, Trophy, Banknote, FileText, Users, Pencil } from 'lucide-react-native';
+import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
+import { useTheme } from '../../design-system/ThemeProvider';
 import type { Session, Festival, Tournament, Player } from '../../types';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
   tournament?: Tournament;
   players?: Player[];
   onClose: () => void;
+  onEdit?: () => void;
 }
 
 function getNetValues(session: Session): { netProfit: number; yourCashout: number; yourInvested: number } {
@@ -24,9 +26,9 @@ function getNetValues(session: Session): { netProfit: number; yourCashout: numbe
 
 function formatCurrency(val: number, showSign = false): string {
   const abs = Math.abs(val);
-  const formatted = abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  if (!showSign) return `${formatted} €`;
-  return `${val >= 0 ? '+' : '−'}${formatted} €`;
+  const formatted = abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  if (!showSign) return `${formatted} €`;
+  return `${val >= 0 ? '+' : '−'}${formatted} €`;
 }
 
 function formatDate(iso: string): string {
@@ -46,24 +48,27 @@ function formatDuration(hours: number): string {
 }
 
 function InfoRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  const { colors } = useTheme();
   return (
     <View style={infoStyles.row}>
-      <Text style={infoStyles.label}>{label}</Text>
-      <Text style={[infoStyles.value, valueColor ? { color: valueColor } : null]}>{value}</Text>
+      <Text style={[infoStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[infoStyles.value, { color: valueColor ?? colors.textPrimary }]}>{value}</Text>
     </View>
   );
 }
 
 function Divider() {
-  return <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginVertical: spacing.sm }} />;
+  const { colors } = useTheme();
+  return <View style={{ height: 1, backgroundColor: colors.hairline, marginVertical: spacing.sm }} />;
 }
 
-export function SessionDetailModal({ session, festival, tournament, players = [], onClose }: Props) {
+export function SessionDetailModal({ session, festival, tournament, players = [], onClose, onEdit }: Props) {
+  const { colors, scheme } = useTheme();
   if (!session) return null;
 
   const { netProfit, yourCashout, yourInvested } = getNetValues(session);
   const isPositive = netProfit >= 0;
-  const profitColor = isPositive ? colors.profit : colors.loss;
+  const profitColor = isPositive ? colors.accent : colors.loss;
   const isTournament = session.type === 'tournament';
   const hasBackings = (session.backings ?? []).length > 0;
 
@@ -83,22 +88,34 @@ export function SessionDetailModal({ session, festival, tournament, players = []
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.root}>
-        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={[styles.root, { backgroundColor: colors.surface.sheetBg }]}>
+        <BlurView intensity={40} tint={scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
 
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.handle} />
+        <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
+          <View style={[styles.handle, { backgroundColor: colors.hairline }]} />
           <View style={styles.headerRow}>
-            <View style={[styles.typePill, isTournament ? styles.typePillT : styles.typePillC]}>
+            <View style={[
+              styles.typePill,
+              isTournament
+                ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
+                : { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg },
+            ]}>
               {isTournament
-                ? <Trophy size={11} color="#FFD700" strokeWidth={2} />
-                : <Banknote size={11} color={colors.profit} strokeWidth={2} />}
-              <Text style={styles.typePillText}>{isTournament ? 'Tournoi' : 'Cash Game'}</Text>
+                ? <Trophy size={11} color={colors.accent} strokeWidth={2} />
+                : <Banknote size={11} color={colors.accent} strokeWidth={2} />}
+              <Text style={[styles.typePillText, { color: colors.textSecondary }]}>{isTournament ? 'Tournoi' : 'Cash Game'}</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-              <X size={20} color={colors.textSecondary} strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {onEdit && (
+                <TouchableOpacity style={styles.closeBtn} onPress={onEdit} activeOpacity={0.7}>
+                  <Pencil size={17} color={colors.textSecondary} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+                <X size={20} color={colors.textSecondary} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -108,33 +125,33 @@ export function SessionDetailModal({ session, festival, tournament, players = []
         >
           {/* Identity */}
           <View style={styles.identity}>
-            <Text style={styles.titleText}>{title}</Text>
-            {subtitle ? <Text style={styles.subtitleText}>{subtitle}</Text> : null}
+            <Text style={[styles.titleText, { color: colors.textPrimary }]}>{title}</Text>
+            {subtitle ? <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
             <View style={styles.metaRow}>
               <MapPin size={12} color={colors.textTertiary} strokeWidth={1.5} />
-              <Text style={styles.metaText}>{formatDate(session.date)}</Text>
-              <Text style={styles.dot}>·</Text>
+              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDate(session.date)}</Text>
+              <Text style={[styles.dot, { color: colors.textTertiary }]}>·</Text>
               <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
-              <Text style={styles.metaText}>{formatDuration(session.durationHours)}</Text>
+              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDuration(session.durationHours)}</Text>
             </View>
           </View>
 
           {/* Profit hero */}
           <View style={[styles.profitCard, { borderColor: `${profitColor}28` }]}>
             <View style={[styles.profitGlow, { backgroundColor: `${profitColor}0D` }]} />
-            <Text style={styles.profitLabel}>Résultat net</Text>
+            <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>Résultat net</Text>
             <Text style={[styles.profitValue, { color: profitColor }]}>
               {formatCurrency(netProfit, true)}
             </Text>
             {yourCashout > 0 && (
-              <Text style={styles.profitSub}>
+              <Text style={[styles.profitSub, { color: colors.textTertiary }]}>
                 {formatCurrency(yourCashout)} récupérés
               </Text>
             )}
           </View>
 
           {/* Info sections */}
-          <View style={styles.section}>
+          <View style={[styles.section, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
             <InfoRow label="Buy-in" value={formatCurrency(session.buyIn)} />
 
             {isTournament && (
@@ -155,15 +172,15 @@ export function SessionDetailModal({ session, festival, tournament, players = []
                 <Divider />
                 <InfoRow
                   label="Sortie"
-                  value={session.cashed ? 'Cashé ✓' : 'Éliminé'}
-                  valueColor={session.cashed ? colors.profit : colors.textSecondary}
+                  value={session.cashed ? 'ITM ✓' : 'Éliminé'}
+                  valueColor={session.cashed ? colors.accent : colors.textSecondary}
                 />
                 {session.cashed && session.position && (
                   <>
                     <Divider />
                     <InfoRow
                       label="Position"
-                      value={`${session.position}${tournament?.totalPlayers ? ` / ${tournament.totalPlayers}` : ''}`}
+                      value={`${session.position}${tournament?.totalPlayers ? ` / ${tournament.totalPlayers}` : ''}`}
                     />
                   </>
                 )}
@@ -188,17 +205,17 @@ export function SessionDetailModal({ session, festival, tournament, players = []
             <Divider />
             <InfoRow
               label="ROI session"
-              value={yourInvested > 0 ? `${((netProfit / yourInvested) * 100).toFixed(1)} %` : '—'}
-              valueColor={isPositive ? colors.profit : colors.loss}
+              value={yourInvested > 0 ? `${((netProfit / yourInvested) * 100).toFixed(1)} %` : '—'}
+              valueColor={isPositive ? colors.accent : colors.loss}
             />
           </View>
 
           {/* Backing section */}
           {hasBackings && (
-            <View style={styles.section}>
+            <View style={[styles.section, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
               <View style={styles.sectionHeader}>
                 <Users size={13} color={colors.textTertiary} strokeWidth={1.5} />
-                <Text style={styles.sectionTitle}>Backers</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>Backers</Text>
               </View>
               {(session.backings ?? []).map((b, idx) => {
                 const player = players.find((p) => p.id === b.playerId);
@@ -218,12 +235,12 @@ export function SessionDetailModal({ session, festival, tournament, players = []
 
           {/* Notes */}
           {session.notes ? (
-            <View style={styles.notesCard}>
+            <View style={[styles.notesCard, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
               <View style={styles.notesHeader}>
                 <FileText size={13} color={colors.textTertiary} strokeWidth={1.5} />
-                <Text style={styles.notesLabel}>Notes</Text>
+                <Text style={[styles.notesLabel, { color: colors.textTertiary }]}>Notes</Text>
               </View>
-              <Text style={styles.notesText}>{session.notes}</Text>
+              <Text style={[styles.notesText, { color: colors.textSecondary }]}>{session.notes}</Text>
             </View>
           ) : null}
 
@@ -242,12 +259,10 @@ const infoStyles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   label: {
-    color: colors.textSecondary,
     fontSize: fontSize.base,
     fontFamily: fontFamily.regular,
   },
   value: {
-    color: colors.textPrimary,
     fontSize: fontSize.base,
     fontFamily: fontFamily.semibold,
     fontVariant: ['tabular-nums'],
@@ -257,21 +272,16 @@ const infoStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: 'rgba(8,8,14,0.97)',
   },
-
-  // Header
   header: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.20)',
     alignSelf: 'center',
     marginBottom: spacing.md,
   },
@@ -290,19 +300,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
   },
-  typePillT: {
-    borderColor: 'rgba(255,215,0,0.25)',
-    backgroundColor: 'rgba(255,215,0,0.08)',
-  },
-  typePillC: {
-    borderColor: 'rgba(0,200,120,0.25)',
-    backgroundColor: 'rgba(0,200,120,0.08)',
-  },
   typePillText: {
-    color: colors.textSecondary,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.semibold,
     letterSpacing: 0.3,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   closeBtn: {
     width: 36,
@@ -310,27 +315,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Body
   body: {
     paddingHorizontal: spacing.base,
     paddingTop: spacing.xl,
     gap: spacing.md,
   },
-
-  // Identity
   identity: {
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   titleText: {
-    color: colors.textPrimary,
     fontSize: fontSize['2xl'],
     fontFamily: fontFamily.extrabold,
     letterSpacing: -0.5,
   },
   subtitleText: {
-    color: colors.textSecondary,
     fontSize: fontSize.md,
     fontFamily: fontFamily.medium,
   },
@@ -341,16 +340,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   metaText: {
-    color: colors.textTertiary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
   },
   dot: {
-    color: colors.textTertiary,
     fontSize: fontSize.sm,
   },
-
-  // Profit card
   profitCard: {
     borderWidth: 1,
     borderRadius: radius.xl,
@@ -367,7 +362,6 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   profitLabel: {
-    color: colors.textTertiary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.medium,
     textTransform: 'uppercase',
@@ -380,22 +374,16 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   profitSub: {
-    color: colors.textTertiary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
     marginTop: 2,
   },
-
-  // Info section
   section: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
     borderRadius: radius.xl,
-    backgroundColor: 'rgba(255,255,255,0.04)',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.xs,
   },
-
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -403,19 +391,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   sectionTitle: {
-    color: colors.textTertiary,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-
-  // Notes
   notesCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: radius.xl,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: spacing.base,
     gap: spacing.sm,
   },
@@ -425,14 +408,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   notesLabel: {
-    color: colors.textTertiary,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   notesText: {
-    color: colors.textSecondary,
     fontSize: fontSize.base,
     fontFamily: fontFamily.regular,
     lineHeight: 22,

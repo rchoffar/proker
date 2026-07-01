@@ -25,12 +25,16 @@ Priority order reflects the brief:
 | # | Feature | Status |
 |---|---|---|
 | 1 | Dashboard / Home | **In scope** |
-| 2 | Results Tracker (Tournament + Cash Game) | **In scope** |
-| 3 | Tournament Finder | Deferred |
-| 4 | Ruin Risk Calculator | Deferred |
-| 5 | Degen Hub (3 mini-games) | Deferred |
-| 6 | Virality Engine (Flex Cards, Hand Replayer) | Deferred |
-| 7 | GTO Quiz & Gamification | V2 |
+| 2 | Results Tracker (Tournament + Cash Game + Staking) | **In scope** |
+| 3 | Tournament Finder | **In scope** |
+| 4 | Profile / Settings | **In scope** |
+| 5 | Ruin Risk Calculator | Deferred |
+| 6 | Degen Hub (3 mini-games) | Deferred — no tab; was tried as a placeholder 5th tab during the redesign, then removed to match the handoff's 4-tab bar exactly |
+| 7 | Virality Engine (Flex Cards, Hand Replayer) | Deferred |
+| 8 | GTO Quiz & Gamification | V2 |
+
+Tournament Finder and Profile were originally scoped as deferred but were built out during the
+"Frosted Glass" redesign (2026-07-01) — see `DECISIONS.md` DS-005/DS-006 and the updated specs below.
 
 ---
 
@@ -39,83 +43,87 @@ Priority order reflects the brief:
 ### 1. Dashboard / Home
 
 The bento-grid overview screen. Gives the player a complete at-a-glance view of their poker life.
+Layout as of the "Frosted Glass" redesign (`app/(tabs)/index.tsx`):
 
-**Cards / widgets on the dashboard:**
-- Total bankroll (current)
-- Net profit (this month / all time toggle)
-- ROI (this month / all time)
-- Hourly rate
-- Sessions played (this month)
-- Last session recap (venue, result, duration)
-- Performance chart (last 30 days, profit curve)
-- Quick action buttons: Log Session, Find Tournament, Open Degen Hub
+**Cards / widgets on the dashboard, top to bottom:**
+- Header: "Dashboard" title + avatar (initials)
+- **Profit hero** (charcoal card): net poker profit (all-time), month-over-month delta chip, sparkline off `bankrollHistory`
+- **Gauges row**: ROI (90 days) and ITM % (90 days) donut gauges
+- **Volume card**: hours played this month, split by week (bar chart)
+- **Évolution card**: 30-day profit curve
+- **Prochains tournois**: one pinned "Coup de cœur" featured tournament + up to 2 plain upcoming rows, drawn from `tournaments` with a `startDate`
 
 **UX principles:**
 - Cards are interactive — tap to drill into the detail screen
-- Animated number counters on load
-- Pull-to-refresh animation
-- Positive/negative states have distinct visual treatments (gold for profits, red for losses)
+- Animated number counters and gauge/chart sweep-in on load
+- Positive/negative states use the single accent color (green) for positive, red for negative — no third color
+
+The previous 2×2 metric grid + single sponsored-tournament card + last-session card layout was
+replaced wholesale by the above during the redesign.
 
 ---
 
-### 2. Results Tracker
+### 2. Results Tracker (Sessions)
 
-**2a. Tournament Tracker**
+**2a. Tournament session**
 
-Fields per session entry:
-- Tournament name / venue
-- Date
-- Buy-in amount
-- Number of re-entries (default: 0)
-- Result: Cashed / Did not cash
-- Cash-out amount (if cashed)
-- Duration (hours)
-- Notes (optional, free text)
-- Position (optional)
-- Total players (optional, for ITM% calculation)
+Fields: festival, tournament (buy-in inferred from the tournament catalog when an existing one is
+picked, editable-with-presets otherwise), re-entries, optional backing (multi-backer % split, with
+or without buy-in contribution), result (Éliminé / ITM — see the "ITM, not Cashé" copy note below),
+cash-out + position (when ITM), duration.
 
-**2b. Cash Game Tracker**
+**2b. Cash session**
 
-Fields per session entry:
-- Venue / location
-- Date
-- Game type: NLH / PLO / Other
-- Stakes (e.g. 2/5, 5/10)
-- Buy-in amount
-- Cash-out amount
-- Duration (hours)
-- Notes (optional)
+Fields: venue (searchable/creatable, shares the Festival picker's field component), game type
+(NLH/PLO), stakes (1/2, 2/5, 5/10, 10/20 chips), buy-in, optional backing, cash-out, duration.
 
-**Computed statistics (auto-generated):**
-- Net profit (all time + per period)
-- ROI % = ((Cash-out - Total invested) / Total invested) × 100
-- Hourly rate = Net profit / Total hours
-- Total sessions played
-- ITM % (in-the-money rate) for tournaments
-- Biggest win / worst loss
-- Average buy-in
-- Performance by venue
-- Performance by game type (cash vs tournament)
-- Monthly P&L chart
+**2c. Staking** — backing *another* player (a separate `Stake` record, not a `Session`): player
+(searchable/creatable), optional festival/tournament, mise (buy-in share), percentage, status
+(En attente / Éliminé / ITM) with their cash-out and computed return once settled.
 
-**Session list view:**
-- Chronological list with filters (type, venue, date range)
-- Each row: date, venue, game type, result (+ or -), profit/loss amount
-- Color-coded: green for positive, red for negative
+All three are entered through a single adaptive **Add-session sheet**
+(`src/components/tracker/AddSessionSheet.tsx`) with a Tournoi/Cash/Staking segmented control —
+not a multi-step wizard. Live "Résultat net" recomputes on every field change.
+
+**Computed statistics (auto-generated, `src/lib/stats.ts` + `useAppStore`):**
+- Net profit — all-time and windowed (e.g. 90 days, used by the Dashboard gauges and the Sessions
+  summary strip)
+- ROI %, hourly rate, ITM % (tournaments), biggest win/loss
+- Weekly volume buckets (Dashboard "Volume" card)
+- Bankroll history (running total, used by the profit-curve charts)
+- All money math is backing-aware (`sessionNetValues` nets out backer shares before computing your profit/invested)
+
+**Session list view** (`app/(tabs)/tracker.tsx`): grouped by month, single-select filter chips
+(Tout/Tournoi/Cash/Staking), each row shows a type icon tile, `"<name> · <type>"` title,
+`"<venue> · <detail>"` subtitle, and the amount (accent if ≥0, red if <0). Detail modals use "ITM"
+rather than "Cashé" for the result label.
 
 ---
 
-### 3. Tournament Finder (Deferred — Spec for future)
+### 3. Tournament Finder
 
-- World tournament database (mocked JSON with ~50 tournaments)
-- Filters: country, city, date range, buy-in range
-- Algorithmic score (0–100): weighted avg of structure quality, rake %, venue prestige
-- Detail page: tournament info, schedule, venue map, booking CTA (Travel affiliation)
-- Sponsored slots displayed differently (labeled "Sponsored")
+Search + filterable list of the tournament catalog (`tournaments` in the store, currently mocked
+in `src/data/mock.ts`). Filters: buy-in range, country, organizer, festival (single-select chip
+groups in a bottom sheet). A tournament can optionally carry `startDate`, `guaranteed` (prize pool),
+and `featured` — when `featured` is set and no filter/search is active, it's pinned as a "Coup de
+cœur" card above the rest of the list. There is no scoring/ranking concept (an early spec draft
+proposed one; it was never implemented and the "no score" note in the 2026-07-01 redesign handoff
+just confirms that). Tapping a tournament opens its detail (buy-in, player count, your session
+history against it) with an "Ajouter une session" CTA that opens the Add-session sheet pre-seeded
+with that tournament.
 
 ---
 
-### 4. Ruin Risk Calculator (Deferred)
+### 4. Profile
+
+Identity card (avatar + name), stats strip (ROI, total sessions, total volume), and a Réglages list:
+Devise (display-only), Langue (tap to toggle fr/en — updates both the store and `i18next`),
+Notifications (toggle, persisted), Thème (static "Clair" — no dark mode exists), and a relocated
+"reset persisted data" debug action.
+
+---
+
+### 5. Ruin Risk Calculator (Deferred)
 
 Inputs:
 - Total bankroll (€/$)
@@ -129,7 +137,7 @@ Outputs:
 
 ---
 
-### 5. Degen Hub — 3 Mini-Games (Deferred)
+### 6. Degen Hub — 3 Mini-Games (Deferred)
 
 **5a. Cards Roulette**
 - Input: list of player names at the table
@@ -149,7 +157,7 @@ Outputs:
 
 ---
 
-### 6. Virality Engine (Deferred)
+### 7. Virality Engine (Deferred)
 
 **6a. Flex Cards**
 - After logging a session, offer "Share this result"
@@ -170,14 +178,16 @@ Outputs:
 | Tab | Icon | Screen |
 |---|---|---|
 | Home | Dashboard icon | Dashboard / bento overview |
-| Track | Chart icon | Session list + add session |
+| Track | Chart icon | Session list |
 | Finder | Map/search icon | Tournament finder |
-| Degen | Cards/dice icon | Degen Hub |
-| Profile | Person icon | Profile + settings + bankroll |
+| Profile | Person icon | Profile + settings |
+
+Plus a white circular **FAB** rendered as the trailing item inside the same floating pill (not a
+separate tab/route) — opens the Add-session sheet from any tab.
 
 **Navigation rules:**
-- Tab bar always visible (no hiding on scroll for key screens)
-- Add session: modal sheet (slides up) from any screen
+- Tab bar (and its FAB) always visible (no hiding on scroll for key screens)
+- Add session: bottom sheet (slides up) from any screen, via the tab bar's FAB
 - Tournament detail: push navigation
 - Flex Card generation: full-screen modal
 
@@ -185,108 +195,86 @@ Outputs:
 
 ## Data Models (V1 JSON)
 
-### User Profile
+Source of truth: `apps/mobile/src/types/index.ts`. This section mirrors it (condensed) rather than
+the earlier, no-longer-accurate draft this doc originally shipped with (no `bankroll` field on
+`User`, no tournament `score`/`casino`/`city` fields — those were never implemented).
 
 ```typescript
 interface User {
   id: string;
   name: string;
   avatar?: string;
-  currency: 'EUR' | 'USD' | 'GBP';
-  bankroll: number;
   createdAt: string; // ISO date
-  settings: UserSettings;
+  settings: { language: 'fr' | 'en'; currency: 'EUR' | 'USD' | 'GBP'; notifications: boolean };
 }
 
-interface UserSettings {
-  language: 'fr' | 'en';
-  theme: 'dark'; // dark only for now
-  notifications: boolean;
-}
-```
+interface Player { id: string; name: string; notes?: string; }
+interface Country { id: string; name: string; code: string; }
+interface Organizer { id: string; name: string; }
+interface Festival { id: string; name: string; location?: string; countryId?: string; organizerId?: string; }
 
-### Session (Tournament or Cash Game)
-
-```typescript
-type SessionType = 'tournament' | 'cash';
-
-interface BaseSession {
-  id: string;
-  type: SessionType;
-  date: string; // ISO date
-  venue: string;
-  buyIn: number;
-  cashOut: number;
-  durationHours: number;
-  notes?: string;
-  createdAt: string;
-}
-
-interface TournamentSession extends BaseSession {
-  type: 'tournament';
-  tournamentName?: string;
-  reEntries: number;
-  totalInvested: number; // buyIn + (buyIn * reEntries)
-  cashed: boolean;
-  position?: number;
-  totalPlayers?: number;
-}
-
-interface CashGameSession extends BaseSession {
-  type: 'cash';
-  gameType: 'NLH' | 'PLO' | 'other';
-  stakes: string; // e.g. "2/5", "5/10"
-}
-
-type Session = TournamentSession | CashGameSession;
-```
-
-### Tournament (Finder — mocked)
-
-```typescript
 interface Tournament {
   id: string;
+  festivalId: string;
   name: string;
-  casino: string;
-  city: string;
-  country: string;
-  countryCode: string; // ISO 3166-1 alpha-2
-  startDate: string;
-  endDate: string;
   buyIn: number;
-  currency: string;
-  guaranteed?: number; // guaranteed prize pool
-  score: number; // 0-100 algorithmic score
-  scoreBreakdown: {
-    structure: number; // 0-100
-    rake: number; // 0-100 (inverted: lower rake = higher score)
-    venue: number; // 0-100
-  };
-  tags: string[]; // e.g. ['deep stack', 'high roller', 'festival']
-  sponsored: boolean;
-  bookingUrl?: string;
-  imageUrl?: string;
+  totalPlayers?: number;
+  startDate?: string;   // ISO date, when known — powers Dashboard "Prochains tournois"
+  guaranteed?: number;  // guaranteed prize pool
+  featured?: boolean;   // "Coup de cœur" pin (Dashboard + Finder)
+}
+
+// Backing: another player's cut of YOUR session (multi-backer split supported)
+interface Backing { playerId: string; profitShare: number; buyInShare: number; }
+
+interface BaseSession {
+  id: string; type: 'tournament' | 'cash'; date: string; venue: string;
+  buyIn: number; cashOut: number; durationHours: number;
+  backings?: Backing[]; notes?: string; createdAt: string;
+}
+interface TournamentSession extends BaseSession {
+  type: 'tournament'; tournamentId: string; reEntries: number; cashed: boolean; position?: number;
+}
+interface CashSession extends BaseSession {
+  type: 'cash'; gameType: 'NLH' | 'PLO' | 'other'; stakes: string; // e.g. "2/5"
+}
+type Session = TournamentSession | CashSession;
+
+// Staking: YOU backing another player — a separate top-level record, not a Session
+interface Stake {
+  id: string; date: string; playerId: string; festivalId?: string; tournamentId?: string;
+  buyIn: number; percentage: number; settled: boolean; cashed?: boolean; theirCashout?: number;
+  notes?: string; createdAt: string;
+}
+
+interface BankrollSnapshot { date: string; amount: number; }
+
+interface ComputedStats {
+  totalProfit: number; totalInvested: number; roi: number; hourlyRate: number;
+  totalSessions: number; totalHours: number; biggestWin: number; biggestLoss: number;
+  itmRate: number; thisMonthProfit: number; thisMonthSessions: number;
 }
 ```
 
-### Bankroll Snapshot (for chart)
+`src/lib/stats.ts` also exposes `computeWindowedStats(sessions, stakes, windowDays)` (same shape as
+`ComputedStats`, restricted to a rolling window — e.g. 90 days for the Dashboard gauges) and
+`computeWeeklyVolume(sessions, monthKey)` for the Dashboard's weekly volume bars. Neither is stored
+in Zustand state; both are pure functions memoized at the call site.
 
-```typescript
-interface BankrollSnapshot {
-  date: string; // ISO date
-  amount: number;
-}
-```
-
-### App Store (root JSON structure)
+### App Store (Zustand + MMKV — `src/store/useAppStore.ts`)
 
 ```typescript
 interface AppStore {
   user: User;
   sessions: Session[];
-  bankrollHistory: BankrollSnapshot[];
-  tournaments: Tournament[]; // mocked data
-  lastUpdated: string;
+  stakes: Stake[];
+  bankrollHistory: BankrollSnapshot[]; // derived, not persisted
+  stats: ComputedStats;                 // derived, not persisted
+  festivals: Festival[];
+  tournaments: Tournament[];
+  players: Player[];
+  countries: Country[];
+  organizers: Organizer[];
 }
 ```
 

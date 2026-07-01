@@ -1,17 +1,21 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { BackgroundCanvas } from '../../src/components/ui/BackgroundCanvas';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { StatBadge } from '../../src/components/ui/StatBadge';
+import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { SessionRow } from '../../src/components/tracker/SessionRow';
 import { StakeRow } from '../../src/components/tracker/StakeRow';
 import { SessionDetailModal } from '../../src/components/tracker/SessionDetailModal';
 import { StakeDetailModal } from '../../src/components/tracker/StakeDetailModal';
+import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
+import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { colors, fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
+import { computeWindowedStats } from '../../src/lib/stats';
+import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
+import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Session, Stake } from '../../src/types';
 
 type Filter = 'all' | 'tournament' | 'cash' | 'stake';
@@ -33,11 +37,35 @@ function formatCurrency(val: number): string {
 }
 
 export default function TrackerScreen() {
-  const { sessions, stakes, stats, festivals, tournaments, players } = useAppStore();
+  const { colors } = useTheme();
+  const {
+    sessions, stakes, stats, festivals, tournaments, players,
+    updateSession, addFestival, addTournament, addPlayer,
+  } = useAppStore();
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedStake, setSelectedStake] = useState<Stake | null>(null);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [animKey, setAnimKey] = useState(0);
+
+  const windowed90d = useMemo(() => computeWindowedStats(sessions, stakes, 90), [sessions, stakes]);
+
+  const handleEditSave = useCallback(
+    (record: SaveRecord) => {
+      for (const p of record.newPlayers ?? []) {
+        if (!players.find((existing) => existing.id === p.id)) addPlayer(p);
+      }
+      if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
+        addFestival(record.newFestival);
+      }
+      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
+        addTournament(record.newTournament);
+      }
+      if (record.session) updateSession(record.session);
+      setEditingSession(null);
+    },
+    [players, festivals, tournaments, addPlayer, addFestival, addTournament, updateSession]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -72,7 +100,7 @@ export default function TrackerScreen() {
 
   const months = Object.keys(grouped).sort().reverse();
 
-  const isMonthPositive = stats.thisMonthProfit >= 0;
+  const isWindowPositive = windowed90d.totalProfit >= 0;
 
   const FILTER_LABELS: Record<Filter, string> = {
     all: 'Tout',
@@ -83,7 +111,6 @@ export default function TrackerScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <BackgroundCanvas />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -96,29 +123,29 @@ export default function TrackerScreen() {
             entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}
             style={styles.header}
           >
-            <Text style={styles.title}>Sessions</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Sessions</Text>
           </Animated.View>
 
-          {/* Stats bar */}
+          {/* Summary strip */}
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)} style={styles.kpiCard}>
-            <GlassCard variant="dark" padding={20}>
+            <GlassCard padding={20}>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.totalSessions}</Text>
-                  <Text style={styles.statLabel}>Sessions</Text>
+                  <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.totalSessions}</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Sessions</Text>
                 </View>
-                <View style={styles.statDivider} />
+                <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.itmRate.toFixed(0)}%</Text>
-                  <Text style={styles.statLabel}>ITM</Text>
+                  <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.itmRate.toFixed(0)}%</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>ITM</Text>
                 </View>
-                <View style={styles.statDivider} />
+                <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                 <View style={styles.statItem}>
                   <StatBadge
-                    value={formatCurrency(stats.thisMonthProfit)}
-                    trend={isMonthPositive ? 'up' : 'down'}
+                    value={formatCurrency(windowed90d.totalProfit)}
+                    trend={isWindowPositive ? 'up' : 'down'}
                   />
-                  <Text style={styles.statLabel}>Ce mois</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>90 jours</Text>
                 </View>
               </View>
             </GlassCard>
@@ -129,18 +156,25 @@ export default function TrackerScreen() {
             entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}
             style={[styles.filters, styles.filtersRow]}
           >
-            {(['all', 'tournament', 'cash', 'stake'] as Filter[]).map((f) => (
-              <TouchableOpacity
-                key={f}
-                style={[styles.filterPill, filter === f && styles.filterPillActive]}
-                onPress={() => setFilter(f)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                  {FILTER_LABELS[f]}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {(['all', 'tournament', 'cash', 'stake'] as Filter[]).map((f) => {
+              const active = filter === f;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[
+                    styles.filterPill,
+                    { borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg },
+                    active && { borderColor: colors.accent, backgroundColor: colors.accentTint },
+                  ]}
+                  onPress={() => setFilter(f)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterText, { color: active ? colors.accent : colors.textSecondary }, active && { fontFamily: fontFamily.semibold }]}>
+                    {FILTER_LABELS[f]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </Animated.View>
 
           {/* List grouped by month */}
@@ -149,8 +183,8 @@ export default function TrackerScreen() {
               entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}
               style={styles.empty}
             >
-              <Text style={styles.emptyText}>Aucune entrée</Text>
-              <Text style={styles.emptySubText}>Ajoutez votre première session !</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucune entrée</Text>
+              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Ajoutez votre première session !</Text>
             </Animated.View>
           ) : (
             months.map((month, monthIdx) => (
@@ -159,7 +193,7 @@ export default function TrackerScreen() {
                 entering={FadeInDown.delay(180 + monthIdx * 60).springify().damping(18).stiffness(140)}
                 style={styles.monthGroup}
               >
-                <Text style={styles.monthLabel}>{formatMonth(month)}</Text>
+                <SectionLabel style={styles.monthLabel}>{formatMonth(month)}</SectionLabel>
                 <View style={styles.monthSessions}>
                   {grouped[month].map((item) => {
                     if (item.kind === 'session') {
@@ -220,6 +254,25 @@ export default function TrackerScreen() {
           : undefined}
         players={players}
         onClose={() => setSelectedSession(null)}
+        onEdit={() => {
+          const session = selectedSession;
+          // Close the detail modal first, then open the edit sheet once its
+          // dismiss animation has finished — opening both at once makes the
+          // native Modal (detail) and the custom BottomSheet (edit) fight
+          // each other instead of a clean close-then-open transition.
+          setSelectedSession(null);
+          setTimeout(() => setEditingSession(session), 350);
+        }}
+      />
+
+      <AddSessionSheet
+        visible={editingSession !== null}
+        initialSession={editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={handleEditSave}
+        festivals={festivals}
+        tournaments={tournaments}
+        players={players}
       />
 
       <StakeDetailModal
@@ -244,7 +297,6 @@ export default function TrackerScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.bgBase,
   },
   scroll: {
     flex: 1,
@@ -268,13 +320,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   title: {
-    color: colors.textOnLight,
-    fontSize: fontSize['2xl'],
-    fontFamily: fontFamily.extrabold,
-    letterSpacing: -0.5,
+    fontSize: fontSize.display,
+    fontFamily: fontFamily.display,
+    letterSpacing: -1,
   },
 
-  // Stats (inside GlassCard — keep white palette)
+  // Stats
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -287,22 +338,19 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   statValue: {
-    color: colors.textPrimary,
     fontSize: fontSize.lg,
     fontFamily: fontFamily.bold,
   },
   statLabel: {
-    color: colors.textTertiary,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 
-  // Filters (on white background — use dark palette)
+  // Filters
   filters: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -312,33 +360,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.10)',
-    backgroundColor: 'rgba(0,0,0,0.04)',
-  },
-  filterPillActive: {
-    borderColor: 'rgba(0,0,0,0.22)',
-    backgroundColor: 'rgba(0,0,0,0.09)',
   },
   filterText: {
-    color: colors.textOnLightSecondary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.medium,
   },
-  filterTextActive: {
-    color: colors.textOnLight,
-    fontFamily: fontFamily.semibold,
-  },
 
-  // Month groups (on white background)
+  // Month groups
   monthGroup: {
     gap: spacing.sm,
   },
   monthLabel: {
-    color: colors.textOnLightTertiary,
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-    textTransform: 'capitalize',
-    letterSpacing: 0.3,
     marginTop: spacing.sm,
     marginBottom: 2,
   },
@@ -353,12 +385,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: colors.textOnLightSecondary,
     fontSize: fontSize.md,
     fontFamily: fontFamily.semibold,
   },
   emptySubText: {
-    color: colors.textOnLightTertiary,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
   },

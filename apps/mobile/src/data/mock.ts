@@ -8,6 +8,7 @@ export const mockUser: User = {
     language: 'fr',
     currency: 'EUR',
     notifications: true,
+    theme: 'light',
   },
 };
 
@@ -70,7 +71,7 @@ export const mockTournaments: Tournament[] = [
   { id: 't3',  festivalId: 'f2',  name: 'Big Stack',           buyIn: 300,  totalPlayers: 98   },
   { id: 't4',  festivalId: 'f2',  name: 'Sunday Deepstack',    buyIn: 300,  totalPlayers: 112  },
   // Casino Barrière Paris
-  { id: 't5',  festivalId: 'f3',  name: 'Warm-Up',             buyIn: 200,  totalPlayers: 212  },
+  { id: 't5',  festivalId: 'f3',  name: 'Warm-Up',             buyIn: 200,  totalPlayers: 212, startDate: '2026-07-20' },
   { id: 't6',  festivalId: 'f3',  name: 'Saturday Festival',   buyIn: 500,  totalPlayers: 175  },
   { id: 't7',  festivalId: 'f3',  name: 'Marathon',            buyIn: 300,  totalPlayers: 320  },
   // SHRPO Cannes
@@ -80,7 +81,7 @@ export const mockTournaments: Tournament[] = [
   { id: 't10', festivalId: 'f6',  name: 'Main',                buyIn: 500,  totalPlayers: 430  },
   { id: 't21', festivalId: 'f6',  name: 'High Roller',         buyIn: 2200, totalPlayers: 95   },
   // Aviation Club
-  { id: 't22', festivalId: 'f8',  name: 'Classic',             buyIn: 400,  totalPlayers: 140  },
+  { id: 't22', festivalId: 'f8',  name: 'Classic',             buyIn: 400,  totalPlayers: 140, startDate: '2026-07-08' },
   // Casino de Lyon
   { id: 't12', festivalId: 'f9',  name: 'Main Event',          buyIn: 1500, totalPlayers: 620  },
   // Monte-Carlo
@@ -92,7 +93,7 @@ export const mockTournaments: Tournament[] = [
   { id: 't14', festivalId: 'f4',  name: 'Warm-Up',             buyIn: 1100, totalPlayers: 940  },
   // WPT Spain
   { id: 't24', festivalId: 'f10', name: 'Main Event',          buyIn: 1650, totalPlayers: 510  },
-  { id: 't25', festivalId: 'f10', name: 'Bounty',              buyIn: 550,  totalPlayers: 390  },
+  { id: 't25', festivalId: 'f10', name: 'Bounty',              buyIn: 550,  totalPlayers: 390, startDate: '2026-07-12', guaranteed: 15000, featured: true },
   // EPT Prague
   { id: 't15', festivalId: 'f11', name: 'Main Event',          buyIn: 5300, totalPlayers: 2150 },
   { id: 't16', festivalId: 'f11', name: 'High Roller',         buyIn: 10000,totalPlayers: 195  },

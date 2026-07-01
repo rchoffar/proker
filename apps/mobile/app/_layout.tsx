@@ -3,26 +3,41 @@ import '../src/i18n';
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts, Jost_300Light } from '@expo-google-fonts/jost';
 import {
-  useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-} from '@expo-google-fonts/inter';
+  Geist_400Regular,
+  Geist_500Medium,
+  Geist_600SemiBold,
+  Geist_700Bold,
+  Geist_800ExtraBold,
+} from '@expo-google-fonts/geist';
+import { ThemeProvider, useTheme } from '../src/design-system/ThemeProvider';
 
 SplashScreen.preventAutoHideAsync();
 
+function RootNavigator() {
+  const { scheme } = useTheme();
+  return (
+    <>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
+    Jost_300Light,
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    Geist_700Bold,
+    Geist_800ExtraBold,
   });
 
   useEffect(() => {
@@ -34,9 +49,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-        </Stack>
+        <ThemeProvider>
+          <RootNavigator />
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
