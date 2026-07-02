@@ -85,6 +85,7 @@ interface Props {
   players: Player[];
   initialSession?: Session | null;
   initialTournament?: Tournament | null;
+  initialFestival?: Festival | null;
 }
 
 // ─── Shared sub-components ───────────────────────────────────────────────────
@@ -836,6 +837,7 @@ export function AddSessionSheet({
   players,
   initialSession,
   initialTournament,
+  initialFestival,
 }: Props) {
   const { colors } = useTheme();
   const [draft, setDraft] = useState<Draft>(INITIAL_DRAFT);
@@ -856,12 +858,20 @@ export function AddSessionSheet({
         festival: festivals.find((f) => f.id === initialTournament.festivalId) ?? null,
         buyIn: String(initialTournament.buyIn),
       });
+    } else if (initialFestival) {
+      setDraft({
+        ...INITIAL_DRAFT,
+        sessionType: 'tournament',
+        festival: initialFestival,
+        tournament: null,
+        buyIn: '',
+      });
     } else {
       setDraft(INITIAL_DRAFT);
     }
     // Only re-seed when the modal opens or the target changes, not on every draft edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, initialSession, initialTournament]);
+  }, [visible, initialSession, initialTournament, initialFestival]);
 
   const update = useCallback((patch: Partial<Draft>) => {
     setDraft((d) => ({ ...d, ...patch }));

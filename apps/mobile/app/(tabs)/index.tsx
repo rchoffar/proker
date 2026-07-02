@@ -3,31 +3,26 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { TrendingUp, ChevronRight, Heart } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
-import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { AnimatedNumber } from '../../src/components/ui/AnimatedNumber';
-import { StatBadge } from '../../src/components/ui/StatBadge';
-import { MetricGauge } from '../../src/components/ui/MetricGauge';
-import { AreaChart } from '../../src/components/charts/AreaChart';
-import { BarChart } from '../../src/components/charts/BarChart';
+import { FestivalCard } from '../../src/components/finder/FestivalCard';
 import { CoupDeCoeurCard } from '../../src/components/tournaments/CoupDeCoeurCard';
+import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
+import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
+import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { computeWindowedStats, computeWeeklyVolume } from '../../src/lib/stats';
-import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
+import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
+import { isFestivalOngoing } from '../../src/lib/format';
+import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-
-function formatCurrency(val: number, decimals = 0): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '';
-  return `${sign}${abs.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
-}
+import type { Festival } from '../../src/types';
 
 function initials(name: string): string {
   return name
@@ -38,55 +33,82 @@ function initials(name: string): string {
     .join('');
 }
 
-function formatDateParts(iso: string): { day: string; month: string } {
-  const date = new Date(iso);
-  return {
-    day: date.toLocaleDateString('fr-FR', { day: '2-digit' }),
-    month: date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').toUpperCase(),
-  };
-}
-
 export default function DashboardScreen() {
-  const { t } = useTranslation();
   const { colors } = useTheme();
-  const { user, stats, bankrollHistory, sessions, stakes, tournaments, festivals } = useAppStore();
-  const [animKey, setAnimKey] = useState(0);
+  const router = useRouter();
+  const {
+    user, stats, festivals, tournaments, organizers, players,
+    likedFestivalIds, toggleLikedFestival,
+    addSession, addStake, addFestival, addTournament, addPlayer,
+  } = useAppStore();
+  const animKey = useFocusAnimKey();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSessionFestival, setAddSessionFestival] = useState<Festival | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      setAnimKey((k) => k + 1);
-    }, [])
+  const organizerById = useMemo(() => {
+    const map: Record<string, (typeof organizers)[number]> = {};
+    for (const o of organizers) map[o.id] = o;
+    return map;
+  }, [organizers]);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const likedFestivals = useMemo(
+    () => festivals.filter((f) => likedFestivalIds.includes(f.id)),
+    [festivals, likedFestivalIds]
   );
 
-  const isMonthPositive = stats.thisMonthProfit >= 0;
-  const isProfitPositive = stats.totalProfit >= 0;
-
-  const windowed90d = useMemo(() => computeWindowedStats(sessions, stakes, 90), [sessions, stakes]);
-
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const weeklyVolume = useMemo(() => computeWeeklyVolume(sessions, currentMonthKey), [sessions, currentMonthKey]);
-  const monthHours = weeklyVolume.reduce((sum, w) => sum + w.hours, 0);
-
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const last30d = useMemo(
-    () => bankrollHistory.filter((h) => h.date >= thirtyDaysAgo),
-    [bankrollHistory, thirtyDaysAgo]
+  const ongoingFestival = useMemo(
+    () => likedFestivals.find((f) => isFestivalOngoing(f.startDate, f.endDate, todayIso)) ?? null,
+    [likedFestivals, todayIso]
   );
-  const evolutionDelta = last30d.length > 0 ? last30d[last30d.length - 1].amount - last30d[0].amount : 0;
 
-  const upcoming = useMemo(
-    () => tournaments
-      .filter((t2) => !!t2.startDate)
-      .sort((a, b) => (a.startDate! < b.startDate! ? -1 : 1))
-      .slice(0, 3),
-    [tournaments]
+  const mostRecentlyLiked = useMemo(() => {
+    if (likedFestivalIds.length === 0) return null;
+    const lastId = likedFestivalIds[likedFestivalIds.length - 1];
+    return festivals.find((f) => f.id === lastId) ?? null;
+  }, [likedFestivalIds, festivals]);
+
+  const currentFestival = ongoingFestival ?? mostRecentlyLiked;
+
+  const featured = useMemo(() => festivals.find((f) => f.featured) ?? null, [festivals]);
+  const showFeatured = featured !== null && featured.id !== currentFestival?.id;
+
+  const upcomingLiked = useMemo(
+    () =>
+      likedFestivals
+        .filter((f) => f.id !== currentFestival?.id && f.startDate && f.startDate >= todayIso)
+        .sort((a, b) => (a.startDate! < b.startDate! ? -1 : 1)),
+    [likedFestivals, currentFestival, todayIso]
   );
-  const featured = upcoming.find((t2) => t2.featured) ?? null;
-  const plainUpcoming = upcoming.filter((t2) => t2.id !== featured?.id);
 
-  const roiSweep = Math.min(Math.abs(windowed90d.roi), 100);
-  const roiColor = windowed90d.roi >= 0 ? colors.accent : colors.loss;
+  const discoverFestivals = useMemo(
+    () =>
+      festivals
+        .filter((f) => !likedFestivalIds.includes(f.id) && f.id !== featured?.id && f.startDate && f.startDate >= todayIso)
+        .sort((a, b) => (a.startDate! < b.startDate! ? -1 : 1))
+        .slice(0, 5),
+    [festivals, likedFestivalIds, featured, todayIso]
+  );
+
+  const handleSave = useCallback(
+    (record: SaveRecord) => {
+      for (const p of record.newPlayers ?? []) {
+        if (!players.find((existing) => existing.id === p.id)) addPlayer(p);
+      }
+      if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
+        addFestival(record.newFestival);
+      }
+      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
+        addTournament(record.newTournament);
+      }
+      if (record.session) addSession(record.session);
+      if (record.stake) addStake(record.stake);
+      setShowAddModal(false);
+      setAddSessionFestival(null);
+    },
+    [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -105,140 +127,125 @@ export default function DashboardScreen() {
             </View>
           </Animated.View>
 
-          {/* Profit hero */}
+          {/* Festival hero */}
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
-            <GlassCard variant="dark" style={styles.heroCard} padding={24}>
-              <GlowBlob />
-              <View style={styles.heroHeader}>
-                <SectionLabel tone="dark">Profit total</SectionLabel>
-                <Text style={[styles.heroCurrency, { color: colors.onDarkTertiary }]}>EUR</Text>
-              </View>
-              <AnimatedNumber
-                value={stats.totalProfit}
-                formatFn={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(Math.abs(v))}`}
-                style={[styles.heroValue, { color: colors.accentBright }]}
+            {currentFestival ? (
+              <FestivalHeroCard
+                festival={currentFestival}
+                organizer={currentFestival.organizerId ? organizerById[currentFestival.organizerId] : undefined}
+                isOngoing={currentFestival.id === ongoingFestival?.id}
+                onPress={() => router.push(`/festival/${currentFestival.id}`)}
+                onAddResult={() => {
+                  setAddSessionFestival(currentFestival);
+                  setShowAddModal(true);
+                }}
+                onToggleLike={() => toggleLikedFestival(currentFestival.id)}
               />
-              <View style={styles.heroFooter}>
-                <StatBadge
-                  tone="dark"
-                  value={`${isMonthPositive ? '↗ +' : '↘ '}${formatCurrency(Math.abs(stats.thisMonthProfit))}`}
-                  trend={isMonthPositive ? 'up' : 'down'}
-                />
-                <Text style={[styles.heroFooterText, { color: colors.onDarkTertiary }]}>{t('dashboard.profit_month')}</Text>
-              </View>
-              {bankrollHistory.length > 1 && (
-                <View style={styles.heroSparkline}>
-                  <AreaChart data={bankrollHistory.slice(-14)} height={56} tone="dark" color={isProfitPositive ? undefined : colors.loss} />
-                </View>
-              )}
-            </GlassCard>
+            ) : (
+              <TouchableOpacity onPress={() => router.push('/festivals')} activeOpacity={0.85}>
+                <GlassCard variant="dark" padding={24} style={styles.emptyHero}>
+                  <Heart size={22} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                  <Text style={[styles.emptyHeroTitle, { color: colors.onDarkPrimary }]}>Aimez un festival</Text>
+                  <Text style={[styles.emptyHeroSubtitle, { color: colors.onDarkTertiary }]}>
+                    Retrouvez ici vos festivals préférés pour suivre leurs tournois
+                  </Text>
+                </GlassCard>
+              </TouchableOpacity>
+            )}
           </Animated.View>
 
-          {/* Gauges row */}
-          <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)} style={styles.row}>
-            <GlassCard style={styles.halfCard} padding={18}>
-              <View style={styles.gaugeCardInner}>
-                <SectionLabel>ROI · 90 j</SectionLabel>
-                <View style={styles.gaugeWrap}>
-                  <MetricGauge
-                    value={roiSweep}
-                    centerLabel={`${windowed90d.roi >= 0 ? '+' : ''}${windowed90d.roi.toFixed(0)}%`}
-                    color={roiColor}
-                  />
-                </View>
-              </View>
-            </GlassCard>
-            <GlassCard style={styles.halfCard} padding={18}>
-              <View style={styles.gaugeCardInner}>
-                <SectionLabel>ITM · 90 j</SectionLabel>
-                <View style={styles.gaugeWrap}>
-                  <MetricGauge
-                    value={windowed90d.itmRate}
-                    centerLabel={`${windowed90d.itmRate.toFixed(0)}%`}
-                    color={colors.neutralChart}
-                  />
-                </View>
-              </View>
-            </GlassCard>
-          </Animated.View>
-
-          {/* Volume */}
-          <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}>
-            <GlassCard padding={20}>
-              <View style={styles.cardHeaderRow}>
-                <View>
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Volume · {now.toLocaleDateString('fr-FR', { month: 'long' })}</Text>
-                  <SectionLabel style={styles.cardCaption}>Réparti par semaine</SectionLabel>
-                </View>
-                <Text style={[styles.volumeValue, { color: colors.textPrimary }]}>{monthHours.toFixed(0)}h</Text>
-              </View>
-              <View style={styles.chartSpacer}>
-                <BarChart data={weeklyVolume} height={90} />
-              </View>
-            </GlassCard>
-          </Animated.View>
-
-          {/* Évolution */}
-          <Animated.View entering={FadeInDown.delay(240).springify().damping(18).stiffness(140)}>
-            <GlassCard padding={20}>
-              <View style={styles.cardHeaderRow}>
-                <View>
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Évolution</Text>
-                  <SectionLabel style={styles.cardCaption}>30 derniers jours</SectionLabel>
-                </View>
-                <Text style={[styles.evolutionDelta, { color: evolutionDelta >= 0 ? colors.accent : colors.loss }]}>
-                  {evolutionDelta >= 0 ? '+' : ''}{formatCurrency(evolutionDelta)}
-                </Text>
-              </View>
-              {last30d.length > 1 ? (
-                <AreaChart data={last30d} height={110} tone="light" color={evolutionDelta >= 0 ? undefined : colors.loss} />
-              ) : (
-                <Text style={[styles.emptyChartText, { color: colors.textTertiary }]}>Pas encore assez de données</Text>
-              )}
-            </GlassCard>
-          </Animated.View>
-
-          {/* Prochains tournois */}
-          {(featured || plainUpcoming.length > 0) && (
-            <Animated.View entering={FadeInDown.delay(300).springify().damping(18).stiffness(140)}>
-              <GlassCard padding={20}>
-                <View style={styles.tournoisStack}>
-                  <SectionLabel>Prochains tournois</SectionLabel>
-                  {featured && (
-                    <CoupDeCoeurCard
-                      tournament={featured}
-                      festival={festivals.find((f) => f.id === featured.festivalId)}
-                      variant="mini"
-                    />
-                  )}
-                  {plainUpcoming.map((t2) => {
-                    const festival = festivals.find((f) => f.id === t2.festivalId);
-                    const { day, month } = formatDateParts(t2.startDate!);
-                    return (
-                      <View key={t2.id} style={styles.upcomingRow}>
-                        <View style={styles.upcomingDate}>
-                          <Text style={[styles.upcomingDay, { color: colors.textPrimary }]}>{day}</Text>
-                          <Text style={[styles.upcomingMonth, { color: colors.textTertiary }]}>{month}</Text>
-                        </View>
-                        <View style={[styles.upcomingDivider, { backgroundColor: colors.hairline }]} />
-                        <View style={styles.upcomingInfo}>
-                          <Text style={[styles.upcomingName, { color: colors.textPrimary }]} numberOfLines={1}>{t2.name}</Text>
-                          <Text style={[styles.upcomingVenue, { color: colors.textTertiary }]} numberOfLines={1}>{festival?.name ?? ''}</Text>
-                        </View>
-                        <View style={[styles.buyInChip, { backgroundColor: colors.neutralTileBg }]}>
-                          <Text style={[styles.buyInChipText, { color: colors.textSecondary }]}>{formatCurrency(t2.buyIn)}</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </GlassCard>
+          {/* Coup de cœur */}
+          {showFeatured && featured && (
+            <Animated.View entering={FadeInDown.delay(100).springify().damping(18).stiffness(140)} style={styles.section}>
+              <SectionLabel style={styles.sectionLabel}>Coup de cœur</SectionLabel>
+              <CoupDeCoeurCard
+                festival={featured}
+                organizer={featured.organizerId ? organizerById[featured.organizerId] : undefined}
+                tournamentCount={tournaments.filter((t) => t.festivalId === featured.id).length}
+                variant="mini"
+                onPress={() => router.push(`/festival/${featured.id}`)}
+              />
             </Animated.View>
           )}
+
+          {/* Vos festivals à venir */}
+          {upcomingLiked.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)} style={styles.section}>
+              <SectionLabel style={styles.sectionLabel}>Vos festivals à venir</SectionLabel>
+              <View style={styles.sectionList}>
+                {upcomingLiked.map((f) => (
+                  <FestivalCard
+                    key={f.id}
+                    festival={f}
+                    organizer={f.organizerId ? organizerById[f.organizerId] : undefined}
+                    tournamentCount={tournaments.filter((t) => t.festivalId === f.id).length}
+                    liked
+                    variant="mini"
+                    onPress={() => router.push(`/festival/${f.id}`)}
+                    onToggleLike={() => toggleLikedFestival(f.id)}
+                  />
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Découvrir */}
+          {discoverFestivals.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)} style={styles.section}>
+              <SectionLabel style={styles.sectionLabel}>Découvrir</SectionLabel>
+              <View style={styles.sectionList}>
+                {discoverFestivals.map((f) => (
+                  <FestivalCard
+                    key={f.id}
+                    festival={f}
+                    organizer={f.organizerId ? organizerById[f.organizerId] : undefined}
+                    tournamentCount={tournaments.filter((t) => t.festivalId === f.id).length}
+                    liked={false}
+                    variant="mini"
+                    onPress={() => router.push(`/festival/${f.id}`)}
+                    onToggleLike={() => toggleLikedFestival(f.id)}
+                  />
+                ))}
+              </View>
+              <TouchableOpacity onPress={() => router.push('/festivals')} activeOpacity={0.7} style={styles.seeAllLink}>
+                <Text style={[styles.seeAllText, { color: colors.accent }]}>Voir tous les festivals →</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* Mes sessions */}
+          <Animated.View entering={FadeInDown.delay(240).springify().damping(18).stiffness(140)}>
+            <TouchableOpacity onPress={() => router.push('/tracker')} activeOpacity={0.8}>
+              <GlassCard padding={16}>
+                <View style={styles.sessionsRow}>
+                  <View style={[styles.sessionsIcon, { backgroundColor: colors.accentTint }]}>
+                    <TrendingUp size={18} color={colors.accent} strokeWidth={1.8} />
+                  </View>
+                  <View style={styles.sessionsInfo}>
+                    <Text style={[styles.sessionsTitle, { color: colors.textPrimary }]}>Mes sessions</Text>
+                    <Text style={[styles.sessionsSubtitle, { color: colors.textTertiary }]}>
+                      {stats.totalSessions} session{stats.totalSessions > 1 ? 's' : ''} enregistrée{stats.totalSessions > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <ChevronRight size={18} color={colors.textTertiary} strokeWidth={1.8} />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </Animated.View>
 
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
+
+      <AddSessionSheet
+        visible={showAddModal}
+        onClose={() => { setShowAddModal(false); setAddSessionFestival(null); }}
+        onSave={handleSave}
+        festivals={festivals}
+        tournaments={tournaments}
+        players={players}
+        initialFestival={addSessionFestival}
+      />
     </SafeAreaView>
   );
 }
@@ -283,133 +290,61 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bold,
   },
 
-  heroCard: {
-    overflow: 'hidden',
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  heroCurrency: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.semibold,
-    letterSpacing: 1,
-  },
-  heroValue: {
-    fontSize: fontSize.display,
-    fontFamily: fontFamily.extrabold,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-  },
-  heroFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  heroFooterText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.regular,
-  },
-  heroSparkline: {
-    marginTop: spacing.md,
-  },
-
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  halfCard: {
-    flex: 1,
-  },
-  gaugeCardInner: {
-    alignItems: 'center',
-  },
-  gaugeWrap: {
-    marginTop: spacing.sm,
-  },
-
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  cardTitle: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.bold,
-  },
-  cardCaption: {
-    marginTop: 3,
-  },
-  volumeValue: {
-    fontSize: fontSize['2xl'],
-    fontFamily: fontFamily.extrabold,
-    letterSpacing: -0.5,
-  },
-  chartSpacer: {
-    marginTop: spacing.sm,
-  },
-
-  evolutionDelta: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
-  },
-  emptyChartText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.regular,
-    textAlign: 'center',
-    paddingVertical: spacing.xl,
-  },
-
-  tournoisStack: {
-    gap: spacing.md,
-  },
-  upcomingRow: {
+  sessionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-  upcomingDate: {
-    width: 34,
+  sessionsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  upcomingDay: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.bold,
-    fontVariant: ['tabular-nums'],
-  },
-  upcomingMonth: {
-    fontSize: 9,
-    fontFamily: fontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  upcomingDivider: {
-    width: 1,
-    height: 30,
-  },
-  upcomingInfo: {
+  sessionsInfo: {
     flex: 1,
     gap: 2,
   },
-  upcomingName: {
+  sessionsTitle: {
     fontSize: fontSize.base,
     fontFamily: fontFamily.semibold,
   },
-  upcomingVenue: {
+  sessionsSubtitle: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
   },
-  buyInChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
+
+  emptyHero: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  buyInChipText: {
-    fontSize: fontSize.xs,
+  emptyHeroTitle: {
+    fontSize: fontSize.md,
     fontFamily: fontFamily.bold,
+  },
+  emptyHeroSubtitle: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.regular,
+    textAlign: 'center',
+  },
+
+  section: {
+    gap: spacing.sm,
+  },
+  sectionLabel: {
+    marginLeft: 4,
+  },
+  sectionList: {
+    gap: spacing.sm,
+  },
+  seeAllLink: {
+    alignSelf: 'center',
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  seeAllText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.semibold,
   },
 });

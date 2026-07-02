@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform, type LayoutChangeEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Plus } from 'lucide-react-native';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -15,7 +14,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const DOT_SIZE = 4;
-const FAB_SIZE = 52;
 const HIGHLIGHT_TIMING = { duration: 180, easing: Easing.out(Easing.quad) };
 const DOT_SPRING = { damping: 20, stiffness: 280 };
 
@@ -54,11 +52,9 @@ function TabBarButton({
   );
 }
 
-interface FloatingTabBarProps extends BottomTabBarProps {
-  onAddPress: () => void;
-}
+type FloatingTabBarProps = BottomTabBarProps;
 
-export function FloatingTabBar({ state, descriptors, navigation, onAddPress }: FloatingTabBarProps) {
+export function FloatingTabBar({ state, descriptors, navigation }: FloatingTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottom = insets.bottom > 0 ? insets.bottom + 8 : 20;
 
@@ -121,10 +117,6 @@ export function FloatingTabBar({ state, descriptors, navigation, onAddPress }: F
               );
             })}
           </View>
-
-          <TouchableOpacity style={styles.fab} onPress={onAddPress} activeOpacity={0.82}>
-            <Plus size={22} color="#000000" strokeWidth={2.5} />
-          </TouchableOpacity>
         </View>
 
         <Animated.View style={[styles.activeDot, dotStyle]} />
@@ -178,7 +170,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 8,
   },
   tabs: {
     flex: 1,
@@ -205,14 +196,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 9999,
     backgroundColor: 'rgba(255, 255, 255, 0.13)',
-  },
-  fab: {
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   activeDot: {
     // iconWrap (40) is centered in the 68-tall pill (top 14, bottom 54);

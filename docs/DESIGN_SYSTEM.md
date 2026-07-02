@@ -78,10 +78,14 @@ Sheet (bottom sheets):
 ```
 
 **Environment background** (`src/components/ui/EnvironmentBackground.tsx`) — a full-screen layered
-gradient rendered once at `app/(tabs)/_layout.tsx`, behind the router. Every screen's own background
-must be transparent so it shows through. Approximated with stacked `expo-linear-gradient` layers
-(warm top-left, cool top-right, warm floor bottom, base `#D7E0E9 → #E9E6DE → #DCCFBE`) since RN has
-no native radial-gradient primitive.
+gradient rendered exactly **once**, at `app/_layout.tsx` behind the root `Stack` (so it covers the
+tab group and the pushed routes alike), never per-screen. Every screen's own background must be
+transparent so it shows through. Built with a `react-native-skia` `Canvas` (warm top-left, cool
+top-right, warm floor bottom radial gradients over a linear base
+`#D7E0E9 → #E9E6DE → #DCCFBE`) since RN has no native radial-gradient primitive. Mounting it more
+than once (e.g. once per screen group) causes a visible flash on first navigation to each
+duplicate — each mount is a fresh Skia canvas that has to compile its gradient shaders — see
+`DECISIONS.md` DS-007 Addendum 2.
 
 ---
 
@@ -123,7 +127,7 @@ SHADOW:       shadow.light {y10, r26, #323848@12%} · shadow.dark {y14, r34, #14
 
 ## 6. Motion
 
-- Card/screen entry: `Animated.View` with `FadeInDown.delay(n).springify().damping(18).stiffness(140)`, staggered ~60ms per section (existing project idiom, kept).
+- Card/screen entry: `Animated.View` with `FadeInDown.delay(n).springify().damping(18).stiffness(140)`, staggered ~60ms per section. On the 5 **tab** screens, replays on every focus via `key={animKey}` from `src/hooks/useFocusAnimKey.ts` — but only if at least 1000ms passed since the last replay, so a fast tab switch never interrupts a still-running stagger (see `DECISIONS.md` DS-007 Addendum 6; a version without this guard caused "starts, cuts off, restarts" on quick switching). Pushed screens (`app/tracker.tsx`, `app/festival/[id].tsx`) don't use this hook — they mount fresh on every visit, so a plain mount-time animation is correct there.
 - Number counters: `AnimatedNumber` — count up 600–900ms ease-out cubic.
 - Gauge/chart sweep: 800ms ease-out, respecting `useReducedMotion()` (see `MetricGauge`, `BarChart`).
 - Bottom sheets: slide 380ms `cubic-bezier(.22,1,.36,1)`, backdrop fade 200ms; tap backdrop or ✕ to dismiss.
@@ -148,17 +152,19 @@ Library: **Victory Native XL** (`src/components/charts/`), plus plain-`View` bar
 ```
 Floating charcoal pill, centered, ~20px from bottom, height 68, radius 9999
 Blur 24 tint dark (iOS) + charcoal tint overlay; border rgba(255,255,255,0.12)
-4 icon-only tabs: Dashboard, Sessions, Tournois, Profil, matching the handoff exactly (the Degen Hub
-placeholder tab was tried briefly during the redesign, then dropped — see `DECISIONS.md`)
+5 icon-only tabs (as of the 2026-07-02 festival-first pivot, DECISIONS.md DS-007):
+  Dashboard, Festivals, Planning, Degen Hub, Profil
 Active: white icon on a light-tinted inner pill + 4px dot below
 Inactive: rgba(255,255,255,0.50) icon
 ```
 
-A white circular **FAB** is rendered as the trailing item inside `FloatingTabBar`'s own pill (a
-fixed-size button appended after the flex row of tab buttons, same rounded shape, not a separate
-floating element) — its `onPress` is passed down from `(tabs)/_layout.tsx` via an `onAddPress`
-prop, since opening the Add-session sheet needs state/store access that the tab bar itself
-doesn't own. Visible on every tab, not just Dashboard/Sessions.
+The component itself (`FloatingTabBar.tsx`) is generic over tab count/width — going from 4 to 5
+tabs needed no changes to it, only to the `Tabs.Screen` list in `app/(tabs)/_layout.tsx`.
+
+**No FAB anymore** (removed 2026-07-02, DS-007 addendum): the pill used to end in a white circular
+"add session" button (`onAddPress` prop, `Plus` icon) trailing the tab row. It's gone — the pill is
+now just the 5 tab buttons, full-width. Session creation moved to contextual CTAs instead (Dashboard
+festival hero, tournament detail) — see `SPEC.md` §2.
 
 ### Bottom sheets (`src/components/ui/BottomSheet.tsx`)
 
@@ -182,14 +188,14 @@ decorative, `accent`/`accentBright` active/money).
 
 | Component | Path | Notes |
 |---|---|---|
-| `EnvironmentBackground` | `ui/EnvironmentBackground.tsx` | Full-screen gradient, rendered once at `(tabs)/_layout.tsx` |
+| `EnvironmentBackground` | `ui/EnvironmentBackground.tsx` | Full-screen gradient, mounted exactly once at `app/_layout.tsx` (root) |
 | `GlassCard` | `ui/GlassCard.tsx` | `variant: 'light' \| 'dark'` |
 | `GlowBlob` | `ui/GlowBlob.tsx` | Soft radial glow overlay, shared by the profit hero and `CoupDeCoeurCard` |
 | `SectionLabel` | `ui/SectionLabel.tsx` | Uppercase tracked label |
 | `MetricGauge` | `ui/MetricGauge.tsx` | Donut/arc gauge |
 | `StatBadge` | `ui/StatBadge.tsx` | Trend chip, `tone: 'light'\|'dark'` |
 | `AnimatedNumber` | `ui/AnimatedNumber.tsx` | Count-up number |
-| `FloatingTabBar` | `ui/FloatingTabBar.tsx` | Nav chrome, FAB rendered inline as its trailing item |
+| `FloatingTabBar` | `ui/FloatingTabBar.tsx` | Nav chrome, icon-only (no FAB — removed DS-007) |
 | `BottomSheet` | `ui/BottomSheet.tsx` | Shared sheet primitive |
 | `SegmentedControl` | `ui/SegmentedControl.tsx` | Generic 2–3 option switcher |
 | `PickerField` / `SearchCreateList` | `ui/PickerField.tsx` | Tap-to-expand search+create picker |
@@ -197,11 +203,18 @@ decorative, `accent`/`accentBright` active/money).
 | `Stepper` | `ui/Stepper.tsx` | 36px circular +/- control |
 | `AmountInput` | `ui/AmountInput.tsx` | Money text field |
 | `AreaChart` / `BarChart` | `charts/` | See §7 |
-| `SessionRow` / `StakeRow` | `tracker/` | Sessions list rows |
-| `AddSessionSheet` | `tracker/AddSessionSheet.tsx` | Single adaptive sheet (Tournoi/Cash/Staking) |
-| `TournamentCard` | `finder/TournamentCard.tsx` | Finder list row |
-| `FilterSheet` / `FilterChipGroup` | `finder/` | Rebuilt on `BottomSheet` |
-| `CoupDeCoeurCard` | `tournaments/CoupDeCoeurCard.tsx` | Shared by Dashboard and Finder — new `components/tournaments/` directory since neither screen owns it |
+| `SessionRow` / `StakeRow` | `tracker/` | Sessions list rows (`app/tracker.tsx`) |
+| `AddSessionSheet` | `tracker/AddSessionSheet.tsx` | Single adaptive sheet (Tournoi/Cash/Staking); also accepts `initialFestival` to pre-scope without a tournament (Dashboard hero CTA) |
+| `TournamentDetailModal` | `finder/TournamentDetailModal.tsx` | Shared read-only tournament sheet, opened from Festivals, Festival detail, Planning, Dashboard |
+| `FestivalCard` | `finder/FestivalCard.tsx` | Festival list row, `full`/`mini` variants (replaces the old `TournamentCard`) |
+| `FestivalFilterSheet` / `MultiFilterChipGroup` | `finder/` | Continent/country/buy-in are multi-select (checkbox); organizer stays single-select via the older `FilterChipGroup` (replaces the old tournament-scoped `FilterSheet`) |
+| `CoupDeCoeurCard` | `tournaments/CoupDeCoeurCard.tsx` | Kept for `TournamentDetailModal`'s "featured" framing; no longer used as a Dashboard/Festivals hero (see `FestivalHeroCard`) |
+| `BlindStructureTable` | `tournaments/BlindStructureTable.tsx` | Level-by-level SB/BB/ante/duration table, shown on a festival's Main Event card |
+| `FestivalHeroCard` | `dashboard/FestivalHeroCard.tsx` | Dashboard's current/most-recently-liked festival hero, dark variant, two CTAs (view tournaments / log a result) |
+| `MonthCalendar` | `planning/MonthCalendar.tsx` | Custom month grid for the Planning tab (ADR-012) |
+| `GameTile` | `degen/GameTile.tsx` | Non-interactive Degen Hub tile with a "Bientôt disponible" `Pill` |
+| `LikeButton` | `ui/LikeButton.tsx` | Toggleable heart icon, `tone: 'light'\|'dark'`, spring bounce on toggle — used for both festival and tournament likes |
+| `Pill` | `ui/Pill.tsx` | Generic small rounded badge, `tone: 'neutral'\|'accent'` |
 
 ---
 

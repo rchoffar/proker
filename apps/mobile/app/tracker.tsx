@@ -1,22 +1,23 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useCallback, useMemo } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import { StatBadge } from '../../src/components/ui/StatBadge';
-import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { SessionRow } from '../../src/components/tracker/SessionRow';
-import { StakeRow } from '../../src/components/tracker/StakeRow';
-import { SessionDetailModal } from '../../src/components/tracker/SessionDetailModal';
-import { StakeDetailModal } from '../../src/components/tracker/StakeDetailModal';
-import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
-import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
-import { useAppStore } from '../../src/store/useAppStore';
-import { computeWindowedStats } from '../../src/lib/stats';
-import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
-import { useTheme } from '../../src/design-system/ThemeProvider';
-import type { Session, Stake } from '../../src/types';
+import { ChevronLeft } from 'lucide-react-native';
+import { GlassCard } from '../src/components/ui/GlassCard';
+import { StatBadge } from '../src/components/ui/StatBadge';
+import { SectionLabel } from '../src/components/ui/SectionLabel';
+import { SessionRow } from '../src/components/tracker/SessionRow';
+import { StakeRow } from '../src/components/tracker/StakeRow';
+import { SessionDetailModal } from '../src/components/tracker/SessionDetailModal';
+import { StakeDetailModal } from '../src/components/tracker/StakeDetailModal';
+import { AddSessionSheet } from '../src/components/tracker/AddSessionSheet';
+import type { SaveRecord } from '../src/components/tracker/AddSessionSheet';
+import { useAppStore } from '../src/store/useAppStore';
+import { computeWindowedStats } from '../src/lib/stats';
+import { fontFamily, fontSize, spacing, radius } from '../src/design-system/theme';
+import { useTheme } from '../src/design-system/ThemeProvider';
+import type { Session, Stake } from '../src/types';
 
 type Filter = 'all' | 'tournament' | 'cash' | 'stake';
 
@@ -38,6 +39,7 @@ function formatCurrency(val: number): string {
 
 export default function TrackerScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const {
     sessions, stakes, stats, festivals, tournaments, players,
     updateSession, addFestival, addTournament, addPlayer,
@@ -46,7 +48,6 @@ export default function TrackerScreen() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedStake, setSelectedStake] = useState<Stake | null>(null);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [animKey, setAnimKey] = useState(0);
 
   const windowed90d = useMemo(() => computeWindowedStats(sessions, stakes, 90), [sessions, stakes]);
 
@@ -65,12 +66,6 @@ export default function TrackerScreen() {
       setEditingSession(null);
     },
     [players, festivals, tournaments, addPlayer, addFestival, addTournament, updateSession]
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      setAnimKey((k) => k + 1);
-    }, [])
   );
 
   // Build unified item list
@@ -116,13 +111,21 @@ export default function TrackerScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View key={animKey} style={styles.stack}>
+        <View style={styles.stack}>
 
           {/* Header */}
           <Animated.View
             entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}
             style={styles.header}
           >
+            <TouchableOpacity
+              style={[styles.backButton, { backgroundColor: colors.neutralTileBg }]}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
             <Text style={[styles.title, { color: colors.textPrimary }]}>Sessions</Text>
           </Animated.View>
 
@@ -317,7 +320,17 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  backButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: fontSize.display,

@@ -38,10 +38,13 @@ export interface Stake {
   createdAt: string;
 }
 
+export type Continent = 'Europe' | 'North America' | 'South America' | 'Asia' | 'Africa' | 'Oceania';
+
 export interface Country {
   id: string;
   name: string;
   code: string;
+  continent: Continent;
 }
 
 export interface Organizer {
@@ -55,6 +58,23 @@ export interface Festival {
   location?: string;
   countryId?: string;
   organizerId?: string;
+  startDate?: string; // ISO date, festival start
+  endDate?: string; // ISO date, festival end
+  featured?: boolean; // "Coup de cœur" pin
+}
+
+export interface BlindLevel {
+  level: number;
+  smallBlind: number;
+  bigBlind: number;
+  ante: number;
+  durationMinutes: number;
+}
+
+export interface BlindStructure {
+  startingStack: number;
+  levelDurationMinutes: number; // typical/display duration (mode of levels' durationMinutes)
+  levels: BlindLevel[];
 }
 
 export interface Tournament {
@@ -65,7 +85,8 @@ export interface Tournament {
   totalPlayers?: number;
   startDate?: string; // ISO date, when known
   guaranteed?: number; // guaranteed prize pool
-  featured?: boolean; // "Coup de cœur" pin
+  isMainEvent?: boolean; // flags the festival's main event
+  blindStructure?: BlindStructure; // populated for main-event tournaments
 }
 
 export interface Backing {

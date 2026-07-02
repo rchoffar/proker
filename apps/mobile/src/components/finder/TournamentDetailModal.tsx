@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MapPin, Users, History } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
+import { SectionLabel } from '../ui/SectionLabel';
+import { BlindStructureTable } from '../tournaments/BlindStructureTable';
 import { fontFamily, fontSize, spacing, radius, shadow } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Tournament, Festival, TournamentSession } from '../../types';
@@ -136,6 +138,14 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
         ) : null}
       </View>
 
+      {/* Blind structure (main event tournaments only) */}
+      {t.blindStructure ? (
+        <View style={[styles.section, styles.blindSection, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
+          <SectionLabel style={styles.blindLabel}>Structure de blindes</SectionLabel>
+          <BlindStructureTable structure={t.blindStructure} />
+        </View>
+      ) : null}
+
       {/* History section */}
       {s.length > 0 && (
         <View style={[styles.section, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
@@ -258,6 +268,12 @@ const styles = StyleSheet.create({
     ...shadow.field,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  blindSection: {
+    paddingVertical: spacing.base,
+  },
+  blindLabel: {
     marginBottom: spacing.md,
   },
   sectionHeader: {

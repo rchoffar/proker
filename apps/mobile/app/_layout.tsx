@@ -1,5 +1,6 @@
 import '../global.css';
 import '../src/i18n';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,6 +15,7 @@ import {
   Geist_700Bold,
   Geist_800ExtraBold,
 } from '@expo-google-fonts/geist';
+import { EnvironmentBackground } from '../src/components/ui/EnvironmentBackground';
 import { ThemeProvider, useTheme } from '../src/design-system/ThemeProvider';
 
 SplashScreen.preventAutoHideAsync();
@@ -21,12 +23,15 @@ SplashScreen.preventAutoHideAsync();
 function RootNavigator() {
   const { scheme } = useTheme();
   return (
-    <>
+    <View style={{ flex: 1 }}>
+      <EnvironmentBackground />
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="tracker" />
+        <Stack.Screen name="festival/[id]" />
       </Stack>
-    </>
+    </View>
   );
 }
 

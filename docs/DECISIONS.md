@@ -239,6 +239,31 @@ spec's actual interaction requirements.
 
 ---
 
+## ADR-012 — Planning calendar: custom `MonthCalendar`, not a third-party library
+
+**Date:** 2026-07-02
+**Status:** Decided
+
+**Decision:** Build a small custom month-grid component (`src/components/planning/MonthCalendar.tsx`)
+from plain `View`/`Text`/`TouchableOpacity` and the existing design tokens, rather than adding
+`react-native-calendars` or a similar package for the new Planning tab.
+
+**Why:**
+- The feature surface is narrow: a 7-column month grid, up to a couple of dots per day (festival vs
+  tournament markers), prev/next month paging, tap-to-select — well within a couple hundred lines
+  against primitives already in the codebase
+- A generic calendar library brings its own theming/marking API and usually its own date-formatting
+  helpers, which would fight the app's existing hand-rolled `src/lib/format.ts` helpers rather than
+  compose with them, and would need heavy prop overrides to match the glassmorphism visual language
+- No swipe-gesture month transitions "for free" this way (tap-chevron paging only) — an accepted
+  trade-off; `react-native-gesture-handler` is already installed if swipe paging is wanted later
+
+**Ruled out:**
+- `react-native-calendars`: full-featured (week/agenda views, marking strategies) but a new
+  dependency and a second date-formatting paradigm for a feature this small
+
+---
+
 ## Design Decisions
 
 ### DS-001 — Dark theme only in V1 *(superseded by DS-005, 2026-07-01)*
@@ -278,8 +303,137 @@ of neutral treatments, per the "near-monochrome" principle.
 
 ### DS-003 — Floating pill tab bar, not full-width
 
-Full-width tab bars are Android-legacy. The floating pill reads modern, matches the glassmorphism card vocabulary, and gives the UI more spatial depth.
+Full-width tab bars are Android-legacy. The floating pill reads modern, matches the glassmorphism card vocabulary, and gives the UI more spatial depth. Now hosts 5 tabs (see DS-007) — the component was already generic over tab count, so this needed no rework.
 
-### DS-004 — Bento grid on Dashboard, list on detail screens
+### DS-004 — Bento grid on Dashboard, list on detail screens *(superseded by DS-007, 2026-07-02)*
 
-Dashboard = spatial, widget-based, scannable. Tracker / Finder = list, sortable, filterable. Different information architectures for different jobs-to-be-done.
+~~Dashboard = spatial, widget-based, scannable. Tracker / Finder = list, sortable, filterable.~~
+Superseded — see DS-007. The stats bento moved to Profile; the Dashboard is now a stack of
+festival-discovery cards (still scannable, just not a grid). The underlying principle — different
+information architectures for different jobs-to-be-done — carries forward.
+
+### DS-007 — Festival-first pivot: Tracker demoted, Festivals/Planning/Degen Hub promoted
+
+**Date:** 2026-07-02
+
+**Decision:** The Results Tracker is no longer a tab (moved to a pushed route, `app/tracker.tsx`,
+reachable from a Dashboard card, placed last/bottom-most on the Dashboard by design). The primary
+browsable entity across the app becomes **Festival** (a multi-day event), not Tournament —
+tournaments are only ever reached by drilling into a festival. Tab bar becomes Dashboard →
+Festivals → Planning → Degen Hub → Profile. Users can like both festivals and tournaments
+(`likedFestivalIds`/`likedTournamentIds`), which powers the new Dashboard and Planning screens.
+Stats-heavy cards (profit hero, ROI/ITM gauges, volume, evolution) moved from Dashboard to Profile.
+`Festival` gained `startDate`/`endDate`, `Country` gained `continent`, `Tournament` gained
+`isMainEvent` + a full `blindStructure`. The Degen Hub placeholder tab — tried once during the
+"Frosted Glass" redesign and dropped to match that handoff's 4-tab bar exactly (see the old DS-003
+note, now removed) — is reinstated as a real 5th tab, expanded from 3 to 4 games (Flip, Bluff,
+Roulette, The Last Longer), shipped as non-interactive "Bientôt disponible" tiles.
+
+**Addendum (same date):** the tab bar's global **FAB** ("+" button, opened the Add-session sheet
+from any screen) was also removed. Session creation is now always contextual — a tournament
+detail's "Ajouter une session" CTA, or the Dashboard festival hero's "Enregistrer un résultat" CTA —
+there is currently no ad-hoc/no-context entry point.
+
+**Addendum 2 (same date) — `EnvironmentBackground` mounting:** the pushed routes
+(`app/tracker.tsx`, `app/festival/[id].tsx`) initially rendered on a plain black background instead
+of the app's gradient, because that component was only ever mounted inside `(tabs)/_layout.tsx`.
+First fix: mounted it a second and third time, directly in each pushed screen. That introduced a
+new problem — a visible flash every time either screen was opened, because each mount is a fresh
+`react-native-skia` `Canvas` that has to compile its gradient shaders from scratch (the tabs'
+long-lived instance never re-flashes because it's never remounted). Fix: mount
+`EnvironmentBackground` exactly **once**, at the root (`app/_layout.tsx`, behind the root `Stack`,
+above `(tabs)`), and removed it from `(tabs)/_layout.tsx`/`tracker.tsx`/`festival/[id].tsx`. This was
+tried first and abandoned (see the removed "ruled out" note below) after appearing to render
+washed-out — that was a misdiagnosis: the "washed-out" screenshot was this same shader-compile flash
+caught mid-frame, not a real layering bug. Re-tested with a longer wait before capturing and the
+root-mounted version renders identically to the per-screen version, with the added benefit that the
+one-time shader compile now happens once at cold start instead of once per screen group.
+
+**Addendum 3 (same date) — entrance-animation replay trick doesn't belong on pushed screens:**
+after the flash above was fixed, a second, unrelated symptom remained — the entrance stagger
+animation on `app/tracker.tsx` visibly restarted right after playing once. Root cause: `tracker.tsx`
+was moved verbatim from `(tabs)/tracker.tsx` (see the main decision above), including its
+`const [animKey, setAnimKey] = useState(0)` + `useFocusEffect(() => setAnimKey(k => k+1))` +
+`<View key={animKey}>` combo. That pattern exists so a **tab** screen (mounted once, kept alive,
+merely hidden/shown on tab switches) replays its `FadeInDown` stagger every time it regains focus —
+necessary there because focus, not mount, is the only signal a tab switch gives you. `tracker.tsx`
+is no longer a tab; it's a `Stack` route that fully mounts on every visit and unmounts on back. Its
+initial mount already plays the entrance animation once — but `useFocusEffect` then fires almost
+immediately after (a freshly pushed screen becomes focused right away), bumping `animKey` and
+forcing every child to remount and replay from scratch, which reads as "starts, cuts off, restarts."
+Fix: removed the `animKey`/`useFocusEffect` replay mechanism from `tracker.tsx` entirely — a plain
+mount-time animation is correct for a screen that always mounts fresh. `app/festival/[id].tsx` never
+had this pattern (built fresh, not copy-pasted from a tab screen) and isn't affected. The tab screens
+(`app/(tabs)/index.tsx`, `festivals.tsx`, `planning.tsx`, `degen.tsx`, `profile.tsx`) keep the
+pattern — it's correct there.
+
+**Addendum 4 (same date, first attempt — later found wrong, kept for the record) — theorized
+double-fire on return:** based on the "starts, cuts off, restarts" report, guessed that a tab
+screen's parent Stack route ("(tabs)") blurring/refocusing when a sibling route (`tracker`,
+`festival/[id]`) is pushed/popped might cause **two** `useFocusEffect` calls for one logical return.
+Shipped a debounced replacement hook, `src/hooks/useFocusAnimKey.ts` (ignore a second focus firing
+within 300ms), across all 5 tab screens. The user reported the issue was still present afterwards.
+
+**Addendum 5 (same date) — instrumented and disproved Addendum 4; found and removed the real
+cause:** rather than guess again, added timestamped `console.log` diagnostics (mount/unmount/focus/
+blur, each tagged per screen) plus an automated navigation sequence (`setTimeout`-driven
+`router.push`/tab switch, no manual taps needed) and read the results via
+`xcrun simctl spawn <device> log stream` — React Native's `console.log` mirrors to the iOS system
+log, which is capturable without a connected JS debugger. Two independent runs (Dashboard → push
+`tracker` → back; Dashboard → switch to `festivals` tab → back) both showed **exactly one** focus
+event and **exactly one** `animKey` bump on return — proving Addendum 4's premise false; there is no
+duplicate-focus bug. A follow-up test temporarily changed the header's animation to a slow, linear
+3-second fade and burst-captured screenshots (correlated to the log timestamps on the same clock) to
+watch the return-replay in slow motion: it was a single, smooth, monotonic fade with no dip or reset
+partway through. The `animKey` mechanism was completely exonerated.
+
+That still left the original report unexplained by anything reproducible in a scripted test — until
+the user clarified the repro was **switching tabs at normal speed**, not waiting seconds between
+switches as every automated test had done. The actual mechanism: `animKey`'s `key={animKey}` remount
+discards and restarts whatever entrance animation is currently in flight. With a comfortable pause
+between visits (as in every one of the automated tests above) the previous play has long finished, so
+the restart is invisible — there's nothing running to interrupt. Switch tabs quickly, before the
+~400-600ms spring stagger has settled, and the in-progress animation is yanked out from under itself
+and restarted, which is exactly "starts, cuts off, restarts." This isn't a coding error in the
+`animKey` mechanism (proven clean above) — it's an inherent fragility of "replay the entrance
+animation every time a tab regains focus," which by Addendum's 3 and 4's evidence had already caused
+two other rounds of real, distinct bugs. First fix: removed the mechanism entirely — deleted
+`src/hooks/useFocusAnimKey.ts`, dropped `key={animKey}` from all 5 tab screens, entrance stagger
+plays once on first-ever mount and never again.
+
+**Lesson (still holds):** don't theorize a second fix on top of an unverified first one. The
+debounce in Addendum 4 was plausible-sounding but never checked against real navigation event logs;
+instrumenting the actual app (tagged console logs surfaced via `simctl log stream`, no debugger
+attach required) took one iteration to falsify it and find the real mechanism, versus two rounds of
+guessing.
+
+**Addendum 6 (same date) — replay restored, gated by a settle-time guard instead of removed:**
+the user preferred the visual replay-on-return and asked for it back — removing it fixed the bug but
+also removed something they liked. The bug was never "replaying is bad," it was "replaying can
+interrupt a still-running replay." So `useFocusAnimKey` returns, rewritten to fix that specific
+failure mode instead of avoiding it by not replaying at all: it records `Date.now()` on every bump
+and only bumps again if more than `MIN_REPLAY_GAP_MS` (1000ms — the longest stagger delay across
+tab screens, 360ms on Profile, plus ~600ms for a damping:18/stiffness:140 spring to settle, with
+margin) has passed since the last one. A comfortable-speed tab switch (the common case) replays the
+full stagger exactly as before. A rapid back-and-forth switch, faster than the previous play could
+finish, simply skips the replay for that visit — the in-flight animation is left alone to finish
+undisturbed instead of being cut off. All 5 tab screens use `useFocusAnimKey()`/`key={animKey}`
+again; `app/tracker.tsx`/`app/festival/[id].tsx` still don't (Addendum 3 reasoning is unaffected —
+they mount fresh every visit, so they never needed a replay-on-focus trigger in the first place).
+
+**Why:** User feedback that the Tracker had become the de facto primary feature by default, while
+the actual job-to-be-done was finding and following festivals; most Dashboard stats weren't
+pertinent often enough to earn the home screen and are more at home as a Profile deep-dive. The FAB
+was removed as a further simplification once contextual add-session entry points existed everywhere
+that mattered.
+
+**Ruled out:**
+- Keeping Tournament as the primary browsable entity with Festival as secondary metadata: rejected
+  per explicit product direction — festivals (not individual tournaments) are what players plan
+  their travel/bankroll around
+- A single combined Festivals+Tracker tab: rejected as it would re-create the same "everything
+  crammed into one screen" problem the pivot was meant to fix
+- Mounting `EnvironmentBackground` per screen group (tabs, tracker, festival detail) instead of once
+  at the root: this was the intermediate fix for the black-background bug above, but it causes a
+  Skia shader-recompile flash on every first visit to a pushed screen — superseded by the single
+  root mount, see Addendum 2

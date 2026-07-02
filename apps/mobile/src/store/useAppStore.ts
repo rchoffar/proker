@@ -30,6 +30,8 @@ interface AppStore {
   players: Player[];
   countries: Country[];
   organizers: Organizer[];
+  likedFestivalIds: string[];
+  likedTournamentIds: string[];
 
   addSession: (session: Session) => void;
   updateSession: (session: Session) => void;
@@ -40,6 +42,8 @@ interface AppStore {
   addPlayer: (player: Player) => void;
   addCountry: (country: Country) => void;
   addOrganizer: (organizer: Organizer) => void;
+  toggleLikedFestival: (festivalId: string) => void;
+  toggleLikedTournament: (tournamentId: string) => void;
   resetStore: () => void;
 }
 
@@ -56,6 +60,8 @@ export const useAppStore = create<AppStore>()(
       players: [],
       countries: mockCountries,
       organizers: mockOrganizers,
+      likedFestivalIds: [],
+      likedTournamentIds: [],
 
       addSession: (session) =>
         set((state) => {
@@ -105,6 +111,20 @@ export const useAppStore = create<AppStore>()(
       addOrganizer: (organizer) =>
         set((state) => ({ organizers: [...state.organizers, organizer] })),
 
+      toggleLikedFestival: (festivalId) =>
+        set((state) => ({
+          likedFestivalIds: state.likedFestivalIds.includes(festivalId)
+            ? state.likedFestivalIds.filter((id) => id !== festivalId)
+            : [...state.likedFestivalIds, festivalId],
+        })),
+
+      toggleLikedTournament: (tournamentId) =>
+        set((state) => ({
+          likedTournamentIds: state.likedTournamentIds.includes(tournamentId)
+            ? state.likedTournamentIds.filter((id) => id !== tournamentId)
+            : [...state.likedTournamentIds, tournamentId],
+        })),
+
       resetStore: () => {
         mmkv.remove('proker-app-store');
         set({
@@ -118,6 +138,8 @@ export const useAppStore = create<AppStore>()(
           players: [],
           countries: mockCountries,
           organizers: mockOrganizers,
+          likedFestivalIds: [],
+          likedTournamentIds: [],
         });
       },
     }),
@@ -133,6 +155,8 @@ export const useAppStore = create<AppStore>()(
         countries: state.countries,
         organizers: state.organizers,
         user: state.user,
+        likedFestivalIds: state.likedFestivalIds,
+        likedTournamentIds: state.likedTournamentIds,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
@@ -149,6 +173,12 @@ export const useAppStore = create<AppStore>()(
             ...mockTournaments,
             ...state.tournaments.filter((t) => !mockTournaments.some((m) => m.id === t.id)),
           ];
+          state.likedFestivalIds = (state.likedFestivalIds ?? []).filter((id) =>
+            state.festivals.some((f) => f.id === id)
+          );
+          state.likedTournamentIds = (state.likedTournamentIds ?? []).filter((id) =>
+            state.tournaments.some((t) => t.id === id)
+          );
           state.stats = computeStats(state.sessions, state.stakes);
           state.bankrollHistory = computeBankrollHistory(state.sessions, state.stakes);
         }
