@@ -1,3 +1,5 @@
+export * from './hand';
+
 export type Currency = 'EUR' | 'USD' | 'GBP';
 export type SessionType = 'tournament' | 'cash';
 export type GameType = 'NLH' | 'PLO' | 'other';
@@ -50,6 +52,7 @@ export interface Country {
 export interface Organizer {
   id: string;
   name: string;
+  logo?: string; // key into the OrganizerLogo asset lookup map
 }
 
 export interface Festival {

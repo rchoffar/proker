@@ -3,10 +3,12 @@ import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme
 import { useTheme } from '../../design-system/ThemeProvider';
 
 export interface CalendarMarker {
-  date: string; // ISO yyyy-mm-dd
-  kind: 'festival-start' | 'festival-end' | 'tournament';
   id: string;
   label: string;
+  kind: 'festival' | 'tournament';
+  startDate: string; // ISO yyyy-mm-dd
+  endDate: string; // ISO yyyy-mm-dd; equals startDate for single-day markers
+  color: string; // distinguishes overlapping/adjacent festivals in the grid and list
 }
 
 interface MonthCalendarProps {
@@ -18,8 +20,11 @@ interface MonthCalendarProps {
 
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-function toIso(date: Date): string {
-  return date.toISOString().slice(0, 10);
+export function toIso(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function buildGrid(month: Date): Date[] {
@@ -43,10 +48,13 @@ export function MonthCalendar({ month, markers, selectedDate, onSelectDate }: Mo
   const todayIso = toIso(new Date());
   const monthIndex = month.getMonth();
 
-  const markersByDate = markers.reduce((acc, m) => {
-    (acc[m.date] ??= []).push(m);
-    return acc;
-  }, {} as Record<string, CalendarMarker[]>);
+  const festivalMarkers = markers.filter((m) => m.kind === 'festival');
+  const tournamentsByDate = markers
+    .filter((m) => m.kind === 'tournament')
+    .reduce((acc, m) => {
+      (acc[m.startDate] ??= []).push(m);
+      return acc;
+    }, {} as Record<string, CalendarMarker[]>);
 
   return (
     <View>
@@ -61,9 +69,8 @@ export function MonthCalendar({ month, markers, selectedDate, onSelectDate }: Mo
           const inMonth = date.getMonth() === monthIndex;
           const isToday = iso === todayIso;
           const isSelected = iso === selectedDate;
-          const dayMarkers = markersByDate[iso] ?? [];
-          const festivalCount = dayMarkers.filter((m) => m.kind !== 'tournament').length;
-          const tournamentCount = dayMarkers.filter((m) => m.kind === 'tournament').length;
+          const dayFestival = festivalMarkers.find((m) => m.startDate <= iso && iso <= m.endDate);
+          const dayTournaments = tournamentsByDate[iso] ?? [];
 
           return (
             <TouchableOpacity
@@ -71,7 +78,7 @@ export function MonthCalendar({ month, markers, selectedDate, onSelectDate }: Mo
               style={styles.cell}
               onPress={() => onSelectDate(iso)}
               activeOpacity={0.7}
-              disabled={dayMarkers.length === 0}
+              disabled={!dayFestival && dayTournaments.length === 0}
             >
               <View
                 style={[
@@ -90,9 +97,20 @@ export function MonthCalendar({ month, markers, selectedDate, onSelectDate }: Mo
                   {date.getDate()}
                 </Text>
               </View>
+              <View style={styles.barRow}>
+                {dayFestival && (
+                  <View
+                    style={[
+                      styles.bar,
+                      { backgroundColor: dayFestival.color },
+                      dayFestival.startDate === iso && styles.barStart,
+                      dayFestival.endDate === iso && styles.barEnd,
+                    ]}
+                  />
+                )}
+              </View>
               <View style={styles.dotsRow}>
-                {festivalCount > 0 && <View style={[styles.dot, { backgroundColor: isSelected ? colors.accent : colors.accent }]} />}
-                {tournamentCount > 0 && <View style={[styles.dot, { backgroundColor: colors.neutralChart }]} />}
+                {dayTournaments.length > 0 && <View style={[styles.dot, { backgroundColor: colors.textSecondary }]} />}
               </View>
             </TouchableOpacity>
           );
@@ -135,6 +153,22 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontFamily: fontFamily.medium,
     fontVariant: ['tabular-nums'],
+  },
+  barRow: {
+    width: '100%',
+    height: 5,
+  },
+  bar: {
+    width: '100%',
+    height: 5,
+  },
+  barStart: {
+    borderTopLeftRadius: radius.full,
+    borderBottomLeftRadius: radius.full,
+  },
+  barEnd: {
+    borderTopRightRadius: radius.full,
+    borderBottomRightRadius: radius.full,
   },
   dotsRow: {
     flexDirection: 'row',

@@ -26,15 +26,15 @@ export const mockCountries: Country[] = [
 ];
 
 export const mockOrganizers: Organizer[] = [
-  { id: 'or1', name: 'Barrière'    },
-  { id: 'or2', name: 'Winamax'     },
-  { id: 'or3', name: 'PokerStars'  },
-  { id: 'or4', name: 'WPT'         },
-  { id: 'or5', name: 'SBM'         },
+  { id: 'or1', name: 'Barrière',    logo: 'barriere'   },
+  { id: 'or2', name: 'Winamax',     logo: 'winamax'    },
+  { id: 'or3', name: 'PokerStars',  logo: 'pokerstars' },
+  { id: 'or4', name: 'WPT',         logo: 'wpt'        },
+  { id: 'or5', name: 'SBM',         logo: 'sbm'        },
   { id: 'or6', name: 'Independent' },
-  { id: 'or7', name: 'WSOP'        },
-  { id: 'or8', name: 'GGPoker'     },
-  { id: 'or9', name: 'BSOP'        },
+  { id: 'or7', name: 'WSOP',        logo: 'wsop'       },
+  { id: 'or8', name: 'GGPoker',     logo: 'ggpoker'    },
+  { id: 'or9', name: 'BSOP',        logo: 'bsop'       },
 ];
 
 export const mockFestivals: Festival[] = [

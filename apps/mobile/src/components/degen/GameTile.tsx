@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { Pill } from '../ui/Pill';
 import { fontFamily, fontSize } from '../../design-system/theme';
@@ -8,21 +8,35 @@ interface Props {
   name: string;
   description: string;
   icon: React.ReactNode;
+  comingSoon?: boolean;
+  onPress?: () => void;
 }
 
-export function GameTile({ name, description, icon }: Props) {
+export function GameTile({ name, description, icon, comingSoon = true, onPress }: Props) {
   const { colors } = useTheme();
+
+  const content = (
+    <GlassCard padding={18} style={{ opacity: comingSoon ? 0.6 : 1 }}>
+      <View style={styles.content}>
+        <View style={[styles.iconWrap, { backgroundColor: colors.neutralTileBg }]}>{icon}</View>
+        <Text style={[styles.name, { color: colors.textPrimary }]}>{name}</Text>
+        <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={2}>{description}</Text>
+        {comingSoon ? (
+          <Pill label="Bientôt disponible" style={styles.pill} />
+        ) : (
+          <Pill label="Découvrir" tone="accent" style={styles.pill} />
+        )}
+      </View>
+    </GlassCard>
+  );
 
   return (
     <View style={styles.wrap}>
-      <GlassCard padding={18} style={{ opacity: 0.6 }}>
-        <View style={styles.content}>
-          <View style={[styles.iconWrap, { backgroundColor: colors.neutralTileBg }]}>{icon}</View>
-          <Text style={[styles.name, { color: colors.textPrimary }]}>{name}</Text>
-          <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={2}>{description}</Text>
-          <Pill label="Bientôt disponible" style={styles.pill} />
-        </View>
-      </GlassCard>
+      {onPress ? (
+        <TouchableOpacity onPress={onPress} activeOpacity={0.85}>{content}</TouchableOpacity>
+      ) : (
+        content
+      )}
     </View>
   );
 }

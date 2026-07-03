@@ -10,6 +10,18 @@ export const lightColors: Record<string, any> = {
   loss: '#E5484D',
   neutralChart: '#2B2E37', // non-accent bar/gauge fill — must read against a LIGHT surface
 
+  // Scoped exception to the single-accent rule: distinct hues for telling apart
+  // multiple simultaneous items in a legend-like context (e.g. calendar festival bars).
+  calendarPalette: ['#0E9E62', '#B45309', '#4F46E5', '#BE185D', '#0E7490', '#7C3AED'],
+
+  // Scoped exception to the single-accent rule: a playing card must look like a physical
+  // card (light face, red/black pips) regardless of the app's light/dark scheme — identical
+  // values in both color objects on purpose.
+  cardFaceBg: '#F7F7F5',
+  cardFaceBorder: 'rgba(30, 34, 46, 0.10)',
+  cardSuitRed: '#E5484D',
+  cardSuitBlack: '#23252B',
+
   // Text — on light surfaces (the app's dominant surface in light scheme)
   textPrimary: '#23252B',
   textSecondary: '#5A5E68',
@@ -44,6 +56,18 @@ export const darkColors: Record<string, any> = {
 
   loss: '#FF6B70',
   neutralChart: '#4A4F5A', // lighter than the light-scheme value — must read against a DARK surface
+
+  // Scoped exception to the single-accent rule: distinct hues for telling apart
+  // multiple simultaneous items in a legend-like context (e.g. calendar festival bars).
+  calendarPalette: ['#17E58A', '#FBBF24', '#818CF8', '#F472B6', '#22D3EE', '#A78BFA'],
+
+  // Scoped exception to the single-accent rule: a playing card must look like a physical
+  // card (light face, red/black pips) regardless of the app's light/dark scheme — identical
+  // values in both color objects on purpose.
+  cardFaceBg: '#F7F7F5',
+  cardFaceBorder: 'rgba(30, 34, 46, 0.10)',
+  cardSuitRed: '#E5484D',
+  cardSuitBlack: '#23252B',
 
   // Text — on the dominant (dark) surface in dark scheme
   textPrimary: '#F4F5F6',

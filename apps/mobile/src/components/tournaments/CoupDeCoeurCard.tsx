@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Heart } from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { GlowBlob } from '../ui/GlowBlob';
+import { PokerChip } from '../ui/PokerChip';
+import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatAmount, formatDateRangeShort } from '../../lib/format';
 import { colors, fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import type { Festival, Organizer } from '../../types';
@@ -24,7 +26,7 @@ function formatBuyInRange(range?: { min: number; max: number }): string {
 function Badge() {
   return (
     <View style={styles.badge}>
-      <Heart size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
+      <Sparkles size={11} color={colors.accentBright} strokeWidth={2} />
       <Text style={styles.badgeText}>Coup de cœur</Text>
     </View>
   );
@@ -39,10 +41,14 @@ export function CoupDeCoeurCard({ festival, organizer, tournamentCount, buyInRan
       <TouchableOpacity onPress={onPress} activeOpacity={0.85} disabled={!onPress}>
         <GlassCard variant="dark" padding={14} style={styles.card}>
           <GlowBlob size={110} top={-30} right={-30} />
+          <PokerChip size={54} style={styles.chip} color={colors.onDarkHairline} />
           <View style={styles.miniRow}>
             <View style={styles.miniContent}>
               <Badge />
-              <Text style={styles.name} numberOfLines={1}>{festival.name}</Text>
+              <View style={styles.nameRow}>
+                {organizer?.logo ? <OrganizerLogo organizer={organizer} size={18} tone="dark" /> : null}
+                <Text style={[styles.name, styles.nameText]} numberOfLines={1}>{festival.name}</Text>
+              </View>
               {subtitle ? <Text style={styles.venue} numberOfLines={1}>{subtitle}</Text> : null}
             </View>
             {buyInRange ? (
@@ -60,6 +66,7 @@ export function CoupDeCoeurCard({ festival, organizer, tournamentCount, buyInRan
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} disabled={!onPress}>
       <GlassCard variant="dark" padding={20} style={styles.card}>
         <GlowBlob />
+        <PokerChip size={80} style={styles.chip} color={colors.onDarkHairline} />
         <View style={styles.headerRow}>
           <Badge />
         </View>
@@ -69,7 +76,10 @@ export function CoupDeCoeurCard({ festival, organizer, tournamentCount, buyInRan
             {festival.location}{organizer ? ` · ${organizer.name}` : ''}
           </Text>
         ) : null}
-        <Text style={styles.name} numberOfLines={2}>{festival.name}</Text>
+        <View style={styles.nameRow}>
+          {organizer?.logo ? <OrganizerLogo organizer={organizer} size={20} tone="dark" /> : null}
+          <Text style={[styles.name, styles.nameText]} numberOfLines={2}>{festival.name}</Text>
+        </View>
 
         <View style={styles.footer}>
           {buyInRange ? (
@@ -90,6 +100,11 @@ const styles = StyleSheet.create({
   card: {
     gap: 6,
     overflow: 'hidden',
+  },
+  chip: {
+    position: 'absolute',
+    bottom: -14,
+    right: -12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -118,11 +133,19 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.medium,
     marginTop: 4,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
   name: {
     color: colors.onDarkPrimary,
     fontSize: fontSize.md,
     fontFamily: fontFamily.bold,
-    marginTop: 4,
+  },
+  nameText: {
+    flexShrink: 1,
   },
   footer: {
     flexDirection: 'row',

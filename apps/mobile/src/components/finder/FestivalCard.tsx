@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { LikeButton } from '../ui/LikeButton';
+import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatAmount, formatDateRangeShort } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -45,7 +46,10 @@ export function FestivalCard({
         <GlassCard padding={14}>
           <View style={styles.miniRow}>
             <View style={styles.miniContent}>
-              <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>{festival.name}</Text>
+              <View style={styles.nameRow}>
+                {organizer?.logo ? <OrganizerLogo organizer={organizer} size={20} /> : null}
+                <Text style={[styles.name, styles.nameText, { color: colors.textPrimary }]} numberOfLines={1}>{festival.name}</Text>
+              </View>
               <View style={styles.miniMetaRow}>
                 {dateRange ? (
                   <View style={[styles.pill, { backgroundColor: colors.neutralTileBg }]}>
@@ -67,7 +71,10 @@ export function FestivalCard({
       <GlassCard padding={16}>
         <View style={styles.fullHeader}>
           <View style={styles.fullHeaderLeft}>
-            <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={2}>{festival.name}</Text>
+            <View style={styles.nameRow}>
+              {organizer?.logo ? <OrganizerLogo organizer={organizer} size={20} /> : null}
+              <Text style={[styles.name, styles.nameText, { color: colors.textPrimary }]} numberOfLines={2}>{festival.name}</Text>
+            </View>
             {festival.location ? (
               <View style={styles.locationRow}>
                 <MapPin size={11} color={colors.textTertiary} strokeWidth={1.5} />
@@ -118,13 +125,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   name: {
     fontSize: fontSize.base,
     fontFamily: fontFamily.semibold,
   },
+  nameText: {
+    flexShrink: 1,
+  },
   subtitle: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
+    flexShrink: 1,
   },
   footerRow: {
     flexDirection: 'row',

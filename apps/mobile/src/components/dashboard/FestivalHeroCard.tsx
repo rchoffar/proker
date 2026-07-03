@@ -2,7 +2,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { GlowBlob } from '../ui/GlowBlob';
+import { PokerChip } from '../ui/PokerChip';
 import { LikeButton } from '../ui/LikeButton';
+import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -24,6 +26,7 @@ export function FestivalHeroCard({ festival, organizer, isOngoing, onPress, onAd
   return (
     <GlassCard variant="dark" padding={20} style={styles.card}>
       <GlowBlob />
+      <PokerChip size={80} style={styles.chip} color={colors.onDarkHairline} />
       <View style={styles.headerRow}>
         <View style={[styles.badge, { backgroundColor: colors.accentGlow }]}>
           <Heart size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
@@ -40,7 +43,10 @@ export function FestivalHeroCard({ festival, organizer, isOngoing, onPress, onAd
             {festival.location}{organizer ? ` · ${organizer.name}` : ''}
           </Text>
         ) : null}
-        <Text style={[styles.name, { color: colors.onDarkPrimary }]} numberOfLines={2}>{festival.name}</Text>
+        <View style={styles.nameRow}>
+          {organizer?.logo ? <OrganizerLogo organizer={organizer} size={20} tone="dark" /> : null}
+          <Text style={[styles.name, styles.nameText, { color: colors.onDarkPrimary }]} numberOfLines={2}>{festival.name}</Text>
+        </View>
         {dateRange ? <Text style={[styles.dates, { color: colors.onDarkSecondary }]}>{dateRange}</Text> : null}
       </TouchableOpacity>
 
@@ -60,6 +66,11 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.sm,
     overflow: 'hidden',
+  },
+  chip: {
+    position: 'absolute',
+    bottom: -18,
+    right: -14,
   },
   headerRow: {
     flexDirection: 'row',
@@ -83,12 +94,20 @@ const styles = StyleSheet.create({
   venue: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
+    flexShrink: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 4,
   },
   name: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.bold,
-    marginTop: 4,
+  },
+  nameText: {
+    flexShrink: 1,
   },
   dates: {
     fontSize: fontSize.sm,

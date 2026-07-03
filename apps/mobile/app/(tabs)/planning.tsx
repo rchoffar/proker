@@ -6,14 +6,14 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, ChevronRight, PartyPopper, Trophy } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { MonthCalendar } from '../../src/components/planning/MonthCalendar';
+import { MonthCalendar, toIso } from '../../src/components/planning/MonthCalendar';
 import type { CalendarMarker } from '../../src/components/planning/MonthCalendar';
 import { TournamentDetailModal } from '../../src/components/finder/TournamentDetailModal';
 import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
-import { formatAmount, formatDateShort } from '../../src/lib/format';
+import { formatAmount, formatDateRangeShort, formatDateShort } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament, TournamentSession } from '../../src/types';
@@ -36,27 +36,31 @@ export default function PlanningScreen() {
 
   const likedFestivals = useMemo(() => festivals.filter((f) => likedFestivalIds.includes(f.id)), [festivals, likedFestivalIds]);
   const likedTournaments = useMemo(() => tournaments.filter((t) => likedTournamentIds.includes(t.id)), [tournaments, likedTournamentIds]);
+  const undatedLikedTournaments = useMemo(() => likedTournaments.filter((t) => !t.startDate), [likedTournaments]);
 
   const markers = useMemo<CalendarMarker[]>(() => {
     const result: CalendarMarker[] = [];
-    for (const f of likedFestivals) {
-      if (f.startDate) result.push({ date: f.startDate, kind: 'festival-start', id: f.id, label: f.name });
-      if (f.endDate && f.endDate !== f.startDate) result.push({ date: f.endDate, kind: 'festival-end', id: f.id, label: f.name });
-    }
+    likedFestivals.forEach((f, index) => {
+      if (f.startDate) {
+        const color = colors.calendarPalette[index % colors.calendarPalette.length];
+        result.push({ id: f.id, label: f.name, kind: 'festival', startDate: f.startDate, endDate: f.endDate ?? f.startDate, color });
+      }
+    });
     for (const t of likedTournaments) {
-      if (t.startDate) result.push({ date: t.startDate, kind: 'tournament', id: t.id, label: t.name });
+      if (t.startDate) result.push({ id: t.id, label: t.name, kind: 'tournament', startDate: t.startDate, endDate: t.startDate, color: colors.textSecondary });
     }
     return result;
-  }, [likedFestivals, likedTournaments]);
+  }, [likedFestivals, likedTournaments, colors]);
 
-  const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+  const monthStartIso = toIso(new Date(month.getFullYear(), month.getMonth(), 1));
+  const monthEndIso = toIso(new Date(month.getFullYear(), month.getMonth() + 1, 0));
 
   const listMarkers = useMemo(() => {
     const source = selectedDate
-      ? markers.filter((m) => m.date === selectedDate)
-      : markers.filter((m) => m.date.startsWith(monthKey));
-    return [...source].sort((a, b) => (a.date < b.date ? -1 : 1));
-  }, [markers, selectedDate, monthKey]);
+      ? markers.filter((m) => m.startDate <= selectedDate && selectedDate <= m.endDate)
+      : markers.filter((m) => m.startDate <= monthEndIso && m.endDate >= monthStartIso);
+    return [...source].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+  }, [markers, selectedDate, monthStartIso, monthEndIso]);
 
   const tournamentSessions = useMemo(
     () => sessions.filter((s): s is TournamentSession => s.type === 'tournament'),
@@ -156,18 +160,17 @@ export default function PlanningScreen() {
                     <TouchableOpacity key={`${marker.kind}-${marker.id}`} onPress={() => handleMarkerPress(marker)} activeOpacity={0.75}>
                       <GlassCard padding={14}>
                         <View style={styles.markerRow}>
-                          <View style={[styles.markerIcon, { backgroundColor: colors.neutralTileBg }]}>
+                          <View style={[styles.markerIcon, { backgroundColor: marker.kind === 'festival' ? `${marker.color}22` : colors.neutralTileBg }]}>
                             {marker.kind === 'tournament' ? (
                               <Trophy size={15} color={colors.textSecondary} strokeWidth={1.5} />
                             ) : (
-                              <PartyPopper size={15} color={colors.accent} strokeWidth={1.5} />
+                              <PartyPopper size={15} color={marker.color} strokeWidth={1.5} />
                             )}
                           </View>
                           <View style={styles.markerInfo}>
                             <Text style={[styles.markerName, { color: colors.textPrimary }]} numberOfLines={1}>{marker.label}</Text>
                             <Text style={[styles.markerMeta, { color: colors.textTertiary }]}>
-                              {formatDateShort(marker.date)}
-                              {marker.kind === 'festival-start' ? ' · Début' : marker.kind === 'festival-end' ? ' · Fin' : ''}
+                              {marker.kind === 'festival' ? formatDateRangeShort(marker.startDate, marker.endDate) : formatDateShort(marker.startDate)}
                               {tournament ? ` · ${formatAmount(tournament.buyIn)}` : ''}
                             </Text>
                           </View>
@@ -179,6 +182,34 @@ export default function PlanningScreen() {
               </View>
             )}
           </Animated.View>
+
+          {undatedLikedTournaments.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(160).springify().damping(18).stiffness(140)} style={styles.section}>
+              <SectionLabel style={styles.sectionLabel}>Date à confirmer</SectionLabel>
+              <View style={styles.list}>
+                {undatedLikedTournaments.map((t) => {
+                  const festival = festivals.find((f) => f.id === t.festivalId);
+                  return (
+                    <TouchableOpacity key={`undated-${t.id}`} onPress={() => setSelectedTournament(t)} activeOpacity={0.75}>
+                      <GlassCard padding={14}>
+                        <View style={styles.markerRow}>
+                          <View style={[styles.markerIcon, { backgroundColor: colors.neutralTileBg }]}>
+                            <Trophy size={15} color={colors.textSecondary} strokeWidth={1.5} />
+                          </View>
+                          <View style={styles.markerInfo}>
+                            <Text style={[styles.markerName, { color: colors.textPrimary }]} numberOfLines={1}>{t.name}</Text>
+                            <Text style={[styles.markerMeta, { color: colors.textTertiary }]}>
+                              {festival ? `${festival.name} · ` : ''}{formatAmount(t.buyIn)}
+                            </Text>
+                          </View>
+                        </View>
+                      </GlassCard>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </Animated.View>
+          )}
 
           <View style={{ height: 120 }} />
         </View>

@@ -2,6 +2,22 @@ export function formatAmount(val: number): string {
   return `${Math.abs(val).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
 }
 
+export function formatLevelDuration(levels: { durationMinutes: number }[]): string {
+  const durations = levels.map((l) => l.durationMinutes);
+  const min = Math.min(...durations);
+  const max = Math.max(...durations);
+  return min === max ? `${min} min` : `${min}–${max} min`;
+}
+
+export function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
+}
+
 export function formatDateParts(iso?: string): { day: string; month: string } {
   if (!iso) return { day: '', month: '' };
   const date = new Date(iso);

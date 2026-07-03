@@ -3,17 +3,19 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronLeft, ChevronRight, MapPin, Users } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Users } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { LikeButton } from '../../src/components/ui/LikeButton';
+import { OrganizerLogo } from '../../src/components/ui/OrganizerLogo';
+import { PokerChip } from '../../src/components/ui/PokerChip';
 import { Pill } from '../../src/components/ui/Pill';
 import { TournamentDetailModal } from '../../src/components/finder/TournamentDetailModal';
 import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { formatAmount, formatDateRange } from '../../src/lib/format';
+import { formatAmount, formatDateRange, formatLevelDuration } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament, TournamentSession } from '../../src/types';
@@ -157,10 +159,13 @@ export default function FestivalDetailScreen() {
               <GlowBlob />
               {festival.location ? (
                 <View style={styles.locationRow}>
-                  <MapPin size={12} color={colors.onDarkTertiary} strokeWidth={1.5} />
-                  <Text style={[styles.locationText, { color: colors.onDarkTertiary }]}>
-                    {festival.location}{organizer ? ` · ${organizer.name}` : ''}
-                  </Text>
+                  {organizer?.logo ? <OrganizerLogo organizer={organizer} size={36} tone="dark" /> : null}
+                  <View style={styles.locationTextWrap}>
+                    <MapPin size={12} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                    <Text style={[styles.locationText, { color: colors.onDarkTertiary }]}>
+                      {festival.location}{organizer ? ` · ${organizer.name}` : ''}
+                    </Text>
+                  </View>
                 </View>
               ) : null}
               {dateRange ? <Text style={[styles.dateText, { color: colors.onDarkPrimary }]}>{dateRange}</Text> : null}
@@ -193,12 +198,28 @@ export default function FestivalDetailScreen() {
           {mainEvent && (
             <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
               <TouchableOpacity onPress={() => setSelectedTournament(mainEvent)} activeOpacity={0.85}>
-                <GlassCard padding={20}>
+                <GlassCard padding={20} style={styles.mainEventCard}>
+                  <PokerChip size={70} style={styles.mainEventChip} color={colors.hairline} />
                   <SectionLabel>Main Event</SectionLabel>
                   <View style={styles.mainEventHeader}>
                     <Text style={[styles.mainEventName, { color: colors.textPrimary }]}>{mainEvent.name}</Text>
                     <Text style={[styles.mainEventBuyIn, { color: colors.accent }]}>{formatAmount(mainEvent.buyIn)}</Text>
                   </View>
+                  {(mainEvent.blindStructure || mainEvent.guaranteed) ? (
+                    <View style={styles.mainEventMetaRow}>
+                      {mainEvent.blindStructure ? (
+                        <View style={styles.mainEventMetaItem}>
+                          <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
+                          <Text style={[styles.mainEventMetaText, { color: colors.textTertiary }]}>
+                            {formatLevelDuration(mainEvent.blindStructure.levels)} / niveau
+                          </Text>
+                        </View>
+                      ) : null}
+                      {mainEvent.guaranteed ? (
+                        <Pill label={`${formatAmount(mainEvent.guaranteed)} garantis`} tone="accent" />
+                      ) : null}
+                    </View>
+                  ) : null}
                   {mainEvent.blindStructure ? (
                     <View style={styles.mainEventHint}>
                       <Text style={[styles.mainEventHintText, { color: colors.textTertiary }]}>Voir la structure de blindes</Text>
@@ -307,7 +328,13 @@ const styles = StyleSheet.create({
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+  locationTextWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 5,
+    flexShrink: 1,
   },
   locationText: {
     fontSize: fontSize.sm,
@@ -343,12 +370,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  mainEventCard: {
+    overflow: 'hidden',
+  },
+  mainEventChip: {
+    position: 'absolute',
+    top: -14,
+    right: -12,
+  },
   mainEventHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   mainEventName: {
     fontSize: fontSize.md,
@@ -358,6 +393,21 @@ const styles = StyleSheet.create({
   mainEventBuyIn: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.extrabold,
+  },
+  mainEventMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  mainEventMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mainEventMetaText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.medium,
   },
   mainEventHint: {
     flexDirection: 'row',

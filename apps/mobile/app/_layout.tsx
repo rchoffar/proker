@@ -30,6 +30,8 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="tracker" />
         <Stack.Screen name="festival/[id]" />
+        <Stack.Screen name="hand-replayer/index" />
+        <Stack.Screen name="hand-replayer/play" options={{ presentation: 'modal' }} />
       </Stack>
     </View>
   );

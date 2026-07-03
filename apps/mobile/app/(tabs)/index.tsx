@@ -9,29 +9,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { TrendingUp, ChevronRight, Heart } from 'lucide-react-native';
+import { TrendingUp, ChevronRight, Heart, Dices, History } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
+import { PokerChip } from '../../src/components/ui/PokerChip';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { FestivalCard } from '../../src/components/finder/FestivalCard';
 import { CoupDeCoeurCard } from '../../src/components/tournaments/CoupDeCoeurCard';
 import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
+import { GameTile } from '../../src/components/degen/GameTile';
 import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
-import { isFestivalOngoing } from '../../src/lib/format';
+import { isFestivalOngoing, initials } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Festival } from '../../src/types';
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
-}
 
 export default function DashboardScreen() {
   const { colors } = useTheme();
@@ -144,7 +137,10 @@ export default function DashboardScreen() {
             ) : (
               <TouchableOpacity onPress={() => router.push('/festivals')} activeOpacity={0.85}>
                 <GlassCard variant="dark" padding={24} style={styles.emptyHero}>
-                  <Heart size={22} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                  <View style={styles.emptyHeroIconWrap}>
+                    <PokerChip size={90} style={styles.emptyHeroChip} color={colors.onDarkHairline} />
+                    <Heart size={22} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                  </View>
                   <Text style={[styles.emptyHeroTitle, { color: colors.onDarkPrimary }]}>Aimez un festival</Text>
                   <Text style={[styles.emptyHeroSubtitle, { color: colors.onDarkTertiary }]}>
                     Retrouvez ici vos festivals préférés pour suivre leurs tournois
@@ -154,9 +150,30 @@ export default function DashboardScreen() {
             )}
           </Animated.View>
 
+          {/* Jeux */}
+          <Animated.View entering={FadeInDown.delay(90).springify().damping(18).stiffness(140)} style={styles.section}>
+            <SectionLabel style={styles.sectionLabel}>Jeux</SectionLabel>
+            <View style={styles.grid}>
+              <GameTile
+                name="Jeu aléatoire"
+                description="Lancez-vous dans un mini-jeu du Degen Hub"
+                icon={<Dices size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+                comingSoon={false}
+                onPress={() => router.push('/degen')}
+              />
+              <GameTile
+                name="Rejouer une main"
+                description="Analysez une main jouée avec vos amis"
+                icon={<History size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+                comingSoon={false}
+                onPress={() => router.push('/hand-replayer')}
+              />
+            </View>
+          </Animated.View>
+
           {/* Coup de cœur */}
           {showFeatured && featured && (
-            <Animated.View entering={FadeInDown.delay(100).springify().damping(18).stiffness(140)} style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)} style={styles.section}>
               <SectionLabel style={styles.sectionLabel}>Coup de cœur</SectionLabel>
               <CoupDeCoeurCard
                 festival={featured}
@@ -170,7 +187,7 @@ export default function DashboardScreen() {
 
           {/* Vos festivals à venir */}
           {upcomingLiked.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)} style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(150).springify().damping(18).stiffness(140)} style={styles.section}>
               <SectionLabel style={styles.sectionLabel}>Vos festivals à venir</SectionLabel>
               <View style={styles.sectionList}>
                 {upcomingLiked.map((f) => (
@@ -191,7 +208,7 @@ export default function DashboardScreen() {
 
           {/* Découvrir */}
           {discoverFestivals.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)} style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(190).springify().damping(18).stiffness(140)} style={styles.section}>
               <SectionLabel style={styles.sectionLabel}>Découvrir</SectionLabel>
               <View style={styles.sectionList}>
                 {discoverFestivals.map((f) => (
@@ -214,7 +231,7 @@ export default function DashboardScreen() {
           )}
 
           {/* Mes sessions */}
-          <Animated.View entering={FadeInDown.delay(240).springify().damping(18).stiffness(140)}>
+          <Animated.View entering={FadeInDown.delay(220).springify().damping(18).stiffness(140)}>
             <TouchableOpacity onPress={() => router.push('/tracker')} activeOpacity={0.8}>
               <GlassCard padding={16}>
                 <View style={styles.sessionsRow}>
@@ -318,6 +335,18 @@ const styles = StyleSheet.create({
   emptyHero: {
     alignItems: 'center',
     gap: spacing.sm,
+    overflow: 'hidden',
+  },
+  emptyHeroIconWrap: {
+    width: 90,
+    height: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyHeroChip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   emptyHeroTitle: {
     fontSize: fontSize.md,
@@ -337,6 +366,12 @@ const styles = StyleSheet.create({
   },
   sectionList: {
     gap: spacing.sm,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.md,
   },
   seeAllLink: {
     alignSelf: 'center',
