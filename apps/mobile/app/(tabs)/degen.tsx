@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Coins, Drama, Disc3, Hourglass } from 'lucide-react-native';
 import { GameTile } from '../../src/components/degen/GameTile';
@@ -7,15 +8,16 @@ import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 
-const GAMES = [
-  { name: 'Flip', description: 'Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise', Icon: Coins },
+const GAMES: { name: string; description: string; Icon: typeof Coins; route?: '/games/roulette' | '/games/flip' }[] = [
+  { name: 'Flip', description: 'Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise', Icon: Coins, route: '/games/flip' },
   { name: 'Bluff', description: 'Qui bluffe, qui plie ?', Icon: Drama },
-  { name: 'Roulette', description: 'Misez, tournez, tentez le sort', Icon: Disc3 },
+  { name: 'Roulette', description: 'Misez, tournez, tentez le sort', Icon: Disc3, route: '/games/roulette' },
   { name: 'The Last Longer', description: 'Le dernier en lice remporte tout', Icon: Hourglass },
 ];
 
 export default function DegenHubScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const animKey = useFocusAnimKey();
 
   return (
@@ -28,12 +30,14 @@ export default function DegenHubScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)} style={styles.grid}>
-            {GAMES.map(({ name, description, Icon }) => (
+            {GAMES.map(({ name, description, Icon, route }) => (
               <GameTile
                 key={name}
                 name={name}
                 description={description}
                 icon={<Icon size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+                comingSoon={!route}
+                onPress={route ? () => router.push(route) : undefined}
               />
             ))}
           </Animated.View>

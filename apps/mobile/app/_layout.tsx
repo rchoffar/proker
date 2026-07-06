@@ -32,6 +32,10 @@ function RootNavigator() {
         <Stack.Screen name="festival/[id]" />
         <Stack.Screen name="hand-replayer/index" />
         <Stack.Screen name="hand-replayer/play" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="games/roulette/index" />
+        <Stack.Screen name="games/roulette/play" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="games/flip/index" />
+        <Stack.Screen name="games/flip/play" options={{ presentation: 'modal' }} />
       </Stack>
     </View>
   );

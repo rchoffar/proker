@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY } from 'react-native-reanimated';
 import ViewShot from 'react-native-view-shot';
 import type { ViewShotRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
-import { X, Play, Pause, Share2, Download } from 'lucide-react-native';
+import { X, Play, Pause, Share2, Download, SkipForward } from 'lucide-react-native';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
@@ -24,7 +24,7 @@ type Beat =
   | { kind: 'intro' }
   | { kind: 'heroCards' }
   | { kind: 'streetCards'; street: Street }
-  | { kind: 'action'; action: HandAction }
+  | { kind: 'streetActions'; street: Street; actions: HandAction[] }
   | { kind: 'result' };
 
 const STREET_LABELS: Record<Street, string> = {
@@ -50,10 +50,8 @@ function buildBeats(hand: HandHistory): Beat[] {
     if (street === 'flop' && hand.board.flop) beats.push({ kind: 'streetCards', street });
     if (street === 'turn' && hand.board.turn) beats.push({ kind: 'streetCards', street });
     if (street === 'river' && hand.board.river) beats.push({ kind: 'streetCards', street });
-    hand.actions
-      .filter((a) => a.street === street)
-      .sort((a, b) => a.order - b.order)
-      .forEach((action) => beats.push({ kind: 'action', action }));
+    const streetActions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
+    if (streetActions.length > 0) beats.push({ kind: 'streetActions', street, actions: streetActions });
   });
   beats.push({ kind: 'result' });
   return beats;
@@ -62,13 +60,17 @@ function buildBeats(hand: HandHistory): Beat[] {
 export default function HandReplayerPlayScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { skip } = useLocalSearchParams<{ skip?: string }>();
   const hand = useHandReplayerDraft((s) => s.hand);
-  const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const viewShotRef = useRef<ViewShotRef>(null);
-
   const beats = useMemo(() => (hand ? buildBeats(hand) : []), [hand]);
   const lastIndex = beats.length - 1;
+  const [index, setIndex] = useState(() => (skip === '1' ? Math.max(0, lastIndex) : 0));
+  const [playing, setPlaying] = useState(false);
+  const [cardSize, setCardSize] = useState<{ width: number; height: number } | null>(null);
+  const [exportState, setExportState] = useState<'idle' | 'capturing'>('idle');
+  const [exportMessage, setExportMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const viewShotRef = useRef<ViewShotRef>(null);
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!playing) return;
@@ -79,6 +81,10 @@ export default function HandReplayerPlayScreen() {
     const timer = setTimeout(() => setIndex((i) => Math.min(i + 1, lastIndex)), AUTOPLAY_INTERVAL);
     return () => clearTimeout(timer);
   }, [playing, index, lastIndex]);
+
+  useEffect(() => () => {
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+  }, []);
 
   if (!hand) {
     return (
@@ -94,8 +100,10 @@ export default function HandReplayerPlayScreen() {
   const foldedIds = new Set(
     beats
       .slice(0, index + 1)
-      .filter((b): b is { kind: 'action'; action: HandAction } => b.kind === 'action' && b.action.type === 'fold')
-      .map((b) => b.action.playerId)
+      .filter((b): b is { kind: 'streetActions'; street: Street; actions: HandAction[] } => b.kind === 'streetActions')
+      .flatMap((b) => b.actions)
+      .filter((a) => a.type === 'fold')
+      .map((a) => a.playerId)
   );
 
   const heroRevealed = index >= 1;
@@ -116,25 +124,63 @@ export default function HandReplayerPlayScreen() {
     }
   };
 
+  const showMessage = (type: 'error' | 'success', text: string) => {
+    setExportMessage({ type, text });
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+    messageTimer.current = setTimeout(() => setExportMessage(null), 2500);
+  };
+
   const captureAndShare = async () => {
-    const uri = await viewShotRef.current?.capture?.();
-    if (uri) await Sharing.shareAsync(uri);
+    if (exportState === 'capturing') return;
+    setExportState('capturing');
+    try {
+      // The native view has settled per onLayout, but the GPU-composited frame can still
+      // lag a beat behind — a short wait here is the standard workaround for view-shot
+      // otherwise snapshotting a stale/undersized frame on iOS.
+      await new Promise((r) => setTimeout(r, 250));
+      const uri = await viewShotRef.current?.capture?.();
+      if (!uri) throw new Error('capture failed');
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        showMessage('error', "Le partage n'est pas disponible sur cet appareil.");
+        return;
+      }
+      await Sharing.shareAsync(uri);
+    } catch {
+      showMessage('error', 'Le partage a échoué. Réessayez.');
+    } finally {
+      setExportState('idle');
+    }
   };
 
   const captureAndSave = async () => {
-    const perm = await MediaLibrary.requestPermissionsAsync();
-    if (!perm.granted) return;
-    const uri = await viewShotRef.current?.capture?.();
-    if (uri) await MediaLibrary.saveToLibraryAsync(uri);
+    if (exportState === 'capturing') return;
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) {
+        showMessage(
+          'error',
+          perm.canAskAgain === false
+            ? 'Autorisez les photos dans les réglages pour enregistrer.'
+            : "Autorisation requise pour enregistrer l'image."
+        );
+        return;
+      }
+      setExportState('capturing');
+      await new Promise((r) => setTimeout(r, 250));
+      const uri = await viewShotRef.current?.capture?.();
+      if (!uri) throw new Error('capture failed');
+      await MediaLibrary.saveToLibraryAsync(uri);
+      showMessage('success', 'Image enregistrée.');
+    } catch {
+      showMessage('error', "L'enregistrement a échoué. Réessayez.");
+    } finally {
+      setExportState('idle');
+    }
   };
 
   const renderCaption = () => {
-    if (currentBeat?.kind === 'action') {
-      const player = hand.players.find((p) => p.id === currentBeat.action.playerId);
-      const label = ACTION_LABELS[currentBeat.action.type] ?? currentBeat.action.type;
-      const amount = currentBeat.action.amount ? ` (${currentBeat.action.amount}€)` : '';
-      return `${player?.name ?? '?'} ${label}${amount}`;
-    }
+    if (currentBeat?.kind === 'streetActions') return STREET_LABELS[currentBeat.street];
     if (currentBeat?.kind === 'streetCards') return STREET_LABELS[currentBeat.street];
     if (currentBeat?.kind === 'heroCards') return 'Mes cartes';
     if (currentBeat?.kind === 'intro') return hand.title ?? 'La main commence';
@@ -149,9 +195,31 @@ export default function HandReplayerPlayScreen() {
         </TouchableOpacity>
         <View style={styles.progressRow}>
           {beats.map((_, i) => (
-            <View key={i} style={[styles.progressSeg, { backgroundColor: i <= index ? colors.accent : colors.hairline }]} />
+            <TouchableOpacity
+              key={i}
+              style={styles.progressSegHit}
+              activeOpacity={0.7}
+              onPress={() => {
+                setPlaying(false);
+                setIndex(i);
+              }}
+            >
+              <View style={[styles.progressSeg, { backgroundColor: i <= index ? colors.accent : colors.hairline }]} />
+            </TouchableOpacity>
           ))}
         </View>
+        {!isResult && (
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.neutralTileBg }]}
+            onPress={() => {
+              setPlaying(false);
+              setIndex(lastIndex);
+            }}
+            activeOpacity={0.7}
+          >
+            <SkipForward size={16} color={colors.textSecondary} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.iconBtn, { backgroundColor: colors.neutralTileBg }]}
           onPress={() => setPlaying((p) => !p)}
@@ -164,24 +232,59 @@ export default function HandReplayerPlayScreen() {
       {isResult ? (
         <View style={styles.resultWrap}>
           <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-            <HandRecapCard hand={hand} />
+            <HandRecapCard hand={hand} onReady={setCardSize} />
           </ViewShot>
           <View style={styles.resultActions}>
-            <TouchableOpacity style={[styles.shareBtn, { backgroundColor: colors.accentBright }]} onPress={captureAndShare} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={[styles.shareBtn, { backgroundColor: colors.accentBright }, (!cardSize || exportState === 'capturing') && styles.disabledBtn]}
+              onPress={captureAndShare}
+              disabled={!cardSize || exportState === 'capturing'}
+              activeOpacity={0.85}
+            >
               <Share2 size={16} color="#0A0A0F" strokeWidth={2} />
               <Text style={styles.shareBtnText}>Partager</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.shareBtn, { backgroundColor: colors.neutralTileBg }]} onPress={captureAndSave} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={[styles.shareBtn, { backgroundColor: colors.neutralTileBg }, (!cardSize || exportState === 'capturing') && styles.disabledBtn]}
+              onPress={captureAndSave}
+              disabled={!cardSize || exportState === 'capturing'}
+              activeOpacity={0.85}
+            >
               <Download size={16} color={colors.textPrimary} strokeWidth={2} />
               <Text style={[styles.shareBtnText, { color: colors.textPrimary }]}>Enregistrer</Text>
             </TouchableOpacity>
           </View>
+          {exportMessage && (
+            <Text style={[styles.exportMessage, { color: exportMessage.type === 'error' ? colors.loss : colors.accent }]}>
+              {exportMessage.text}
+            </Text>
+          )}
         </View>
       ) : (
         <Pressable style={styles.tableArea} onPress={handleTap}>
           <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(300)} style={[styles.caption, { color: colors.textPrimary }]}>
             {renderCaption()}
           </Animated.Text>
+
+          {currentBeat?.kind === 'streetActions' && (
+            <View style={styles.actionLines}>
+              {currentBeat.actions.map((a, i) => {
+                const player = hand.players.find((p) => p.id === a.playerId);
+                const label = ACTION_LABELS[a.type] ?? a.type;
+                const amount = a.amount ? ` (${a.amount}€)` : '';
+                return (
+                  <Animated.Text
+                    key={a.id}
+                    entering={FadeInDown.duration(300).delay(i * 150)}
+                    style={[styles.actionLine, { color: colors.textSecondary }]}
+                  >
+                    {player?.name ?? '?'} {label}
+                    {amount}
+                  </Animated.Text>
+                );
+              })}
+            </View>
+          )}
 
           <View style={styles.boardRow}>
             {hand.board.flop &&
@@ -273,8 +376,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  progressSeg: {
+  progressSegHit: {
     flex: 1,
+    paddingVertical: 6,
+  },
+  progressSeg: {
     height: 3,
     borderRadius: 2,
   },
@@ -288,6 +394,15 @@ const styles = StyleSheet.create({
   caption: {
     fontSize: fontSize.xl,
     fontFamily: fontFamily.display,
+    textAlign: 'center',
+  },
+  actionLines: {
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  actionLine: {
+    fontSize: fontSize.base,
+    fontFamily: fontFamily.medium,
     textAlign: 'center',
   },
   boardRow: {
@@ -360,6 +475,14 @@ const styles = StyleSheet.create({
     color: '#0A0A0F',
     fontSize: fontSize.sm,
     fontFamily: fontFamily.bold,
+  },
+  disabledBtn: {
+    opacity: 0.4,
+  },
+  exportMessage: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+    textAlign: 'center',
   },
   resultBanner: {
     alignItems: 'center',

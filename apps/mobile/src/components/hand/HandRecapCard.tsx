@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, LayoutChangeEvent } from 'react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { PlayingCard } from './PlayingCard';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
@@ -6,8 +6,18 @@ import { useTheme } from '../../design-system/ThemeProvider';
 import { formatAmount } from '../../lib/format';
 import type { HandHistory, Street } from '../../types';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// Give the card room to breathe on every device instead of a single guessed constant —
+// a fixed width too close to its content width is what causes the board row to clip.
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 380);
+
 interface Props {
   hand: HandHistory;
+  // Fired once the card's native layout has settled, with its measured size — callers
+  // that snapshot this view (react-native-view-shot) should wait for this and pass the
+  // size through to the capture options, otherwise the capture can race the layout pass
+  // or infer the wrong bounds and produce a small/cropped image.
+  onReady?: (size: { width: number; height: number }) => void;
 }
 
 const STREET_LABELS: Record<Street, string> = {
@@ -39,7 +49,7 @@ function streetSummary(hand: HandHistory, street: Street): string {
     .join(' · ');
 }
 
-export function HandRecapCard({ hand }: Props) {
+export function HandRecapCard({ hand, onReady }: Props) {
   const { colors } = useTheme();
   const hero = hand.players.find((p) => p.isHero);
   const winner = hand.winnerId ? hand.players.find((p) => p.id === hand.winnerId) : undefined;
@@ -49,8 +59,13 @@ export function HandRecapCard({ hand }: Props) {
   const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
   const summaries = streets.map((s) => ({ street: s, text: streetSummary(hand, s) })).filter((s) => s.text);
 
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    onReady?.({ width, height });
+  };
+
   return (
-    <View style={styles.outer}>
+    <View style={[styles.outer, { width: CARD_WIDTH }]} collapsable={false} onLayout={handleLayout}>
       <GlassCard variant="dark" padding={22} style={styles.card}>
         <Text style={[styles.title, { color: colors.onDarkPrimary }]}>{hand.title ?? 'Une main à raconter'}</Text>
         {hand.stakes ? <Text style={[styles.stakes, { color: colors.onDarkSecondary }]}>{hand.stakes}</Text> : null}
@@ -71,7 +86,9 @@ export function HandRecapCard({ hand }: Props) {
             <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>Board</Text>
             <View style={styles.cardsRow}>
               {boardCards.map((c, i) => (
-                <PlayingCard key={i} card={c!} size="md" />
+                // Smaller once turn/river join the flop — keeps 5 cards + gaps comfortably
+                // inside the card's padding on the narrowest supported screen widths.
+                <PlayingCard key={i} card={c!} size={boardCards.length > 3 ? 'sm' : 'md'} />
               ))}
             </View>
           </View>
@@ -112,7 +129,6 @@ export function HandRecapCard({ hand }: Props) {
 const styles = StyleSheet.create({
   outer: {
     alignSelf: 'center',
-    width: 340,
   },
   card: {
     gap: spacing.md,

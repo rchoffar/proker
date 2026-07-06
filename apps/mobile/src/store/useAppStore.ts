@@ -4,6 +4,7 @@ import { createMMKV } from 'react-native-mmkv';
 import type { User, Session, Stake, Player, BankrollSnapshot, ComputedStats, Festival, Tournament, Country, Organizer } from '../types';
 import { mockUser, mockFestivals, mockTournaments, mockCountries, mockOrganizers } from '../data/mock';
 import { computeWindowedStats, computeBankrollHistory } from '../lib/stats';
+import type { FlipGameType } from '../lib/pokerHandEvaluator';
 
 export { sessionNetValues } from '../lib/stats';
 
@@ -32,6 +33,9 @@ interface AppStore {
   organizers: Organizer[];
   likedFestivalIds: string[];
   likedTournamentIds: string[];
+  rouletteLastPlayers: Player[];
+  flipLastPlayers: Player[];
+  flipLastGameType: FlipGameType;
 
   addSession: (session: Session) => void;
   updateSession: (session: Session) => void;
@@ -44,6 +48,8 @@ interface AppStore {
   addOrganizer: (organizer: Organizer) => void;
   toggleLikedFestival: (festivalId: string) => void;
   toggleLikedTournament: (tournamentId: string) => void;
+  setRouletteLastPlayers: (players: Player[]) => void;
+  setFlipDraftDefaults: (players: Player[], gameType: FlipGameType) => void;
   resetStore: () => void;
 }
 
@@ -62,6 +68,9 @@ export const useAppStore = create<AppStore>()(
       organizers: mockOrganizers,
       likedFestivalIds: [],
       likedTournamentIds: [],
+      rouletteLastPlayers: [],
+      flipLastPlayers: [],
+      flipLastGameType: 'holdem',
 
       addSession: (session) =>
         set((state) => {
@@ -125,6 +134,10 @@ export const useAppStore = create<AppStore>()(
             : [...state.likedTournamentIds, tournamentId],
         })),
 
+      setRouletteLastPlayers: (players) => set({ rouletteLastPlayers: players }),
+
+      setFlipDraftDefaults: (players, gameType) => set({ flipLastPlayers: players, flipLastGameType: gameType }),
+
       resetStore: () => {
         mmkv.remove('proker-app-store');
         set({
@@ -140,6 +153,9 @@ export const useAppStore = create<AppStore>()(
           organizers: mockOrganizers,
           likedFestivalIds: [],
           likedTournamentIds: [],
+          rouletteLastPlayers: [],
+          flipLastPlayers: [],
+          flipLastGameType: 'holdem',
         });
       },
     }),
@@ -157,6 +173,9 @@ export const useAppStore = create<AppStore>()(
         user: state.user,
         likedFestivalIds: state.likedFestivalIds,
         likedTournamentIds: state.likedTournamentIds,
+        rouletteLastPlayers: state.rouletteLastPlayers,
+        flipLastPlayers: state.flipLastPlayers,
+        flipLastGameType: state.flipLastGameType,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
