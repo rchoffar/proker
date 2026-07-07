@@ -6,9 +6,10 @@ import type { HandPlayer } from '../../types';
 
 interface Props {
   player: HandPlayer;
+  position?: string;
 }
 
-export function QueuedPlayerRow({ player }: Props) {
+export function QueuedPlayerRow({ player, position }: Props) {
   const { colors } = useTheme();
   return (
     <View style={styles.wrap}>
@@ -17,6 +18,7 @@ export function QueuedPlayerRow({ player }: Props) {
       </View>
       <Text style={[styles.name, { color: colors.textTertiary }]} numberOfLines={1}>
         {player.name}
+        {position ? ` (${position})` : ''}
       </Text>
       <Text style={[styles.status, { color: colors.textTertiary }]}>en attente</Text>
     </View>

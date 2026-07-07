@@ -3,7 +3,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { PlayingCard } from './PlayingCard';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import { formatAmount } from '../../lib/format';
+import { formatChips } from '../../lib/format';
 import type { HandHistory, Street } from '../../types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -34,6 +34,7 @@ const ACTION_LABELS: Record<string, string> = {
   bet: 'mise',
   raise: 'relance',
   allin: 'all-in',
+  post: 'poste',
 };
 
 function streetSummary(hand: HandHistory, street: Street): string {
@@ -42,9 +43,11 @@ function streetSummary(hand: HandHistory, street: Street): string {
   return streetActions
     .map((a) => {
       const player = hand.players.find((p) => p.id === a.playerId);
+      const amount = a.amount ? ` ${formatChips(a.amount)}` : '';
+      const position = player?.position ? ` (${player.position})` : '';
+      if (a.type === 'post') return `${player?.name ?? '?'}${position}${amount}`;
       const label = ACTION_LABELS[a.type] ?? a.type;
-      const amount = a.amount ? ` ${formatAmount(a.amount)}` : '';
-      return `${player?.name ?? '?'} ${label}${amount}`;
+      return `${player?.name ?? '?'}${position} ${label}${amount}`;
     })
     .join(' · ');
 }
@@ -108,11 +111,11 @@ export function HandRecapCard({ hand, onReady }: Props) {
         <View style={[styles.resultBox, { borderColor: colors.onDarkHairline }]}>
           {winner ? (
             <Text style={[styles.resultText, { color: colors.accentBright }]}>
-              {winner.name} remporte {finalPot ? formatAmount(finalPot) : 'la main'}
+              {winner.name} remporte {finalPot ? formatChips(finalPot) : 'la main'}
             </Text>
           ) : (
             <Text style={[styles.resultText, { color: colors.onDarkSecondary }]}>
-              {finalPot ? `Pot final : ${formatAmount(finalPot)}` : 'Main terminée'}
+              {finalPot ? `Pot final : ${formatChips(finalPot)}` : 'Main terminée'}
             </Text>
           )}
           {hand.winningHandDescription ? (
@@ -154,6 +157,7 @@ const styles = StyleSheet.create({
   cardsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   actionLine: {
     fontSize: fontSize.sm,

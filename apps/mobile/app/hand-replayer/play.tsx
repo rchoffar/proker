@@ -14,7 +14,7 @@ import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-import { initials } from '../../src/lib/format';
+import { initials, formatChips } from '../../src/lib/format';
 import type { HandAction, HandHistory, Street } from '../../src/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -41,6 +41,7 @@ const ACTION_LABELS: Record<string, string> = {
   bet: 'mise',
   raise: 'relance',
   allin: 'part all-in',
+  post: 'poste',
 };
 
 function buildBeats(hand: HandHistory): Beat[] {
@@ -81,6 +82,13 @@ export default function HandReplayerPlayScreen() {
     const timer = setTimeout(() => setIndex((i) => Math.min(i + 1, lastIndex)), AUTOPLAY_INTERVAL);
     return () => clearTimeout(timer);
   }, [playing, index, lastIndex]);
+
+  useEffect(() => {
+    // Expo Router can reuse an already-mounted screen instance when re-navigating to the
+    // same route with new params, so the lazy useState initializer above won't rerun —
+    // this effect re-applies `skip` on every navigation, not just a genuinely fresh mount.
+    if (skip === '1' && lastIndex >= 0) setIndex(lastIndex);
+  }, [skip, lastIndex]);
 
   useEffect(() => () => {
     if (messageTimer.current) clearTimeout(messageTimer.current);
@@ -245,13 +253,13 @@ export default function HandReplayerPlayScreen() {
               <Text style={styles.shareBtnText}>Partager</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.shareBtn, { backgroundColor: colors.neutralTileBg }, (!cardSize || exportState === 'capturing') && styles.disabledBtn]}
+              style={[styles.shareBtn, { backgroundColor: colors.onDarkHairline }, (!cardSize || exportState === 'capturing') && styles.disabledBtn]}
               onPress={captureAndSave}
               disabled={!cardSize || exportState === 'capturing'}
               activeOpacity={0.85}
             >
-              <Download size={16} color={colors.textPrimary} strokeWidth={2} />
-              <Text style={[styles.shareBtnText, { color: colors.textPrimary }]}>Enregistrer</Text>
+              <Download size={16} color={colors.onDarkPrimary} strokeWidth={2} />
+              <Text style={[styles.shareBtnText, { color: colors.onDarkPrimary }]}>Enregistrer</Text>
             </TouchableOpacity>
           </View>
           {exportMessage && (
@@ -270,16 +278,27 @@ export default function HandReplayerPlayScreen() {
             <View style={styles.actionLines}>
               {currentBeat.actions.map((a, i) => {
                 const player = hand.players.find((p) => p.id === a.playerId);
-                const label = ACTION_LABELS[a.type] ?? a.type;
-                const amount = a.amount ? ` (${a.amount}€)` : '';
+                const amount = a.amount ? ` ${formatChips(a.amount)}` : '';
+                const position = player?.position ? ` (${player.position})` : '';
                 return (
                   <Animated.Text
                     key={a.id}
                     entering={FadeInDown.duration(300).delay(i * 150)}
                     style={[styles.actionLine, { color: colors.textSecondary }]}
                   >
-                    {player?.name ?? '?'} {label}
-                    {amount}
+                    {a.type === 'post' ? (
+                      <>
+                        {player?.name ?? '?'}
+                        {position}
+                        {amount}
+                      </>
+                    ) : (
+                      <>
+                        {player?.name ?? '?'}
+                        {position} {ACTION_LABELS[a.type] ?? a.type}
+                        {a.amount ? ` (${formatChips(a.amount)})` : ''}
+                      </>
+                    )}
                   </Animated.Text>
                 );
               })}
@@ -330,6 +349,7 @@ export default function HandReplayerPlayScreen() {
                   <Text style={[styles.seatName, { color: colors.textSecondary }]} numberOfLines={1}>
                     {p.name}
                   </Text>
+                  {p.position && <Text style={[styles.seatPosition, { color: colors.textTertiary }]}>{p.position}</Text>}
                   {folded && <Text style={[styles.foldedLabel, { color: colors.loss }]}>Couché</Text>}
                 </Animated.View>
               );
@@ -442,6 +462,11 @@ const styles = StyleSheet.create({
   seatName: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
+  },
+  seatPosition: {
+    fontSize: 10,
+    fontFamily: fontFamily.semibold,
+    letterSpacing: 0.5,
   },
   foldedLabel: {
     fontSize: fontSize.xs,

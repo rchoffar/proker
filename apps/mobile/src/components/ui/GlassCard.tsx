@@ -70,9 +70,7 @@ const styles = StyleSheet.create({
   overflow: {
     overflow: 'hidden',
   },
-  inner: {
-    flex: 1,
-  },
+  inner: {},
   lightBorder: {
     position: 'absolute',
     top: 0,

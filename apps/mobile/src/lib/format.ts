@@ -2,6 +2,11 @@ export function formatAmount(val: number): string {
   return `${Math.abs(val).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
 }
 
+// Bare chip count, no currency symbol — for hand-replayer amounts, which are chips, not money.
+export function formatChips(val: number): string {
+  return Math.abs(val).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
 export function formatLevelDuration(levels: { durationMinutes: number }[]): string {
   const durations = levels.map((l) => l.durationMinutes);
   const min = Math.min(...durations);

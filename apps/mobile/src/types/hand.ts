@@ -8,7 +8,7 @@ export interface Card {
 
 export type Street = 'preflop' | 'flop' | 'turn' | 'river';
 
-export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allin';
+export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allin' | 'post';
 
 export interface HandAction {
   id: string;
@@ -30,6 +30,10 @@ export interface HandPlayer {
   isFolded: boolean;
   foldedOnStreet?: Street;
   result?: 'won' | 'lost' | 'folded' | 'unknown';
+  // Table position at the time the hand was recorded (BTN/SB/BB/UTG/UTG+1/...), derived
+  // from the Big Blind seat pick — stamped once by buildHandHistory() since the replay
+  // screen only ever sees this snapshot, not the builder's live seating state.
+  position?: string;
 }
 
 export interface PotState {

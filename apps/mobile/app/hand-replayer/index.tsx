@@ -3,8 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronLeft, Star, Eye, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { Stepper } from '../../src/components/ui/Stepper';
+import { AmountInput } from '../../src/components/ui/AmountInput';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { CardPicker } from '../../src/components/hand/CardPicker';
 import { PlayerActionRow } from '../../src/components/hand/PlayerActionRow';
@@ -13,6 +14,7 @@ import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
+import { formatChips } from '../../src/lib/format';
 import type { ActionType, Card, HandAction, HandHistory, HandPlayer, PotState, Street } from '../../src/types';
 
 const STEP_TITLES = ['Joueurs', 'Mes cartes', 'Preflop', 'Board', 'Showdown'];
@@ -25,6 +27,7 @@ const ACTION_LABELS: Record<ActionType, string> = {
   bet: 'mise',
   raise: 'relance',
   allin: 'all-in',
+  post: 'poste',
 };
 
 type CardGroupKind = 'hero' | 'flop' | 'turn' | 'river' | 'opponent';
@@ -40,6 +43,19 @@ interface BettingRoundState {
   street: Street;
   toAct: string[];
   lastAggressorId?: string;
+  // The total amount ("bet to") a caller must match this street — 0 while nobody has
+  // bet yet. Without this, "Call" had no amount to attach to its action at all.
+  currentBet: number;
+  // Each player's total contribution this street so far — drives per-player check-vs-call
+  // legality (owed = currentBet - contribution), which is what lets the Big Blind "check"
+  // when unraised while everyone else who owes money still has to call/raise/fold.
+  contributions: Record<string, number>;
+}
+
+interface BlindPositions {
+  buttonId: string;
+  sbId: string;
+  bbId: string;
 }
 
 function makePlayers(count: number): HandPlayer[] {
@@ -75,9 +91,16 @@ function computePots(actions: HandAction[]): PotState[] {
   let running = 0;
   const pots: PotState[] = [];
   streets.forEach((street) => {
-    const streetActions = actions.filter((a) => a.street === street);
+    const streetActions = actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
     if (streetActions.length === 0) return;
-    running += streetActions.reduce((sum, a) => sum + (a.amount ?? 0), 0);
+    // Each bet/raise/call amount is the player's TOTAL contribution this street (a "raise
+    // to", not a "raise by"), so a player who calls a bet and later calls a re-raise appears
+    // twice — take their latest amount per street, not the sum of every action they took.
+    const contribution: Record<string, number> = {};
+    streetActions.forEach((a) => {
+      if (a.amount !== undefined) contribution[a.playerId] = a.amount;
+    });
+    running += Object.values(contribution).reduce((sum, v) => sum + v, 0);
     pots.push({ street, amount: running });
   });
   return pots;
@@ -87,16 +110,67 @@ function cardsEqual(a: Card, b: Card): boolean {
   return a.rank === b.rank && a.suit === b.suit;
 }
 
+// Rotates a full seat list so `anchorId` ends up last — i.e. the seat right after the
+// anchor acts first. Shared by the mid-street reopen-on-raise logic (anchor = aggressor)
+// and by round-start ordering (anchor = Big Blind preflop, Button postflop). The anchor
+// doesn't need to still be in the list by the time it's filtered down to eligible players —
+// it's found in the full roster first, so a folded button/aggressor still works as a pivot.
+function seatOrderFrom<T extends { id: string }>(players: T[], anchorId: string): T[] {
+  const idx = players.findIndex((p) => p.id === anchorId);
+  if (idx === -1) return players;
+  return [...players.slice(idx + 1), ...players.slice(0, idx + 1)];
+}
+
 // After a bet/raise/allin, action must resume with the player immediately after the
 // aggressor's seat (wrapping around), not just "seat order minus the aggressor" — otherwise
 // an earlier seat gets asked to act again before a later seat has responded to the raise.
 function reopenQueueFrom(players: HandPlayer[], aggressorId: string, allInIds: Set<string>): string[] {
   const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
-  const idx = eligible.findIndex((p) => p.id === aggressorId);
-  if (idx === -1) return eligible.filter((p) => p.id !== aggressorId).map((p) => p.id);
-  const after = eligible.slice(idx + 1);
-  const before = eligible.slice(0, idx);
-  return [...after, ...before].map((p) => p.id);
+  return seatOrderFrom(eligible, aggressorId)
+    .filter((p) => p.id !== aggressorId)
+    .map((p) => p.id);
+}
+
+// Button = 2 seats before BB, SB = 1 seat before BB, wrapping — except heads-up, where the
+// general formula collapses button onto BB's own seat, so the lone other player is both.
+function getBlindPositions(players: HandPlayer[], bigBlindId: string): BlindPositions | null {
+  const n = players.length;
+  const bbIdx = players.findIndex((p) => p.id === bigBlindId);
+  if (bbIdx === -1) return null;
+  if (n === 2) {
+    const otherIdx = (bbIdx + 1) % n;
+    return { buttonId: players[otherIdx].id, sbId: players[otherIdx].id, bbId: bigBlindId };
+  }
+  const sbIdx = (bbIdx - 1 + n) % n;
+  const buttonIdx = (bbIdx - 2 + n) % n;
+  return { buttonId: players[buttonIdx].id, sbId: players[sbIdx].id, bbId: bigBlindId };
+}
+
+// seatOrderFrom(players, bbId) is exactly the preflop action order: [UTG, UTG+1, ..., BTN,
+// SB, BB] (BB always last by construction). Label from the end backward; everything before
+// BTN gets a simple UTG/UTG+1/UTG+2/... sequence rather than traditional MP/HJ/CO names.
+// Letter-only tags, never a numbered suffix (no UTG+1/UTG+2) — every seat further back
+// than Lojack collapses to plain "UTG", and the seat that's actually first to act is always
+// tagged "UTG" regardless of table size, even though its raw distance from the button would
+// otherwise land on MP/LJ/HJ for a small table.
+function getPositionLabels(players: HandPlayer[], bigBlindId: string): Record<string, string> {
+  const order = seatOrderFrom(players, bigBlindId);
+  const n = order.length;
+  const labels: Record<string, string> = {};
+  order.forEach((p, i) => {
+    const fromButton = n - 1 - i; // 0=BB, 1=SB, 2=BTN, 3=CO, 4=HJ, 5=LJ, 6=MP, 7+=UTG
+    if (fromButton === 0) labels[p.id] = 'BB';
+    else if (n >= 3 && fromButton === 1) labels[p.id] = 'SB';
+    else if (n === 2 && fromButton === 1) labels[p.id] = 'BTN';
+    else if (n >= 3 && fromButton === 2) labels[p.id] = 'BTN';
+    else if (i === 0) labels[p.id] = 'UTG';
+    else if (fromButton === 3) labels[p.id] = 'CO';
+    else if (fromButton === 4) labels[p.id] = 'HJ';
+    else if (fromButton === 5) labels[p.id] = 'LJ';
+    else if (fromButton === 6) labels[p.id] = 'MP';
+    else labels[p.id] = 'UTG';
+  });
+  return labels;
 }
 
 function CardSlot({ card, onPress }: { card?: Card; onPress: () => void }) {
@@ -138,8 +212,32 @@ export default function HandReplayerBuilderScreen() {
   const [allInIds, setAllInIds] = useState<Set<string>>(new Set());
   const [boardPhase, setBoardPhase] = useState<'flop' | 'turn' | 'river'>('flop');
   const [round, setRound] = useState<BettingRoundState | null>(null);
+  const [bigBlindPlayerId, setBigBlindPlayerId] = useState<string | undefined>('p1');
+  const [bigBlindAmount, setBigBlindAmount] = useState('2');
 
   const activePlayers = useMemo(() => players.filter((p) => !p.isFolded), [players]);
+
+  // Keep the BB pick valid as the roster changes (e.g. shrinking below its seat), but never
+  // clobber an explicit choice that's still a real player.
+  useEffect(() => {
+    if (bigBlindPlayerId && players.some((p) => p.id === bigBlindPlayerId)) return;
+    setBigBlindPlayerId(players[1]?.id);
+  }, [players, bigBlindPlayerId]);
+
+  const bigBlindValue = useMemo(() => {
+    const value = parseFloat(bigBlindAmount.replace(',', '.'));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }, [bigBlindAmount]);
+  const smallBlindValue = Math.round(bigBlindValue / 2);
+
+  const blindPositions = useMemo(
+    () => (bigBlindPlayerId ? getBlindPositions(players, bigBlindPlayerId) : null),
+    [players, bigBlindPlayerId]
+  );
+  const positionLabels = useMemo(
+    () => (bigBlindPlayerId ? getPositionLabels(players, bigBlindPlayerId) : {}),
+    [players, bigBlindPlayerId]
+  );
 
   const usedCards = useMemo(() => {
     const list: Card[] = [];
@@ -224,16 +322,50 @@ export default function HandReplayerBuilderScreen() {
   const startRound = useCallback(
     (street: Street) => {
       const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
-      setRound({ street, toAct: eligible.map((p) => p.id), lastAggressorId: undefined });
+
+      // Betting needs at least two players who can still act on each other. Once everyone
+      // else is all-in, the lone remaining player (who may have only just called, not gone
+      // all-in themselves) has no one left to respond to a bet — don't prompt them again on
+      // later streets, just run the board out. Preflop always starts with 2+ such players
+      // (nobody's folded or shoved yet), so this never blocks the very first action.
+      if (eligible.length <= 1) {
+        setRound({ street, toAct: [], lastAggressorId: undefined, currentBet: 0, contributions: {} });
+        return;
+      }
+
+      if (street === 'preflop' && blindPositions) {
+        const { sbId, bbId } = blindPositions;
+        const baseOrder = actions.filter((a) => a.street === 'preflop').length;
+        actionCounter.current += 1;
+        const sbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: sbId, type: 'post', amount: smallBlindValue, order: baseOrder };
+        actionCounter.current += 1;
+        const bbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: bbId, type: 'post', amount: bigBlindValue, order: baseOrder + 1 };
+        setActions((prev) => [...prev, sbPost, bbPost]);
+        setRound({
+          street,
+          toAct: seatOrderFrom(eligible, bbId).map((p) => p.id),
+          lastAggressorId: undefined,
+          currentBet: bigBlindValue,
+          contributions: { [sbId]: smallBlindValue, [bbId]: bigBlindValue },
+        });
+        return;
+      }
+
+      const anchorId = street !== 'preflop' ? blindPositions?.buttonId : undefined;
+      const ordered = anchorId ? seatOrderFrom(eligible, anchorId) : eligible;
+      setRound({ street, toAct: ordered.map((p) => p.id), lastAggressorId: undefined, currentBet: 0, contributions: {} });
     },
-    [players, allInIds]
+    [players, allInIds, blindPositions, bigBlindValue, smallBlindValue, actions]
   );
 
   const recordAction = useCallback(
     (street: Street, playerId: string, type: ActionType, amount?: number) => {
+      // A call always matches the street's outstanding bet — the caller never types this
+      // amount themselves, so pull it from the round instead of trusting an undefined arg.
+      const finalAmount = type === 'call' ? round?.currentBet : amount;
       actionCounter.current += 1;
       const order = actions.filter((a) => a.street === street).length;
-      const newAction: HandAction = { id: `a${actionCounter.current}`, street, playerId, type, amount, order };
+      const newAction: HandAction = { id: `a${actionCounter.current}`, street, playerId, type, amount: finalAmount, order };
       setActions((prev) => [...prev, newAction]);
 
       let updatedPlayers = players;
@@ -258,19 +390,31 @@ export default function HandReplayerBuilderScreen() {
 
       setRound((prev) => {
         if (!prev || prev.street !== street) return prev;
+        const contributions =
+          finalAmount !== undefined ? { ...prev.contributions, [playerId]: finalAmount } : prev.contributions;
         if (type === 'bet' || type === 'raise' || type === 'allin') {
           const reopened = reopenQueueFrom(updatedPlayers, playerId, updatedAllIn);
-          return { street, toAct: reopened, lastAggressorId: playerId };
+          return {
+            street,
+            toAct: reopened,
+            lastAggressorId: playerId,
+            currentBet: finalAmount !== undefined && finalAmount > prev.currentBet ? finalAmount : prev.currentBet,
+            contributions,
+          };
         }
-        return { ...prev, toAct: prev.toAct.filter((id) => id !== playerId) };
+        return { ...prev, toAct: prev.toAct.filter((id) => id !== playerId), contributions };
       });
     },
-    [actions, players, allInIds]
+    [actions, players, allInIds, round]
   );
 
-  const availableActionsFor = useCallback((): ActionType[] => {
-    return round?.lastAggressorId ? ['fold', 'call', 'raise', 'allin'] : ['fold', 'check', 'bet', 'allin'];
-  }, [round]);
+  const availableActionsFor = useCallback(
+    (playerId: string): ActionType[] => {
+      const owed = (round?.currentBet ?? 0) - (round?.contributions[playerId] ?? 0);
+      return owed > 0 ? ['fold', 'call', 'raise', 'allin'] : ['fold', 'check', 'bet', 'allin'];
+    },
+    [round]
+  );
 
   // Preflop's round starts as soon as the builder reaches the Preflop step.
   useEffect(() => {
@@ -322,6 +466,8 @@ export default function HandReplayerBuilderScreen() {
     setAllInIds(new Set());
     setBoardPhase('flop');
     setRound(null);
+    setBigBlindPlayerId('p1');
+    setBigBlindAmount('2');
   };
 
   const computeAutoTitle = useCallback((): string => {
@@ -355,7 +501,7 @@ export default function HandReplayerBuilderScreen() {
         cardsKnown = revealed && !!holeCards;
       }
       const result: HandPlayer['result'] = p.id === winnerId ? 'won' : p.isFolded ? 'folded' : winnerId ? 'lost' : 'unknown';
-      return { ...p, holeCards, cardsKnown, result };
+      return { ...p, holeCards, cardsKnown, result, position: positionLabels[p.id] };
     });
 
     return {
@@ -375,7 +521,7 @@ export default function HandReplayerBuilderScreen() {
       winnerId,
       winningHandDescription: winningHandDescription.trim() || undefined,
     };
-  }, [players, heroCards, opponentReveal, opponentCards, winnerId, customTitle, computeAutoTitle, customStakes, flopCards, turnCard, riverCard, actions, winningHandDescription]);
+  }, [players, heroCards, opponentReveal, opponentCards, winnerId, customTitle, computeAutoTitle, customStakes, flopCards, turnCard, riverCard, actions, winningHandDescription, positionLabels]);
 
   const handleReplay = () => {
     setDraft(buildHandHistory());
@@ -388,7 +534,7 @@ export default function HandReplayerBuilderScreen() {
   };
 
   const canContinue = () => {
-    if (step === 0) return players.length >= 2;
+    if (step === 0) return players.length >= 2 && !!bigBlindPlayerId && bigBlindValue > 0;
     if (step === 1) return !!heroCards[0] && !!heroCards[1];
     if (step === 2) return !!round && round.street === 'preflop' && round.toAct.length === 0;
     if (step === 3) return boardPhase === 'river' && !!riverCard && !!round && round.street === 'river' && round.toAct.length === 0;
@@ -402,7 +548,7 @@ export default function HandReplayerBuilderScreen() {
     if (round.toAct.length === 0 && doneActions.length === 0) {
       return (
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Tous les joueurs restants sont all-in — plus aucune décision à prendre, la main se termine au tapis.
+          Plus aucune mise possible — la main se termine au tapis.
         </Text>
       );
     }
@@ -415,11 +561,23 @@ export default function HandReplayerBuilderScreen() {
       <View style={styles.actionsList}>
         {doneActions.map((a) => {
           const p = players.find((pp) => pp.id === a.playerId);
+          const position = positionLabels[a.playerId];
           return (
             <View key={a.id} style={styles.actedRow}>
               <Text style={[styles.actedText, { color: colors.textSecondary }]}>
-                {p?.name} — {ACTION_LABELS[a.type]}
-                {a.amount ? ` ${a.amount}€` : ''}
+                {a.type === 'post' ? (
+                  <>
+                    {p?.name}
+                    {position ? ` (${position})` : ''}
+                    {a.amount ? ` ${formatChips(a.amount)}` : ''}
+                  </>
+                ) : (
+                  <>
+                    {p?.name}
+                    {position ? ` (${position})` : ''} — {ACTION_LABELS[a.type]}
+                    {a.amount ? ` ${formatChips(a.amount)}` : ''}
+                  </>
+                )}
               </Text>
             </View>
           );
@@ -427,13 +585,15 @@ export default function HandReplayerBuilderScreen() {
         {currentPlayer && (
           <PlayerActionRow
             player={currentPlayer}
-            availableActions={availableActionsFor()}
+            availableActions={availableActionsFor(currentPlayer.id)}
+            position={positionLabels[currentPlayer.id]}
+            currentBet={round.currentBet}
             onAction={(type, amount) => recordAction(street, currentPlayer.id, type, amount)}
           />
         )}
         {queuedIds.map((id) => {
           const p = players.find((pp) => pp.id === id);
-          return p ? <QueuedPlayerRow key={id} player={p} /> : null;
+          return p ? <QueuedPlayerRow key={id} player={p} position={positionLabels[id]} /> : null;
         })}
       </View>
     );
@@ -451,7 +611,7 @@ export default function HandReplayerBuilderScreen() {
     return streetActions
       .map((a) => {
         const p = players.find((pp) => pp.id === a.playerId);
-        return `${p?.name ?? '?'} ${ACTION_LABELS[a.type]}${a.amount ? ` ${a.amount}€` : ''}`;
+        return `${p?.name ?? '?'} ${ACTION_LABELS[a.type]}${a.amount ? ` ${formatChips(a.amount)}` : ''}`;
       })
       .join(' · ');
   };
@@ -602,19 +762,25 @@ export default function HandReplayerBuilderScreen() {
               onDecrement={() => setPlayers((prev) => resizePlayers(prev, Math.max(2, prev.length - 1)))}
               onIncrement={() => setPlayers((prev) => resizePlayers(prev, Math.min(9, prev.length + 1)))}
             />
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              "Moi" est toujours au premier siège. Choisissez qui est la grosse blinde — ça
+              détermine qui parle en premier à chaque tour.
+            </Text>
             <View style={styles.playerList}>
               {players.map((p) => (
                 <View key={p.id} style={[styles.playerRow, { borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}>
                   <TouchableOpacity
-                    onPress={() => setPlayers((prev) => prev.map((pp) => ({ ...pp, isHero: pp.id === p.id })))}
+                    onPress={() => setBigBlindPlayerId(p.id)}
                     activeOpacity={0.7}
+                    style={[
+                      styles.bbToggle,
+                      { borderColor: colors.hairline },
+                      bigBlindPlayerId === p.id && { borderColor: colors.accent, backgroundColor: colors.accentTint },
+                    ]}
                   >
-                    <Star
-                      size={20}
-                      color={p.isHero ? colors.accent : colors.textTertiary}
-                      fill={p.isHero ? colors.accent : 'transparent'}
-                      strokeWidth={1.5}
-                    />
+                    <Text style={[styles.bbToggleText, { color: bigBlindPlayerId === p.id ? colors.accent : colors.textTertiary }]}>
+                      BB
+                    </Text>
                   </TouchableOpacity>
                   <TextInput
                     value={p.name}
@@ -625,6 +791,7 @@ export default function HandReplayerBuilderScreen() {
                 </View>
               ))}
             </View>
+            <AmountInput label="Grosse blinde" value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
           </View>
         );
 
@@ -764,6 +931,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSize.md,
     fontFamily: fontFamily.medium,
+  },
+  bbToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bbToggleText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.bold,
   },
   cardsRow: {
     flexDirection: 'row',
