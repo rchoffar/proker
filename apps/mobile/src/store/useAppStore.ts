@@ -6,6 +6,7 @@ import { mockUser, mockFestivals, mockTournaments, mockCountries, mockOrganizers
 import { computeWindowedStats, computeBankrollHistory } from '../lib/stats';
 import i18n, { defaultLocale } from '../i18n';
 import type { FlipGameType } from '../lib/pokerHandEvaluator';
+import type { OfcVariant } from '../lib/ofc';
 
 export { sessionNetValues } from '../lib/stats';
 
@@ -39,6 +40,10 @@ interface AppStore {
   flipLastGameType: FlipGameType;
   bluffLastPlayers: Player[];
   bluffPseudo: string;
+  ofcLastPlayers: Player[];
+  ofcPseudo: string;
+  ofcStartingStack: number;
+  ofcVariant: OfcVariant;
 
   addSession: (session: Session) => void;
   updateSession: (session: Session) => void;
@@ -54,6 +59,12 @@ interface AppStore {
   setRouletteLastPlayers: (players: Player[]) => void;
   setFlipDraftDefaults: (players: Player[], gameType: FlipGameType) => void;
   setBluffDefaults: (patch: { players?: Player[]; pseudo?: string }) => void;
+  setOfcDefaults: (patch: {
+    players?: Player[];
+    pseudo?: string;
+    startingStack?: number;
+    variant?: OfcVariant;
+  }) => void;
   resetStore: () => void;
 }
 
@@ -78,6 +89,10 @@ export const useAppStore = create<AppStore>()(
       flipLastGameType: 'holdem',
       bluffLastPlayers: [],
       bluffPseudo: '',
+      ofcLastPlayers: [],
+      ofcPseudo: '',
+      ofcStartingStack: 100,
+      ofcVariant: 'classic',
 
       addSession: (session) =>
         set((state) => {
@@ -151,6 +166,14 @@ export const useAppStore = create<AppStore>()(
           bluffPseudo: patch.pseudo ?? state.bluffPseudo,
         })),
 
+      setOfcDefaults: (patch) =>
+        set((state) => ({
+          ofcLastPlayers: patch.players ?? state.ofcLastPlayers,
+          ofcPseudo: patch.pseudo ?? state.ofcPseudo,
+          ofcStartingStack: patch.startingStack ?? state.ofcStartingStack,
+          ofcVariant: patch.variant ?? state.ofcVariant,
+        })),
+
       resetStore: () => {
         mmkv.remove('proker-app-store');
         set({
@@ -171,6 +194,10 @@ export const useAppStore = create<AppStore>()(
           flipLastGameType: 'holdem',
           bluffLastPlayers: [],
           bluffPseudo: '',
+          ofcLastPlayers: [],
+          ofcPseudo: '',
+          ofcStartingStack: 100,
+          ofcVariant: 'classic',
         });
       },
     }),
@@ -193,6 +220,10 @@ export const useAppStore = create<AppStore>()(
         flipLastGameType: state.flipLastGameType,
         bluffLastPlayers: state.bluffLastPlayers,
         bluffPseudo: state.bluffPseudo,
+        ofcLastPlayers: state.ofcLastPlayers,
+        ofcPseudo: state.ofcPseudo,
+        ofcStartingStack: state.ofcStartingStack,
+        ofcVariant: state.ofcVariant,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

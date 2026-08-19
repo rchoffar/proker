@@ -5,7 +5,7 @@ import { createDeck } from '../pokerHandEvaluator';
 import type { Claim } from './claims';
 import { isStrictlyHigher } from './claims';
 import { claimHolds, findClaimWitness } from './validator';
-import { shuffleWithRng } from './rng';
+import { shuffleWithRng } from '../rng';
 
 // Pure, UI-free game engine: Pass & Play drives it through local state, the online host
 // applies remote players' actions through the exact same validateAction/reduce pair.

@@ -4,7 +4,7 @@ import type { Card } from '../../../types/hand';
 import { createRoundDeal, initGame, reduce } from '../engine';
 import type { BluffState } from '../engine';
 import { redactFor } from '../protocol';
-import { mulberry32 } from '../rng';
+import { mulberry32 } from '../../rng';
 
 const PLAYERS: Player[] = [
   { id: 'a', name: 'Alice' },

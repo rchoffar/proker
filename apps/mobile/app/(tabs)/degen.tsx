@@ -17,13 +17,13 @@ export default function DegenHubScreen() {
   const isActive = useIsActiveTab();
 
   // Game names are titles — identical in both languages; only descriptions are translated.
-  const games = useMemo<{ name: string; description: string; Icon: typeof Coins; route?: '/games/roulette' | '/games/flip' | '/games/bluff' }[]>(
+  const games = useMemo<{ name: string; description: string; Icon: typeof Coins; route?: '/games/roulette' | '/games/flip' | '/games/bluff' | '/games/ofc' }[]>(
     () => [
       { name: 'Flip', description: t('games.flip'), Icon: Coins, route: '/games/flip' },
       { name: 'Bluff', description: t('games.bluff'), Icon: Drama, route: '/games/bluff' },
       { name: 'Roulette', description: t('games.roulette'), Icon: Disc3, route: '/games/roulette' },
       { name: 'The Last Longer', description: t('games.lastLonger'), Icon: Hourglass },
-      { name: 'Open-Face Chinese Poker', description: t('games.ofc'), Icon: Layers },
+      { name: 'Open-Face Chinese Poker', description: t('games.ofc'), Icon: Layers, route: '/games/ofc' },
     ],
     [t]
   );

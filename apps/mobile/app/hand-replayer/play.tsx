@@ -119,7 +119,7 @@ export default function HandReplayerPlayScreen() {
   const isResult = beats[index]?.kind === 'result';
 
   const hero = hand.players.find((p) => p.isHero);
-  const winner = hand.winnerId ? hand.players.find((p) => p.id === hand.winnerId) : undefined;
+  const winners = hand.winnerIds?.length ? hand.players.filter((p) => hand.winnerIds!.includes(p.id)) : [];
   const currentBeat = beats[index];
 
   // Seats in table order, hero first (he anchors the bottom of the table).
@@ -139,10 +139,12 @@ export default function HandReplayerPlayScreen() {
     });
     revealedContribs[b.street] = perPlayer;
   });
+  // Dead blinds (absent SB/BB) hit the pot with the preflop action, like real posts would.
+  const deadBlindsSoFar = revealedContribs['preflop'] ? (hand.deadBlinds ?? 0) : 0;
   const potSoFar = roundAmount(
     Object.values(revealedContribs)
       .flatMap((perPlayer) => Object.values(perPlayer))
-      .reduce((sum, v) => sum + v, 0)
+      .reduce((sum, v) => sum + v, 0) + deadBlindsSoFar
   );
   const committedFor = (playerId: string) =>
     roundAmount(Object.values(revealedContribs).reduce((sum, perPlayer) => sum + (perPlayer[playerId] ?? 0), 0));
@@ -429,9 +431,13 @@ export default function HandReplayerPlayScreen() {
 
       {isResult && (
         <View style={styles.resultBanner}>
-          {winner && <GlowBlob color={colors.accentGlow} size={220} top={-60} right={-40} />}
-          {winner ? (
-            <Text style={[styles.resultWinner, { color: colors.accent }]}>{t('winsHand', { name: winner.name })}</Text>
+          {winners.length > 0 && <GlowBlob color={colors.accentGlow} size={220} top={-60} right={-40} />}
+          {winners.length > 1 ? (
+            <Text style={[styles.resultWinner, { color: colors.accent }]}>
+              {t('splitWins', { names: winners.map((w) => w.name).join(', ') })}
+            </Text>
+          ) : winners.length === 1 ? (
+            <Text style={[styles.resultWinner, { color: colors.accent }]}>{t('winsHand', { name: winners[0].name })}</Text>
           ) : (
             <Text style={[styles.resultWinner, { color: colors.textSecondary }]}>{t('handOver')}</Text>
           )}

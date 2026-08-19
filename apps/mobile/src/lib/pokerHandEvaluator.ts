@@ -26,7 +26,7 @@ export interface HandScore {
 
 export type FlipGameType = 'holdem' | 'omaha';
 
-const RANK_VALUE: Record<Rank, number> = {
+export const RANK_VALUE: Record<Rank, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
   T: 10, J: 11, Q: 12, K: 13, A: 14,
 };
@@ -73,15 +73,6 @@ export function combinations<T>(items: T[], k: number): T[][] {
 
 export function createDeck(): Card[] {
   return RANKS.flatMap((rank) => SUITS.map((suit) => ({ rank, suit })));
-}
-
-export function shuffleDeck(deck: Card[]): Card[] {
-  const copy = [...deck];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
 }
 
 function detectStraightHigh(uniqueDescValues: number[]): number | null {

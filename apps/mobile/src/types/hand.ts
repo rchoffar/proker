@@ -14,6 +14,17 @@ export type UnitMode = 'bb' | 'chips';
 
 export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allin' | 'post';
 
+// Standard table positions. Positions are on the do-not-translate glossary — rendered raw.
+export type Position = 'UTG' | 'UTG+1' | 'MP' | 'LJ' | 'HJ' | 'CO' | 'BTN' | 'SB' | 'BB';
+
+// Preflop action order (UTG acts first, BB last). Also the canonical sort order for the
+// builder's player list — postflop order is the same circle cut at SB, so keeping players
+// sorted this way makes both streets' rotations trivial.
+export const POSITIONS_PREFLOP_ORDER: Position[] = ['UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+
+// Postflop action order (SB acts first, BTN last).
+export const POSITIONS_POSTFLOP_ORDER: Position[] = ['SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO', 'BTN'];
+
 export interface HandAction {
   id: string;
   street: Street;
@@ -34,10 +45,10 @@ export interface HandPlayer {
   isFolded: boolean;
   foldedOnStreet?: Street;
   result?: 'won' | 'lost' | 'folded' | 'unknown';
-  // Table position at the time the hand was recorded (BTN/SB/BB/UTG/UTG+1/...), derived
-  // from the Big Blind seat pick — stamped once by buildHandHistory() since the replay
-  // screen only ever sees this snapshot, not the builder's live seating state.
-  position?: string;
+  // Table position, assigned per player in setup. A hand may only contain a subset of the
+  // real table (uninteresting instant-folders are omitted), so any position — including
+  // BTN/SB/BB — may be absent from the roster.
+  position?: Position;
 }
 
 export interface PotState {
@@ -59,8 +70,12 @@ export interface HandHistory {
   };
   actions: HandAction[];
   pots: PotState[];
-  winnerId?: string;
+  // Multiple ids = split pot (chopped between them).
+  winnerIds?: string[];
   winningHandDescription?: string;
+  // Blinds posted by SB/BB players who exist at the real table but weren't entered in the
+  // hand (they folded pre-entry) — dead money already counted into pots.
+  deadBlinds?: number;
   heroNet?: number;
   // Absent on hands recorded before unit modes existed — treat as 'chips'.
   unitMode?: UnitMode;

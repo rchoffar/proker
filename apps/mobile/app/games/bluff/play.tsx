@@ -259,6 +259,9 @@ export default function BluffPlayScreen() {
                       key={`peek-${i}`}
                       entering={FlipInEasyY.duration(200).delay(i * 40)}
                       style={[
+                        // Staggered entering animations make sibling paint order unreliable —
+                        // pin the fan stacking left→right.
+                        { zIndex: i + 1, elevation: i + 1 },
                         { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
                         i > 0 && styles.peekOverlap,
                       ]}

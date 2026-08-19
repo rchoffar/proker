@@ -10,9 +10,9 @@ import { PokerTable, TABLE, seatPoint } from '../../../src/components/hand/Poker
 import { TableSeat } from '../../../src/components/hand/TableSeat';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
+import { shuffleWithRng } from '../../../src/lib/rng';
 import {
   createDeck,
-  shuffleDeck,
   evaluateBestHand,
   compareHandScores,
   findWorstHands,
@@ -59,7 +59,7 @@ interface DealtHand {
 }
 
 function dealNewHand(players: Player[], holeCount: number): DealtHand {
-  const deck = shuffleDeck(createDeck());
+  const deck = shuffleWithRng(createDeck(), Math.random);
   let idx = 0;
   const holeCards: Record<string, Card[]> = {};
   for (const p of players) {

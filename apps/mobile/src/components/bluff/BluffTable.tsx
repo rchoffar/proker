@@ -90,6 +90,9 @@ export function BluffTable({ width, height, players, board, turnId, reveal, roun
                   key={`${roundToken}-${revealed ? 'up' : 'down'}-${i}`}
                   entering={FlipInEasyY.duration(400).delay(k * 90 + i * 70)}
                   style={[
+                    // Reanimated entering animations remount views at staggered times, so
+                    // implicit sibling paint order isn't reliable — pin the fan stacking.
+                    { zIndex: i + 1, elevation: i + 1 },
                     { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
                     i > 0 && (p.cardCount >= 4 ? styles.fanOverlapTight : styles.fanOverlap),
                     (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },

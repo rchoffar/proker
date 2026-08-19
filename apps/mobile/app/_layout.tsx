@@ -49,6 +49,9 @@ function RootNavigator() {
           <Stack.Screen name="games/bluff/index" />
           <Stack.Screen name="games/bluff/play" />
           <Stack.Screen name="games/bluff/online" />
+          <Stack.Screen name="games/ofc/index" />
+          <Stack.Screen name="games/ofc/play" />
+          <Stack.Screen name="games/ofc/online" />
         </Stack.Protected>
       </Stack>
     </View>

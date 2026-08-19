@@ -17,6 +17,7 @@ import enDegen from './en/degen.json';
 import enProfile from './en/profile.json';
 import enGames from './en/games.json';
 import enBluff from './en/bluff.json';
+import enOfc from './en/ofc.json';
 import enReplayer from './en/replayer.json';
 
 import frAuth from './fr/auth.json';
@@ -30,6 +31,7 @@ import frDegen from './fr/degen.json';
 import frProfile from './fr/profile.json';
 import frGames from './fr/games.json';
 import frBluff from './fr/bluff.json';
+import frOfc from './fr/ofc.json';
 import frReplayer from './fr/replayer.json';
 
 export const resources = {
@@ -45,6 +47,7 @@ export const resources = {
     profile: enProfile,
     games: enGames,
     bluff: enBluff,
+    ofc: enOfc,
     replayer: enReplayer,
   },
   fr: {
@@ -59,6 +62,7 @@ export const resources = {
     profile: frProfile,
     games: frGames,
     bluff: frBluff,
+    ofc: frOfc,
     replayer: frReplayer,
   },
 } as const;

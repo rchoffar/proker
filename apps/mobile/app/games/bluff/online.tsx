@@ -337,6 +337,8 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
               <View
                 key={`own-${view.round}-${i}`}
                 style={[
+                  // Pin the fan stacking left→right so overlapped cards layer predictably.
+                  { zIndex: i + 1, elevation: i + 1 },
                   { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
                   i > 0 && styles.ownFanOverlap,
                 ]}

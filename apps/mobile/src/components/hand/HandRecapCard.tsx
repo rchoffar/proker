@@ -12,6 +12,9 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // Give the card room to breathe on every device instead of a single guessed constant —
 // a fixed width too close to its content width is what causes the board row to clip.
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 380);
+// One size for the whole board, chosen so 5 cards + gaps always fit inside the card's
+// padding — the row must never shrink between a 3-card and a 5-card board.
+const BOARD_CARD_WIDTH = Math.min(46, Math.floor((CARD_WIDTH - 44 - 4 * spacing.sm) / 5));
 
 interface Props {
   hand: HandHistory;
@@ -40,7 +43,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
   const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   const hero = hand.players.find((p) => p.isHero);
-  const winner = hand.winnerId ? hand.players.find((p) => p.id === hand.winnerId) : undefined;
+  const winners = hand.winnerIds?.length ? hand.players.filter((p) => hand.winnerIds!.includes(p.id)) : [];
   const finalPot = hand.pots[hand.pots.length - 1]?.amount;
   const boardCards = [...(hand.board.flop ?? []), hand.board.turn, hand.board.river].filter(Boolean);
 
@@ -74,9 +77,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
             <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>{t('steps.board')}</Text>
             <View style={styles.cardsRow}>
               {boardCards.map((c, i) => (
-                // Smaller once turn/river join the flop — keeps 5 cards + gaps comfortably
-                // inside the card's padding on the narrowest supported screen widths.
-                <PlayingCard key={i} card={c!} size={boardCards.length > 3 ? 'sm' : 'md'} />
+                <PlayingCard key={i} card={c!} width={BOARD_CARD_WIDTH} />
               ))}
             </View>
           </View>
@@ -94,11 +95,17 @@ export function HandRecapCard({ hand, onReady }: Props) {
         )}
 
         <View style={[styles.resultBox, { borderColor: colors.onDarkHairline }]}>
-          {winner ? (
+          {winners.length > 1 ? (
             <Text style={[styles.resultText, { color: colors.accentBright }]}>
               {finalPot
-                ? t('winsAmount', { name: winner.name, amount: formatHandAmount(finalPot, hand.unitMode) })
-                : t('winsHand', { name: winner.name })}
+                ? t('splitWinsAmount', { names: winners.map((w) => w.name).join(', '), amount: formatHandAmount(finalPot, hand.unitMode) })
+                : t('splitWins', { names: winners.map((w) => w.name).join(', ') })}
+            </Text>
+          ) : winners.length === 1 ? (
+            <Text style={[styles.resultText, { color: colors.accentBright }]}>
+              {finalPot
+                ? t('winsAmount', { name: winners[0].name, amount: formatHandAmount(finalPot, hand.unitMode) })
+                : t('winsHand', { name: winners[0].name })}
             </Text>
           ) : (
             <Text style={[styles.resultText, { color: colors.onDarkSecondary }]}>

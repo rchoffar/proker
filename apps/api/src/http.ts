@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { deleteUser, getUserById, setPseudo, upsertUser, type UserRow } from './db.js';
 import { signSession, verifySession } from './auth/session.js';
 import { verifyAppleIdentityToken, verifyGoogleIdToken } from './auth/verify.js';
+import { privacyHtml, supportHtml } from './pages.js';
 
 const MAX_BODY_BYTES = 16_384;
 const PSEUDO_MIN = 2;
@@ -59,6 +60,12 @@ async function authenticatedUser(req: IncomingMessage): Promise<UserRow | null> 
 export async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = (req.url ?? '').split('?')[0];
   const method = req.method ?? 'GET';
+
+  if (method === 'GET' && (url === '/privacy' || url === '/support')) {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(url === '/privacy' ? privacyHtml : supportHtml);
+    return true;
+  }
 
   if (method === 'POST' && (url === '/auth/google' || url === '/auth/apple')) {
     const body = await readJson(req);

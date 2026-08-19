@@ -186,6 +186,8 @@ export default function DashboardScreen() {
                 name="Open-Face Chinese Poker"
                 description={t('degen:games.ofc')}
                 icon={<Layers size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+                comingSoon={false}
+                onPress={() => router.push('/games/ofc')}
               />
             </View>
           </Animated.View>

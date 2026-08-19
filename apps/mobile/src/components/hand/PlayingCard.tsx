@@ -9,6 +9,9 @@ interface Props {
   card?: Card;
   faceDown?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  // Exact width in points; overrides `size`, with all other dimensions derived
+  // proportionally from the lg tier. For rows that must fit N cards on any screen.
+  width?: number;
   style?: ViewStyle;
 }
 
@@ -18,6 +21,15 @@ const SIZES = {
   lg: { width: 64, height: 90, rankSize: 20, centerIcon: 32 },
 } as const;
 
+function dimsForWidth(width: number): { width: number; height: number; rankSize: number; centerIcon: number } {
+  return {
+    width,
+    height: Math.round((width * 90) / 64),
+    rankSize: Math.round((width * 20) / 64),
+    centerIcon: Math.round((width * 32) / 64),
+  };
+}
+
 const SUIT_ICONS: Record<Suit, typeof Club> = {
   clubs: Club,
   spades: Spade,
@@ -25,9 +37,9 @@ const SUIT_ICONS: Record<Suit, typeof Club> = {
   diamonds: Diamond,
 };
 
-export function PlayingCard({ card, faceDown = false, size = 'md', style }: Props) {
+export function PlayingCard({ card, faceDown = false, size = 'md', width, style }: Props) {
   const { colors } = useTheme();
-  const dims = SIZES[size];
+  const dims = width !== undefined ? dimsForWidth(width) : SIZES[size];
 
   if (faceDown || !card) {
     return (

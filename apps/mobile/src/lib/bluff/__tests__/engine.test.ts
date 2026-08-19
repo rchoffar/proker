@@ -10,7 +10,7 @@ import {
   reduce,
   validateAction,
 } from '../engine';
-import { mulberry32 } from '../rng';
+import { mulberry32 } from '../../rng';
 
 const PLAYERS: Player[] = [
   { id: 'a', name: 'Alice' },
