@@ -13,9 +13,9 @@ interface Props {
 }
 
 const SIZES = {
-  sm: { width: 30, height: 42, rankSize: 11, cornerIcon: 9, centerIcon: 15 },
-  md: { width: 46, height: 64, rankSize: 15, cornerIcon: 12, centerIcon: 22 },
-  lg: { width: 64, height: 90, rankSize: 20, cornerIcon: 16, centerIcon: 32 },
+  sm: { width: 30, height: 42, rankSize: 11, centerIcon: 15 },
+  md: { width: 46, height: 64, rankSize: 15, centerIcon: 22 },
+  lg: { width: 64, height: 90, rankSize: 20, centerIcon: 32 },
 } as const;
 
 const SUIT_ICONS: Record<Suit, typeof Club> = {
@@ -58,14 +58,12 @@ export function PlayingCard({ card, faceDown = false, size = 'md', style }: Prop
     >
       <View style={styles.corner}>
         <Text style={[styles.rank, { fontSize: dims.rankSize, color: suitColor }]}>{card.rank}</Text>
-        <SuitIcon size={dims.cornerIcon} color={suitColor} fill={suitColor} strokeWidth={0} />
       </View>
       <View style={styles.center}>
         <SuitIcon size={dims.centerIcon} color={suitColor} fill={suitColor} strokeWidth={0} />
       </View>
       <View style={[styles.corner, styles.cornerBottom]}>
         <Text style={[styles.rank, { fontSize: dims.rankSize, color: suitColor }]}>{card.rank}</Text>
-        <SuitIcon size={dims.cornerIcon} color={suitColor} fill={suitColor} strokeWidth={0} />
       </View>
     </View>
   );

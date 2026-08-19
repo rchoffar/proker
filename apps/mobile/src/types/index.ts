@@ -19,6 +19,14 @@ export interface User {
   settings: UserSettings;
 }
 
+// Compte serveur (apps/api), distinct de User qui reste le profil local (settings, thème).
+export interface AuthUser {
+  id: string;
+  provider: 'google' | 'apple';
+  email: string | null;
+  pseudo: string | null;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -87,15 +95,17 @@ export interface Tournament {
   buyIn: number;
   totalPlayers?: number;
   startDate?: string; // ISO date, when known
+  endDate?: string; // ISO date; omit for single-day tournaments
   guaranteed?: number; // guaranteed prize pool
   isMainEvent?: boolean; // flags the festival's main event
   blindStructure?: BlindStructure; // populated for main-event tournaments
 }
 
-export interface Backing {
+export interface Stacking {
   playerId: string;
+  kind: 'swap' | 'stack';
   profitShare: number;  // % of cashout they receive
-  buyInShare: number;   // % of buy-in they contribute (0 = action only, no buy-in contribution)
+  buyInAmount: number;  // € they actually contributed toward the buy-in (0 for swap; for stack, may differ from profitShare% of the buy-in)
 }
 
 export interface BaseSession {
@@ -106,7 +116,7 @@ export interface BaseSession {
   buyIn: number;
   cashOut: number;
   durationHours: number;
-  backings?: Backing[];
+  stackings?: Stacking[];
   notes?: string;
   createdAt: string;
 }

@@ -2,6 +2,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft } from 'lucide-react-native';
 import { GlassCard } from '../src/components/ui/GlassCard';
@@ -15,6 +16,7 @@ import { AddSessionSheet } from '../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../src/store/useAppStore';
 import { computeWindowedStats } from '../src/lib/stats';
+import { formatAmount } from '../src/lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../src/design-system/theme';
 import { useTheme } from '../src/design-system/ThemeProvider';
 import type { Session, Stake } from '../src/types';
@@ -25,20 +27,19 @@ type ListItem =
   | { kind: 'session'; data: Session }
   | { kind: 'stake'; data: Stake };
 
-function formatMonth(key: string): string {
+function formatMonth(key: string, language: string): string {
   const [year, month] = key.split('-');
   const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-  return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  return date.toLocaleDateString(language, { month: 'long', year: 'numeric' });
 }
 
-function formatCurrency(val: number): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '+';
-  return `${sign}${abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
+function signedAmount(val: number): string {
+  return `${val < 0 ? '-' : '+'}${formatAmount(val)}`;
 }
 
 export default function TrackerScreen() {
   const { colors } = useTheme();
+  const { t, i18n } = useTranslation('tracker');
   const router = useRouter();
   const {
     sessions, stakes, stats, festivals, tournaments, players,
@@ -97,13 +98,6 @@ export default function TrackerScreen() {
 
   const isWindowPositive = windowed90d.totalProfit >= 0;
 
-  const FILTER_LABELS: Record<Filter, string> = {
-    all: 'Tout',
-    tournament: 'Tournoi',
-    cash: 'Cash',
-    stake: 'Staking',
-  };
-
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
@@ -126,7 +120,7 @@ export default function TrackerScreen() {
             >
               <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Sessions</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('screen.title')}</Text>
           </Animated.View>
 
           {/* Summary strip */}
@@ -135,20 +129,20 @@ export default function TrackerScreen() {
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.totalSessions}</Text>
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Sessions</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t('stats.sessions')}</Text>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                 <View style={styles.statItem}>
                   <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.itmRate.toFixed(0)}%</Text>
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>ITM</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t('stats.itm')}</Text>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                 <View style={styles.statItem}>
                   <StatBadge
-                    value={formatCurrency(windowed90d.totalProfit)}
+                    value={signedAmount(windowed90d.totalProfit)}
                     trend={isWindowPositive ? 'up' : 'down'}
                   />
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>90 jours</Text>
+                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{t('stats.window90d')}</Text>
                 </View>
               </View>
             </GlassCard>
@@ -173,7 +167,7 @@ export default function TrackerScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.filterText, { color: active ? colors.accent : colors.textSecondary }, active && { fontFamily: fontFamily.semibold }]}>
-                    {FILTER_LABELS[f]}
+                    {t(`filters.${f}`)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -186,8 +180,8 @@ export default function TrackerScreen() {
               entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}
               style={styles.empty}
             >
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucune entrée</Text>
-              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Ajoutez votre première session !</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('empty.title')}</Text>
+              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>{t('empty.subtitle')}</Text>
             </Animated.View>
           ) : (
             months.map((month, monthIdx) => (
@@ -196,7 +190,7 @@ export default function TrackerScreen() {
                 entering={FadeInDown.delay(180 + monthIdx * 60).springify().damping(18).stiffness(140)}
                 style={styles.monthGroup}
               >
-                <SectionLabel style={styles.monthLabel}>{formatMonth(month)}</SectionLabel>
+                <SectionLabel style={styles.monthLabel}>{formatMonth(month, i18n.language)}</SectionLabel>
                 <View style={styles.monthSessions}>
                   {grouped[month].map((item) => {
                     if (item.kind === 'session') {

@@ -1,6 +1,8 @@
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BlurView } from 'expo-blur';
 import { X, MapPin, Clock, Trophy, Banknote, FileText, Users, Pencil } from 'lucide-react-native';
+import { formatAmount, formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Session, Festival, Tournament, Player } from '../../types';
@@ -15,29 +17,17 @@ interface Props {
 }
 
 function getNetValues(session: Session): { netProfit: number; yourCashout: number; yourInvested: number } {
-  const bs = session.backings ?? [];
+  const ss = session.stackings ?? [];
   const totalBuyIn = session.type === 'tournament'
     ? (session.reEntries + 1) * session.buyIn
     : session.buyIn;
-  const yourInvested = totalBuyIn - bs.reduce((sum, b) => sum + (b.buyInShare / 100) * totalBuyIn, 0);
-  const yourCashout = session.cashOut - bs.reduce((sum, b) => sum + (b.profitShare / 100) * session.cashOut, 0);
+  const yourInvested = totalBuyIn - ss.reduce((sum, s) => sum + s.buyInAmount, 0);
+  const yourCashout = session.cashOut - ss.reduce((sum, s) => sum + (s.profitShare / 100) * session.cashOut, 0);
   return { netProfit: yourCashout - yourInvested, yourCashout, yourInvested };
 }
 
-function formatCurrency(val: number, showSign = false): string {
-  const abs = Math.abs(val);
-  const formatted = abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  if (!showSign) return `${formatted} €`;
-  return `${val >= 0 ? '+' : '−'}${formatted} €`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+function signedAmount(val: number): string {
+  return `${val >= 0 ? '+' : '−'}${formatAmount(val)}`;
 }
 
 function formatDuration(hours: number): string {
@@ -63,6 +53,7 @@ function Divider() {
 }
 
 export function SessionDetailModal({ session, festival, tournament, players = [], onClose, onEdit }: Props) {
+  const { t } = useTranslation('tracker');
   const { colors, scheme } = useTheme();
   if (!session) return null;
 
@@ -70,7 +61,7 @@ export function SessionDetailModal({ session, festival, tournament, players = []
   const isPositive = netProfit >= 0;
   const profitColor = isPositive ? colors.accent : colors.loss;
   const isTournament = session.type === 'tournament';
-  const hasBackings = (session.backings ?? []).length > 0;
+  const hasStackings = (session.stackings ?? []).length > 0;
 
   const title = isTournament ? (festival?.name ?? session.venue) : session.venue;
   const subtitle = isTournament
@@ -104,7 +95,7 @@ export function SessionDetailModal({ session, festival, tournament, players = []
               {isTournament
                 ? <Trophy size={11} color={colors.accent} strokeWidth={2} />
                 : <Banknote size={11} color={colors.accent} strokeWidth={2} />}
-              <Text style={[styles.typePillText, { color: colors.textSecondary }]}>{isTournament ? 'Tournoi' : 'Cash Game'}</Text>
+              <Text style={[styles.typePillText, { color: colors.textSecondary }]}>{isTournament ? t('types.tournament') : t('types.cashGame')}</Text>
             </View>
             <View style={styles.headerActions}>
               {onEdit && (
@@ -129,7 +120,7 @@ export function SessionDetailModal({ session, festival, tournament, players = []
             {subtitle ? <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
             <View style={styles.metaRow}>
               <MapPin size={12} color={colors.textTertiary} strokeWidth={1.5} />
-              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDate(session.date)}</Text>
+              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDateRange(session.date.slice(0, 10))}</Text>
               <Text style={[styles.dot, { color: colors.textTertiary }]}>·</Text>
               <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
               <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDuration(session.durationHours)}</Text>
@@ -139,47 +130,47 @@ export function SessionDetailModal({ session, festival, tournament, players = []
           {/* Profit hero */}
           <View style={[styles.profitCard, { borderColor: `${profitColor}28` }]}>
             <View style={[styles.profitGlow, { backgroundColor: `${profitColor}0D` }]} />
-            <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>Résultat net</Text>
+            <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>{t('detail.netResult')}</Text>
             <Text style={[styles.profitValue, { color: profitColor }]}>
-              {formatCurrency(netProfit, true)}
+              {signedAmount(netProfit)}
             </Text>
             {yourCashout > 0 && (
               <Text style={[styles.profitSub, { color: colors.textTertiary }]}>
-                {formatCurrency(yourCashout)} récupérés
+                {t('detail.recovered', { amount: formatAmount(yourCashout) })}
               </Text>
             )}
           </View>
 
           {/* Info sections */}
           <View style={[styles.section, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
-            <InfoRow label="Buy-in" value={formatCurrency(session.buyIn)} />
+            <InfoRow label={t('detail.buyIn')} value={formatAmount(session.buyIn)} />
 
             {isTournament && (
               <>
                 <Divider />
-                <InfoRow label="Re-entries" value={`${session.reEntries}`} />
+                <InfoRow label={t('detail.reEntries')} value={`${session.reEntries}`} />
                 <Divider />
                 <InfoRow
-                  label={hasBackings ? 'Mise brute' : 'Total investi'}
-                  value={formatCurrency(totalInvested)}
+                  label={hasStackings ? t('detail.grossStake') : t('detail.totalInvested')}
+                  value={formatAmount(totalInvested)}
                 />
-                {hasBackings && (
+                {hasStackings && (
                   <>
                     <Divider />
-                    <InfoRow label="Votre mise nette" value={formatCurrency(yourInvested)} />
+                    <InfoRow label={t('detail.yourNetStake')} value={formatAmount(yourInvested)} />
                   </>
                 )}
                 <Divider />
                 <InfoRow
-                  label="Sortie"
-                  value={session.cashed ? 'ITM ✓' : 'Éliminé'}
+                  label={t('detail.exit')}
+                  value={session.cashed ? t('status.itmCheck') : t('status.eliminated')}
                   valueColor={session.cashed ? colors.accent : colors.textSecondary}
                 />
                 {session.cashed && session.position && (
                   <>
                     <Divider />
                     <InfoRow
-                      label="Position"
+                      label={t('detail.position')}
                       value={`${session.position}${tournament?.totalPlayers ? ` / ${tournament.totalPlayers}` : ''}`}
                     />
                   </>
@@ -190,13 +181,13 @@ export function SessionDetailModal({ session, festival, tournament, players = []
             {!isTournament && (
               <>
                 <Divider />
-                <InfoRow label="Variante" value={session.gameType} />
+                <InfoRow label={t('detail.variant')} value={session.gameType} />
                 <Divider />
-                <InfoRow label="Mises" value={session.stakes} />
-                {hasBackings && (
+                <InfoRow label={t('detail.stakes')} value={session.stakes} />
+                {hasStackings && (
                   <>
                     <Divider />
-                    <InfoRow label="Votre mise nette" value={formatCurrency(yourInvested)} />
+                    <InfoRow label={t('detail.yourNetStake')} value={formatAmount(yourInvested)} />
                   </>
                 )}
               </>
@@ -204,25 +195,25 @@ export function SessionDetailModal({ session, festival, tournament, players = []
 
             <Divider />
             <InfoRow
-              label="ROI session"
-              value={yourInvested > 0 ? `${((netProfit / yourInvested) * 100).toFixed(1)} %` : '—'}
+              label={t('detail.sessionRoi')}
+              value={yourInvested > 0 ? t('percent', { value: ((netProfit / yourInvested) * 100).toFixed(1) }) : '—'}
               valueColor={isPositive ? colors.accent : colors.loss}
             />
           </View>
 
-          {/* Backing section */}
-          {hasBackings && (
+          {/* Stacking section */}
+          {hasStackings && (
             <View style={[styles.section, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
               <View style={styles.sectionHeader}>
                 <Users size={13} color={colors.textTertiary} strokeWidth={1.5} />
-                <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>Backers</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{t('stacking.sectionTitle')}</Text>
               </View>
-              {(session.backings ?? []).map((b, idx) => {
-                const player = players.find((p) => p.id === b.playerId);
-                const name = player?.name ?? `Backer ${idx + 1}`;
-                const detail = b.buyInShare > 0
-                  ? `${b.profitShare} % gains · ${b.buyInShare} % buy-in`
-                  : `${b.profitShare} % gains (action)`;
+              {(session.stackings ?? []).map((s, idx) => {
+                const player = players.find((p) => p.id === s.playerId);
+                const name = player?.name ?? (s.kind === 'stack' ? t('stacking.stackerN', { n: idx + 1 }) : t('stacking.swapN', { n: idx + 1 }));
+                const detail = s.kind === 'stack'
+                  ? t('stacking.stackDetail', { share: s.profitShare, amount: formatAmount(s.buyInAmount) })
+                  : t('stacking.swapDetail', { share: s.profitShare });
                 return (
                   <View key={idx}>
                     {idx > 0 && <Divider />}
@@ -238,7 +229,7 @@ export function SessionDetailModal({ session, festival, tournament, players = []
             <View style={[styles.notesCard, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
               <View style={styles.notesHeader}>
                 <FileText size={13} color={colors.textTertiary} strokeWidth={1.5} />
-                <Text style={[styles.notesLabel, { color: colors.textTertiary }]}>Notes</Text>
+                <Text style={[styles.notesLabel, { color: colors.textTertiary }]}>{t('detail.notes')}</Text>
               </View>
               <Text style={[styles.notesText, { color: colors.textSecondary }]}>{session.notes}</Text>
             </View>

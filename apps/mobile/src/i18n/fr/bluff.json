@@ -1,0 +1,129 @@
+{
+  "title": "Bluff",
+  "claims": {
+    "pair": "Paire de {{rank}}",
+    "pair_elision": "Paire d’{{rank}}",
+    "twoPair": "Deux paires, {{high}} et {{low}}",
+    "straight": "Quinte hauteur {{high}}",
+    "trips": "Brelan de {{rank}}",
+    "trips_elision": "Brelan d’{{rank}}",
+    "flush": "Couleur hauteur {{high}}",
+    "fullHouse": "Full aux {{trips}} par les {{pair}}",
+    "quads": "Carré de {{rank}}",
+    "quads_elision": "Carré d’{{rank}}",
+    "straightFlush": "Quinte flush hauteur {{high}}",
+    "royalFlush": "Quinte flush royale",
+    "twoPairShort": "2 paires {{high}}-{{low}}",
+    "fullHouseShort": "Full {{trips}}-{{pair}}"
+  },
+  "errors": {
+    "unknownPlayer": "Joueur inconnu",
+    "eliminated": "Joueur éliminé",
+    "notDealPhase": "Pas la phase de distribution",
+    "inconsistentDeal": "Donne incohérente",
+    "duplicateCard": "Carte en double dans la donne",
+    "dealCardCountMismatch": "Donne incohérente avec le nombre de cartes des joueurs",
+    "notChooseBoardPhase": "Pas la phase de choix du milieu",
+    "onlyStarterChoosesBoard": "Seul le premier joueur choisit le milieu",
+    "boardCountOutOfRange": "Le milieu doit compter 0 à {{max}} cartes",
+    "notBiddingPhase": "Pas la phase d’enchères",
+    "notYourTurn": "Ce n’est pas ton tour",
+    "royalFlushUnbeatable": "La quinte flush royale ne peut pas être surenchérie",
+    "claimNotHigher": "L’annonce doit être strictement supérieure",
+    "firstPlayerMustClaim": "Le premier joueur doit faire une annonce",
+    "nothingToConfirm": "Rien à confirmer",
+    "roundNotOver": "La manche n’est pas terminée"
+  },
+  "connection": {
+    "not_found": "Table introuvable — vérifie le code",
+    "full": "La table est pleine",
+    "unavailable": "Serveur indisponible, réessaie",
+    "bad_token": "Session expirée"
+  },
+  "disconnect": {
+    "host_left": "L’hôte a quitté la table",
+    "expired": "La table a expiré",
+    "hostQuit": "L’hôte a mis fin à la partie",
+    "generic": "Partie terminée"
+  },
+  "setup": {
+    "subtitle": "2 à 6 joueurs. Chacun reçoit des cartes cachées, on annonce des combinaisons de plus en plus fortes sur l’ensemble des cartes en jeu… jusqu’à ce que quelqu’un crie « Menteur ! ». Le perdant prend une carte, à 5 cartes il saute.",
+    "modePassPlay": "Sur ce téléphone",
+    "modeOnline": "En ligne",
+    "noPlayersYet": "Aucun joueur pour l’instant",
+    "maxPlayersReached": "Maximum de joueurs atteint",
+    "searchOrCreatePlayer": "Chercher ou créer un joueur…",
+    "yourPseudo": "Ton pseudo",
+    "pseudoPlaceholder": "Pseudo affiché à la table",
+    "joinTable": "Rejoindre une table",
+    "join": "Rejoindre",
+    "dealCards": "Distribuer les cartes",
+    "createTable": "Créer une table"
+  },
+  "game": {
+    "roundBadge": "M{{round}}",
+    "chooseBoardYou": "Choisis le milieu",
+    "chooseBoardOther": "{{name}} choisit le milieu",
+    "openBiddingYou": "Ouvre les enchères",
+    "openBiddingOther": "{{name}} ouvre les enchères",
+    "revealHolds": "L’annonce tenait — {{name}} perd la manche",
+    "revealBluff": "C’était du bluff ! {{name}} perd la manche",
+    "revealSubEliminated": "{{claim}} · {{name}} est éliminé !",
+    "victory": "VICTOIRE",
+    "winnerSub": "{{name}} remporte la partie",
+    "boardStepper": "Cartes au centre",
+    "revealBoard": "Révéler le milieu",
+    "royalFlushHint": "La quinte flush royale ne peut pas être surenchérie",
+    "liar": "Menteur !",
+    "announce": "Annoncer",
+    "nextRound": "Manche suivante",
+    "replay": "Rejouer"
+  },
+  "play": {
+    "noPlayers": "Aucun joueur pour cette partie.",
+    "peekHint": "Cartes de {{name}} — maintenir pour voir",
+    "passPhoneTo": "Passe le téléphone à",
+    "itsMe": "C’est moi, voir mon tour",
+    "finish": "Terminer"
+  },
+  "online": {
+    "title": "Bluff en ligne",
+    "headerCode": "Bluff · {{code}}",
+    "connecting": "Connexion au serveur…",
+    "tableCode": "Code de la table",
+    "shareCode": "Partage ce code avec les autres joueurs",
+    "waitingHostStart": "En attente du lancement par l’hôte…",
+    "players": "Joueurs ({{current}}/{{max}})",
+    "youSuffix": "{{name}} (toi)",
+    "startGame": "Lancer la partie",
+    "startsWhenHostLaunches": "La partie démarre dès que l’hôte la lance",
+    "waitingBoard": "{{name}} choisit le milieu…",
+    "waitingTurn": "Au tour de {{name}}…",
+    "waitingNextRound": "L’hôte lance la manche suivante…",
+    "quit": "Quitter"
+  },
+  "picker": {
+    "title": "Annoncer",
+    "announceClaim": "Annoncer {{claim}}",
+    "toBeat": "À battre",
+    "noClaim": "Aucune annonce — ouvre les enchères",
+    "wheelHint": "A-2-3-4-5 = quinte hauteur 5",
+    "lowPair": "Paire basse",
+    "pairOf": "Paire de",
+    "primary": {
+      "pair": "Rang de la paire",
+      "twoPair": "Paire haute",
+      "straight": "Hauteur de la quinte",
+      "trips": "Rang du brelan",
+      "flush": "Hauteur de la couleur",
+      "fullHouse": "Brelan de",
+      "quads": "Rang du carré",
+      "straightFlush": "Hauteur de la quinte flush"
+    }
+  },
+  "table": {
+    "eliminated": "Éliminé",
+    "eliminatedNow": "Éliminé !",
+    "plusOneCard": "+1 carte"
+  }
+}

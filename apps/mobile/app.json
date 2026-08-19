@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Proker",
+    "name": "UPK",
     "slug": "proker",
     "scheme": "proker",
     "version": "1.0.0",
@@ -9,14 +9,20 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "fr.proker.app",
+      "bundleIdentifier": "fr.upk.app",
       "buildNumber": "2",
+      "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true
       }
     },
+    "locales": {
+      "en": "./locales/en.json",
+      "fr": "./locales/fr.json"
+    },
     "android": {
-      "package": "fr.proker.app",
+      "package": "fr.upk.app",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0F",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -35,16 +41,27 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0A0A0F"
+          "backgroundColor": "#0A0A0F",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
         }
       ],
       "expo-sharing",
       [
         "expo-media-library",
         {
-          "photosPermission": "Proker a besoin d'accéder à vos photos pour enregistrer vos hand replays.",
-          "savePhotosPermission": "Proker souhaite enregistrer vos hand replays dans votre pellicule.",
+          "photosPermission": "UPK needs access to your photos to save your hand replays.",
+          "savePhotosPermission": "UPK would like to save your hand replays to your camera roll.",
           "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.1095846669375-vuocogitehuqh74bq9ogh89su33gf5hi"
         }
       ]
     ],

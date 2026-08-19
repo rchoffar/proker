@@ -2,23 +2,31 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, FlipInEasyY } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import Animated, { FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
 import ViewShot from 'react-native-view-shot';
 import type { ViewShotRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { X, Play, Pause, Share2, Download, SkipForward } from 'lucide-react-native';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
+import { PokerTable, TABLE, seatPoint } from '../../src/components/hand/PokerTable';
+import { TableSeat } from '../../src/components/hand/TableSeat';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-import { initials, formatChips } from '../../src/lib/format';
-import type { HandAction, HandHistory, Street } from '../../src/types';
+import { formatHandAmount, roundAmount } from '../../src/lib/format';
+import type { HandAction, HandHistory, HandPlayer, Street } from '../../src/types';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AUTOPLAY_INTERVAL = 1800;
+
+const TABLE_W = SCREEN_WIDTH - 96;
+const TABLE_H = Math.min(480, Math.max(350, Math.round(SCREEN_HEIGHT * 0.5)));
+const POD_W = 74;
 
 type Beat =
   | { kind: 'intro' }
@@ -27,22 +35,13 @@ type Beat =
   | { kind: 'streetActions'; street: Street; actions: HandAction[] }
   | { kind: 'result' };
 
-const STREET_LABELS: Record<Street, string> = {
-  preflop: 'Preflop',
-  flop: 'Flop',
-  turn: 'Turn',
-  river: 'River',
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  fold: 'se couche',
-  check: 'check',
-  call: 'suit',
-  bet: 'mise',
-  raise: 'relance',
-  allin: 'part all-in',
-  post: 'poste',
-};
+// Short action tag for the bubble that pops over a player's seat — standalone badge
+// register (fr "Se couche"/"Relance", en "Folds"/"Raises"), distinct from poker:actions
+// which reads inline after a player's name.
+function bubbleLabel(a: HandAction, unitMode: HandHistory['unitMode'], t: TFunction<'replayer'>): string {
+  const label = t(`actionBadges.${a.type}`);
+  return a.amount && a.type !== 'fold' && a.type !== 'check' ? `${label} ${formatHandAmount(a.amount, unitMode)}` : label;
+}
 
 function buildBeats(hand: HandHistory): Beat[] {
   const beats: Beat[] = [{ kind: 'intro' }, { kind: 'heroCards' }];
@@ -59,6 +58,7 @@ function buildBeats(hand: HandHistory): Beat[] {
 }
 
 export default function HandReplayerPlayScreen() {
+  const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   const router = useRouter();
   const { skip } = useLocalSearchParams<{ skip?: string }>();
@@ -97,9 +97,9 @@ export default function HandReplayerPlayScreen() {
   if (!hand) {
     return (
       <SafeAreaView style={[styles.screen, styles.centered]}>
-        <Text style={{ color: colors.textPrimary }}>Aucune main à rejouer.</Text>
+        <Text style={{ color: colors.textPrimary }}>{t('noHand')}</Text>
         <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base }]}>
-          <Text style={styles.primaryBtnText}>Retour</Text>
+          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -121,6 +121,41 @@ export default function HandReplayerPlayScreen() {
   const hero = hand.players.find((p) => p.isHero);
   const winner = hand.winnerId ? hand.players.find((p) => p.id === hand.winnerId) : undefined;
   const currentBeat = beats[index];
+
+  // Seats in table order, hero first (he anchors the bottom of the table).
+  const sortedPlayers = [...hand.players].sort((a, b) => a.seat - b.seat);
+  const heroIdx = sortedPlayers.findIndex((p) => p.isHero);
+  const orderedPlayers: HandPlayer[] = heroIdx <= 0 ? sortedPlayers : [...sortedPlayers.slice(heroIdx), ...sortedPlayers.slice(0, heroIdx)];
+
+  // Latest contribution per player per street, across the street beats revealed so far —
+  // same "raise to" convention as the builder, so summing gives the live pot and per-player
+  // committed totals as the replay advances.
+  const revealedContribs: Record<string, Record<string, number>> = {};
+  beats.slice(0, index + 1).forEach((b) => {
+    if (b.kind !== 'streetActions') return;
+    const perPlayer = revealedContribs[b.street] ?? {};
+    b.actions.forEach((a) => {
+      if (a.amount !== undefined) perPlayer[a.playerId] = a.amount;
+    });
+    revealedContribs[b.street] = perPlayer;
+  });
+  const potSoFar = roundAmount(
+    Object.values(revealedContribs)
+      .flatMap((perPlayer) => Object.values(perPlayer))
+      .reduce((sum, v) => sum + v, 0)
+  );
+  const committedFor = (playerId: string) =>
+    roundAmount(Object.values(revealedContribs).reduce((sum, perPlayer) => sum + (perPlayer[playerId] ?? 0), 0));
+
+  // During a street beat, each player's latest action pops as a bubble on their seat,
+  // staggered in true action order.
+  const bubbles = new Map<string, { action: HandAction; orderIdx: number }>();
+  if (currentBeat?.kind === 'streetActions') {
+    currentBeat.actions.forEach((a, i) => bubbles.set(a.playerId, { action: a, orderIdx: i }));
+  }
+
+  const dealerId = hand.players.find((p) => p.position === 'BTN')?.id;
+  const handStarted = index >= 1;
 
   const handleTap = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
     setPlaying(false);
@@ -150,12 +185,12 @@ export default function HandReplayerPlayScreen() {
       if (!uri) throw new Error('capture failed');
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        showMessage('error', "Le partage n'est pas disponible sur cet appareil.");
+        showMessage('error', t('export.shareUnavailable'));
         return;
       }
       await Sharing.shareAsync(uri);
     } catch {
-      showMessage('error', 'Le partage a échoué. Réessayez.');
+      showMessage('error', t('export.shareFailed'));
     } finally {
       setExportState('idle');
     }
@@ -168,9 +203,7 @@ export default function HandReplayerPlayScreen() {
       if (!perm.granted) {
         showMessage(
           'error',
-          perm.canAskAgain === false
-            ? 'Autorisez les photos dans les réglages pour enregistrer.'
-            : "Autorisation requise pour enregistrer l'image."
+          perm.canAskAgain === false ? t('export.permissionSettings') : t('export.permissionRequired')
         );
         return;
       }
@@ -179,19 +212,19 @@ export default function HandReplayerPlayScreen() {
       const uri = await viewShotRef.current?.capture?.();
       if (!uri) throw new Error('capture failed');
       await MediaLibrary.saveToLibraryAsync(uri);
-      showMessage('success', 'Image enregistrée.');
+      showMessage('success', t('export.imageSaved'));
     } catch {
-      showMessage('error', "L'enregistrement a échoué. Réessayez.");
+      showMessage('error', t('export.saveFailed'));
     } finally {
       setExportState('idle');
     }
   };
 
   const renderCaption = () => {
-    if (currentBeat?.kind === 'streetActions') return STREET_LABELS[currentBeat.street];
-    if (currentBeat?.kind === 'streetCards') return STREET_LABELS[currentBeat.street];
-    if (currentBeat?.kind === 'heroCards') return 'Mes cartes';
-    if (currentBeat?.kind === 'intro') return hand.title ?? 'La main commence';
+    if (currentBeat?.kind === 'streetActions') return t(`poker:phases.${currentBeat.street}`);
+    if (currentBeat?.kind === 'streetCards') return t(`poker:phases.${currentBeat.street}`);
+    if (currentBeat?.kind === 'heroCards') return t('steps.myCards');
+    if (currentBeat?.kind === 'intro') return hand.title ?? t('handStarts');
     return '';
   };
 
@@ -250,7 +283,7 @@ export default function HandReplayerPlayScreen() {
               activeOpacity={0.85}
             >
               <Share2 size={16} color="#0A0A0F" strokeWidth={2} />
-              <Text style={styles.shareBtnText}>Partager</Text>
+              <Text style={styles.shareBtnText}>{t('share')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.shareBtn, { backgroundColor: colors.onDarkHairline }, (!cardSize || exportState === 'capturing') && styles.disabledBtn]}
@@ -259,7 +292,7 @@ export default function HandReplayerPlayScreen() {
               activeOpacity={0.85}
             >
               <Download size={16} color={colors.onDarkPrimary} strokeWidth={2} />
-              <Text style={[styles.shareBtnText, { color: colors.onDarkPrimary }]}>Enregistrer</Text>
+              <Text style={[styles.shareBtnText, { color: colors.onDarkPrimary }]}>{t('common:save')}</Text>
             </TouchableOpacity>
           </View>
           {exportMessage && (
@@ -270,93 +303,127 @@ export default function HandReplayerPlayScreen() {
         </View>
       ) : (
         <Pressable style={styles.tableArea} onPress={handleTap}>
-          <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(300)} style={[styles.caption, { color: colors.textPrimary }]}>
+          <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(300)} style={styles.caption}>
             {renderCaption()}
           </Animated.Text>
 
-          {currentBeat?.kind === 'streetActions' && (
-            <View style={styles.actionLines}>
-              {currentBeat.actions.map((a, i) => {
-                const player = hand.players.find((p) => p.id === a.playerId);
-                const amount = a.amount ? ` ${formatChips(a.amount)}` : '';
-                const position = player?.position ? ` (${player.position})` : '';
-                return (
-                  <Animated.Text
-                    key={a.id}
-                    entering={FadeInDown.duration(300).delay(i * 150)}
-                    style={[styles.actionLine, { color: colors.textSecondary }]}
-                  >
-                    {a.type === 'post' ? (
-                      <>
-                        {player?.name ?? '?'}
-                        {position}
-                        {amount}
-                      </>
-                    ) : (
-                      <>
-                        {player?.name ?? '?'}
-                        {position} {ACTION_LABELS[a.type] ?? a.type}
-                        {a.amount ? ` (${formatChips(a.amount)})` : ''}
-                      </>
-                    )}
-                  </Animated.Text>
-                );
-              })}
+          <PokerTable width={TABLE_W} height={TABLE_H} style={styles.table}>
+            <View style={styles.feltCenter} pointerEvents="none">
+              {potSoFar > 0 && (
+                <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(250)} style={styles.potPill}>
+                  <Text style={styles.potLabel}>{t('pot')}</Text>
+                  <Text style={styles.potValue}>{formatHandAmount(potSoFar, hand.unitMode)}</Text>
+                </Animated.View>
+              )}
+              <View style={styles.boardRow}>
+                {hand.board.flop &&
+                  streetRevealed('flop') &&
+                  hand.board.flop.map((c, i) => (
+                    <Animated.View key={`flop-${i}`} entering={FlipInEasyY.duration(450).delay(i * 100)}>
+                      <PlayingCard card={c} size="md" />
+                    </Animated.View>
+                  ))}
+                {hand.board.turn && streetRevealed('turn') && (
+                  <Animated.View entering={FlipInEasyY.duration(450)}>
+                    <PlayingCard card={hand.board.turn} size="md" />
+                  </Animated.View>
+                )}
+                {hand.board.river && streetRevealed('river') && (
+                  <Animated.View entering={FlipInEasyY.duration(450)}>
+                    <PlayingCard card={hand.board.river} size="md" />
+                  </Animated.View>
+                )}
+              </View>
             </View>
-          )}
 
-          <View style={styles.boardRow}>
-            {hand.board.flop &&
-              streetRevealed('flop') &&
-              hand.board.flop.map((c, i) => (
-                <Animated.View key={`flop-${i}`} entering={FlipInEasyY.duration(450).delay(i * 100)}>
-                  <PlayingCard card={c} size="md" />
-                </Animated.View>
-              ))}
-            {hand.board.turn && streetRevealed('turn') && (
-              <Animated.View entering={FlipInEasyY.duration(450)}>
-                <PlayingCard card={hand.board.turn} size="md" />
+            {heroRevealed && hero?.holeCards && (
+              <Animated.View entering={FlipInEasyY.duration(450)} style={styles.heroCards} pointerEvents="none">
+                <PlayingCard card={hero.holeCards[0]} size="lg" style={styles.heroCardLeft} />
+                <PlayingCard card={hero.holeCards[1]} size="lg" style={styles.heroCardRight} />
               </Animated.View>
             )}
-            {hand.board.river && streetRevealed('river') && (
-              <Animated.View entering={FlipInEasyY.duration(450)}>
-                <PlayingCard card={hand.board.river} size="md" />
-              </Animated.View>
-            )}
-          </View>
 
-          {heroRevealed && hero?.holeCards && (
-            <Animated.View entering={FlipInEasyY.duration(450)} style={styles.heroRow}>
-              <PlayingCard card={hero.holeCards[0]} size="lg" />
-              <PlayingCard card={hero.holeCards[1]} size="lg" />
-            </Animated.View>
-          )}
-
-          <View style={styles.seats}>
-            {hand.players.map((p) => {
+            {orderedPlayers.map((p, k) => {
+              const { x, y } = seatPoint(k, orderedPlayers.length, TABLE_W, TABLE_H);
               const folded = foldedIds.has(p.id);
+              const bubble = bubbles.get(p.id);
+              const bubbleBelow = y < TABLE_H / 2;
+              const remaining =
+                p.startingStack !== undefined ? Math.max(0, roundAmount(p.startingStack - committedFor(p.id))) : undefined;
+              const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.action.type) : false;
+              // Dealer button sits between the pod and the felt center.
+              const toCenter = { x: TABLE_W / 2 - x, y: TABLE_H / 2 - y };
+              const dist = Math.hypot(toCenter.x, toCenter.y) || 1;
               return (
-                <Animated.View key={p.id} entering={FadeIn.duration(300)} style={[styles.seat, folded && styles.seatFolded]}>
-                  <View
-                    style={[
-                      styles.avatar,
-                      { backgroundColor: colors.neutralTileBg },
-                      p.isHero && { borderWidth: 2, borderColor: colors.accent },
-                    ]}
-                  >
-                    <Text style={[styles.avatarText, { color: colors.textSecondary }]}>{initials(p.name)}</Text>
-                  </View>
-                  <Text style={[styles.seatName, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                  {p.position && <Text style={[styles.seatPosition, { color: colors.textTertiary }]}>{p.position}</Text>}
-                  {folded && <Text style={[styles.foldedLabel, { color: colors.loss }]}>Couché</Text>}
-                </Animated.View>
+                <TableSeat
+                  key={p.id}
+                  x={x}
+                  y={y}
+                  width={POD_W}
+                  name={p.name}
+                  ringColor={p.isHero ? TABLE.gold : TABLE.neutralBorder}
+                  ringWidth={p.isHero ? 2 : 1.5}
+                  dimmed={folded}
+                  tag={p.position}
+                  secondLine={
+                    folded
+                      ? { text: t('folded'), color: colors.loss }
+                      : remaining !== undefined
+                        ? { text: formatHandAmount(remaining, hand.unitMode) }
+                        : null
+                  }
+                >
+                  {handStarted && !folded && !p.isHero && (
+                    <View style={styles.holePeek}>
+                      <PlayingCard faceDown size="sm" style={styles.peekCardLeft} />
+                      <PlayingCard faceDown size="sm" style={styles.peekCardRight} />
+                    </View>
+                  )}
+                  {dealerId === p.id && (
+                    <View
+                      style={[
+                        styles.dealerBtn,
+                        {
+                          left: POD_W / 2 + (toCenter.x / dist) * 52 - 10,
+                          top: 20 + (toCenter.y / dist) * 52 - 10,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.dealerBtnText}>D</Text>
+                    </View>
+                  )}
+                  {bubble && (
+                    <Animated.View
+                      key={bubble.action.id}
+                      entering={ZoomIn.duration(220).delay(bubble.orderIdx * 200)}
+                      style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
+                    >
+                      <View
+                        style={[
+                          styles.bubblePill,
+                          {
+                            borderColor:
+                              bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.bubbleText,
+                            { color: bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
+                          ]}
+                        >
+                          {bubbleLabel(bubble.action, hand.unitMode, t)}
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  )}
+                </TableSeat>
               );
             })}
-          </View>
+          </PokerTable>
 
-          <Text style={[styles.tapHint, { color: colors.textTertiary }]}>Toucher pour continuer</Text>
+          <Text style={[styles.tapHint, { color: colors.textTertiary }]}>{t('tapHint')}</Text>
         </Pressable>
       )}
 
@@ -364,9 +431,9 @@ export default function HandReplayerPlayScreen() {
         <View style={styles.resultBanner}>
           {winner && <GlowBlob color={colors.accentGlow} size={220} top={-60} right={-40} />}
           {winner ? (
-            <Text style={[styles.resultWinner, { color: colors.accent }]}>{winner.name} remporte la main</Text>
+            <Text style={[styles.resultWinner, { color: colors.accent }]}>{t('winsHand', { name: winner.name })}</Text>
           ) : (
-            <Text style={[styles.resultWinner, { color: colors.textSecondary }]}>Main terminée</Text>
+            <Text style={[styles.resultWinner, { color: colors.textSecondary }]}>{t('handOver')}</Text>
           )}
         </View>
       )}
@@ -408,69 +475,132 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xl,
+    gap: spacing.sm,
     paddingHorizontal: spacing.base,
   },
   caption: {
-    fontSize: fontSize.xl,
+    fontSize: fontSize.lg,
     fontFamily: fontFamily.display,
     textAlign: 'center',
+    color: TABLE.gold,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
   },
-  actionLines: {
-    gap: spacing.xs,
+  table: {
+    marginVertical: 42,
+    alignSelf: 'center',
+  },
+  feltCenter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingBottom: 64,
   },
-  actionLine: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.medium,
-    textAlign: 'center',
+  potPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: TABLE.plateBg,
+    borderWidth: 1,
+    borderColor: TABLE.goldDeep,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+  },
+  potLabel: {
+    fontSize: 9,
+    fontFamily: fontFamily.extrabold,
+    letterSpacing: 1.5,
+    color: 'rgba(231, 195, 111, 0.65)',
+  },
+  potValue: {
+    fontSize: fontSize.md,
+    fontFamily: fontFamily.bold,
+    color: TABLE.gold,
   },
   boardRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 6,
     minHeight: 64,
-  },
-  heroRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  seats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.base,
-  },
-  seat: {
     alignItems: 'center',
-    gap: 4,
-    width: 64,
   },
-  seatFolded: {
-    opacity: 0.35,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
+  heroCards: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.bold,
+  heroCardLeft: {
+    transform: [{ rotate: '-7deg' }],
   },
-  seatName: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.medium,
+  heroCardRight: {
+    transform: [{ rotate: '7deg' }],
+    marginLeft: -16,
+    marginTop: 4,
   },
-  seatPosition: {
+  holePeek: {
+    position: 'absolute',
+    top: -14,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  peekCardLeft: {
+    transform: [{ rotate: '-10deg' }],
+  },
+  peekCardRight: {
+    transform: [{ rotate: '10deg' }],
+    marginLeft: -14,
+    marginTop: 2,
+  },
+  dealerBtn: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F4EFE4',
+    borderWidth: 1,
+    borderColor: '#C9BFA8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  dealerBtnText: {
     fontSize: 10,
-    fontFamily: fontFamily.semibold,
-    letterSpacing: 0.5,
+    fontFamily: fontFamily.extrabold,
+    color: '#1A150F',
   },
-  foldedLabel: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.semibold,
+  bubble: {
+    position: 'absolute',
+    left: -44,
+    right: -44,
+    alignItems: 'center',
+    zIndex: 4,
+  },
+  bubbleAbove: {
+    top: -38,
+  },
+  bubbleBelow: {
+    top: 74,
+  },
+  bubblePill: {
+    backgroundColor: TABLE.plateBg,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+  },
+  bubbleText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
   },
   tapHint: {
     position: 'absolute',

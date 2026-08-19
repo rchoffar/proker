@@ -4,15 +4,25 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "24.18.0",
+      "env": {
+        "EXPO_PUBLIC_BLUFF_SERVER_URL": "https://upk-api.fly.dev",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1095846669375-vuocogitehuqh74bq9ogh89su33gf5hi.apps.googleusercontent.com"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "autoIncrement": true
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true
     }
   },

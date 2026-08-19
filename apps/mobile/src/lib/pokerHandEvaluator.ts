@@ -3,10 +3,24 @@ import type { Card, Rank } from '../types/hand';
 
 export type HandCategory = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
+// Stable ids matching the bluff ClaimCategory union (plus 'highCard') — translated at
+// render via t(`poker:handCategories.${categoryId}`). This lib stays translation-free.
+export type HandCategoryId =
+  | 'highCard'
+  | 'pair'
+  | 'twoPair'
+  | 'trips'
+  | 'straight'
+  | 'flush'
+  | 'fullHouse'
+  | 'quads'
+  | 'straightFlush'
+  | 'royalFlush';
+
 export interface HandScore {
   category: HandCategory;
   tiebreakers: number[];
-  categoryLabel: string;
+  categoryId: HandCategoryId;
   cards: Card[];
 }
 
@@ -17,21 +31,21 @@ const RANK_VALUE: Record<Rank, number> = {
   T: 10, J: 11, Q: 12, K: 13, A: 14,
 };
 
-export const HAND_CATEGORY_LABELS_FR: Record<HandCategory, string> = {
-  0: 'Carte haute',
-  1: 'Paire',
-  2: 'Double paire',
-  3: 'Brelan',
-  4: 'Suite',
-  5: 'Couleur',
-  6: 'Full',
-  7: 'Carré',
-  8: 'Quinte flush',
+const CATEGORY_IDS: Record<HandCategory, HandCategoryId> = {
+  0: 'highCard',
+  1: 'pair',
+  2: 'twoPair',
+  3: 'trips',
+  4: 'straight',
+  5: 'flush',
+  6: 'fullHouse',
+  7: 'quads',
+  8: 'straightFlush',
 };
 
-function getCategoryLabel(category: HandCategory, tiebreakers: number[]): string {
-  if (category === 8 && tiebreakers[0] === 14) return 'Quinte flush royale';
-  return HAND_CATEGORY_LABELS_FR[category];
+function getCategoryId(category: HandCategory, tiebreakers: number[]): HandCategoryId {
+  if (category === 8 && tiebreakers[0] === 14) return 'royalFlush';
+  return CATEGORY_IDS[category];
 }
 
 export function combinations<T>(items: T[], k: number): T[][] {
@@ -134,7 +148,7 @@ export function evaluateFiveCardHand(cards: Card[]): HandScore {
     tiebreakers = valuesDesc;
   }
 
-  return { category, tiebreakers, categoryLabel: getCategoryLabel(category, tiebreakers), cards };
+  return { category, tiebreakers, categoryId: getCategoryId(category, tiebreakers), cards };
 }
 
 export function compareHandScores(a: HandScore, b: HandScore): number {

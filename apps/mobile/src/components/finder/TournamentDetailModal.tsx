@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { MapPin, Users, History } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
+import { formatAmount, formatDateRange } from '../../lib/format';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
 import { SectionLabel } from '../ui/SectionLabel';
 import { BlindStructureTable } from '../tournaments/BlindStructureTable';
@@ -23,19 +25,8 @@ interface DisplayData {
   sessions: TournamentSession[];
 }
 
-function formatCurrency(val: number, showSign = false): string {
-  const abs = Math.abs(val);
-  const formatted = abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  if (!showSign) return `${formatted} €`;
-  return `${val >= 0 ? '+' : '−'}${formatted} €`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+function formatSignedAmount(val: number): string {
+  return `${val >= 0 ? '+' : '−'}${formatAmount(val)}`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -55,6 +46,7 @@ function Divider() {
 
 export function TournamentDetailModal({ tournament, festival, sessions, onClose, onAddSession }: Props) {
   const { colors } = useTheme();
+  const { t: tr } = useTranslation('finder');
   const [cache, setCache] = useState<DisplayData | null>(null);
 
   useEffect(() => {
@@ -80,7 +72,7 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
       onClose={onClose}
       footer={
         <TouchableOpacity style={[styles.ctaButton, { backgroundColor: colors.accent }]} onPress={onAddSession} activeOpacity={0.85}>
-          <Text style={styles.ctaText}>Ajouter une session</Text>
+          <Text style={styles.ctaText}>{tr('detail.addSession')}</Text>
         </TouchableOpacity>
       }
     >
@@ -98,7 +90,7 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
 
       {/* Buy-in hero */}
       <View style={[styles.heroCard, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.accentTint }]}>
-        <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>Buy-in</Text>
+        <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>{tr('detail.buyIn')}</Text>
         <AnimatedNumber
           value={t.buyIn}
           suffix=" €"
@@ -109,7 +101,7 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
           <View style={styles.playersRow}>
             <Users size={12} color={colors.textTertiary} strokeWidth={1.5} />
             <Text style={[styles.playersText, { color: colors.textTertiary }]}>
-              {t.totalPlayers.toLocaleString('fr-FR')} joueurs
+              {tr('detail.players', { count: t.totalPlayers })}
             </Text>
           </View>
         ) : null}
@@ -117,21 +109,21 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
 
       {/* Info grid */}
       <View style={[styles.section, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
-        <InfoRow label="Buy-in" value={formatCurrency(t.buyIn)} />
+        <InfoRow label={tr('detail.buyIn')} value={formatAmount(t.buyIn)} />
         {t.totalPlayers ? (
           <>
             <Divider />
-            <InfoRow label="Champ" value={`${t.totalPlayers.toLocaleString('fr-FR')} joueurs`} />
+            <InfoRow label={tr('detail.field')} value={tr('detail.players', { count: t.totalPlayers })} />
           </>
         ) : null}
         {f ? (
           <>
             <Divider />
-            <InfoRow label="Festival" value={f.name} />
+            <InfoRow label={tr('detail.festival')} value={f.name} />
             {f.location ? (
               <>
                 <Divider />
-                <InfoRow label="Lieu" value={f.location} />
+                <InfoRow label={tr('detail.venue')} value={f.location} />
               </>
             ) : null}
           </>
@@ -141,7 +133,7 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
       {/* Blind structure (main event tournaments only) */}
       {t.blindStructure ? (
         <View style={[styles.section, styles.blindSection, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
-          <SectionLabel style={styles.blindLabel}>Structure de blindes</SectionLabel>
+          <SectionLabel style={styles.blindLabel}>{tr('detail.blindStructure')}</SectionLabel>
           <BlindStructureTable structure={t.blindStructure} />
         </View>
       ) : null}
@@ -151,9 +143,9 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
         <View style={[styles.section, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
           <View style={styles.sectionHeader}>
             <History size={13} color={colors.textTertiary} strokeWidth={1.5} />
-            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>Historique</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{tr('detail.history')}</Text>
             <Text style={[styles.sectionCount, { color: colors.textTertiary }]}>
-              {s.length} participation{s.length > 1 ? 's' : ''}
+              {tr('detail.participations', { count: s.length })}
             </Text>
           </View>
           {s.map((session, idx) => {
@@ -164,16 +156,22 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
                 {idx > 0 && <Divider />}
                 <View style={styles.historyRow}>
                   <View style={styles.historyLeft}>
-                    <Text style={[styles.historyDate, { color: colors.textPrimary }]}>{formatDate(session.date)}</Text>
+                    <Text style={[styles.historyDate, { color: colors.textPrimary }]}>{formatDateRange(session.date)}</Text>
                     <Text style={[styles.historyMeta, { color: colors.textTertiary }]}>
-                      {session.cashed
-                        ? `ITM${session.position ? ` · ${session.position}e` : ''}`
-                        : 'Éliminé'}
-                      {session.reEntries > 0 ? ` · ${session.reEntries} re-entry` : ''}
+                      {[
+                        session.cashed
+                          ? session.position
+                            ? tr('detail.itmWithPosition', { position: session.position })
+                            : tr('detail.itm')
+                          : tr('detail.busted'),
+                        session.reEntries > 0 ? tr('detail.reEntries', { count: session.reEntries }) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </Text>
                   </View>
                   <Text style={[styles.historyProfit, { color: isPositive ? colors.accent : colors.loss }]}>
-                    {formatCurrency(profit, true)}
+                    {formatSignedAmount(profit)}
                   </Text>
                 </View>
               </View>
@@ -184,7 +182,7 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
               <Divider />
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-                  Meilleur résultat : {bestCash.position}e place
+                  {tr('detail.bestResult', { position: bestCash.position })}
                 </Text>
               </View>
             </>

@@ -1,0 +1,11 @@
+{
+  "title": "Schedule",
+  "month": "Month",
+  "week": "Week",
+  "thisWeek": "This week",
+  "thisMonth": "This month",
+  "emptyDay": "No liked festival or tournament that day",
+  "emptyWeek": "No liked festival or tournament this week",
+  "emptyMonth": "No liked festival or tournament this month",
+  "dateTbc": "Date TBC"
+}

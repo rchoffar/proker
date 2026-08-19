@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "UPK needs access to your photos to save your hand replays.",
+    "NSPhotoLibraryAddUsageDescription": "UPK would like to save your hand replays to your camera roll."
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "title": "Festivals",
+  "searchPlaceholder": "Search festivals...",
+  "empty": {
+    "title": "No festivals",
+    "subtitle": "Try adjusting your filters"
+  },
+  "featured": "Featured",
+  "allFestivals": "All festivals",
+  "tournamentCount_one": "{{count}} tournament",
+  "tournamentCount_other": "{{count}} tournaments",
+  "continents": {
+    "europe": "Europe",
+    "northAmerica": "North America",
+    "southAmerica": "South America",
+    "asia": "Asia",
+    "africa": "Africa",
+    "oceania": "Oceania"
+  },
+  "countries": {
+    "FR": "France",
+    "ES": "Spain",
+    "MC": "Monaco",
+    "CZ": "Czech Republic",
+    "MT": "Malta",
+    "GB": "United Kingdom",
+    "IT": "Italy",
+    "BE": "Belgium",
+    "US": "United States",
+    "BR": "Brazil"
+  },
+  "filters": {
+    "title": "Filters",
+    "reset": "Reset",
+    "all": "All",
+    "continent": "Continent",
+    "country": "Country",
+    "buyIn": "Buy-in",
+    "organizer": "Organizer",
+    "apply": "Apply",
+    "applyWithCount_one": "Apply · {{count}} filter",
+    "applyWithCount_other": "Apply · {{count}} filters",
+    "buyInRanges": {
+      "low": "< €500",
+      "mid": "€500 – 999",
+      "high": "€1k – 2,999",
+      "vhigh": "≥ €3,000"
+    }
+  },
+  "festival": {
+    "notFound": "Festival not found",
+    "smallest": "Smallest",
+    "biggest": "Biggest",
+    "tournaments": "Tournaments",
+    "perLevel": "{{duration}} / level",
+    "guaranteed": "{{amount}} GTD",
+    "viewBlindStructure": "View blind structure",
+    "otherTournaments": "Other tournaments"
+  },
+  "detail": {
+    "addSession": "Add a session",
+    "buyIn": "Buy-in",
+    "players_one": "{{count, number}} player",
+    "players_other": "{{count, number}} players",
+    "field": "Field",
+    "festival": "Festival",
+    "venue": "Venue",
+    "blindStructure": "Blind structure",
+    "history": "History",
+    "participations_one": "{{count}} entry",
+    "participations_other": "{{count}} entries",
+    "itm": "ITM",
+    "itmWithPosition": "ITM · #{{position}}",
+    "busted": "Busted",
+    "reEntries_one": "{{count}} re-entry",
+    "reEntries_other": "{{count}} re-entries",
+    "bestResult": "Best result: #{{position}}"
+  },
+  "blinds": {
+    "startingStack": "Starting stack",
+    "levelDuration": "Level duration",
+    "levels": "Levels",
+    "levelCol": "Lvl",
+    "durationCol": "Time"
+  }
+}

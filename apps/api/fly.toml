@@ -1,0 +1,42 @@
+# API UPK (relais Bluff + auth) — voir README.md.
+# Scale-to-zero : la machine s'arrête quand plus personne n'est connecté (les websockets
+# ouvertes la maintiennent en vie) et redémarre en <1s à la connexion suivante.
+# IMPORTANT : une seule machine (deploy --ha=false, ne pas scaler) — les salles sont en
+# mémoire et la base SQLite vit sur le volume upk_data.
+# Secrets requis : AUTH_JWT_SECRET, GOOGLE_IOS_CLIENT_ID (flyctl secrets set).
+
+app = "upk-api"
+primary_region = "cdg"
+
+[build]
+
+[env]
+  PORT = "3001"
+  DATABASE_PATH = "/data/upk.db"
+
+[mounts]
+  source = "upk_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

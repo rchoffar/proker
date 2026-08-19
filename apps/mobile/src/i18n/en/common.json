@@ -1,0 +1,21 @@
+{
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "back": "Back",
+  "close": "Close",
+  "confirm": "Confirm",
+  "add": "Add",
+  "edit": "Edit",
+  "done": "Done",
+  "retry": "Retry",
+  "next": "Next",
+  "continue": "Continue",
+  "search": "Search",
+  "optional": "Optional",
+  "you": "You",
+  "me": "Me",
+  "cardCount_one": "{{count}} card",
+  "cardCount_other": "{{count}} cards",
+  "createNamed": "Create “{{name}}”"
+}

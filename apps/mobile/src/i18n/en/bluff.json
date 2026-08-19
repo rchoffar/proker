@@ -1,0 +1,129 @@
+{
+  "title": "Bluff",
+  "claims": {
+    "pair": "Pair of {{rank}}",
+    "pair_elision": "Pair of {{rank}}",
+    "twoPair": "Two pair, {{high}} and {{low}}",
+    "straight": "{{high}}-high straight",
+    "trips": "Three of a kind, {{rank}}",
+    "trips_elision": "Three of a kind, {{rank}}",
+    "flush": "{{high}}-high flush",
+    "fullHouse": "{{trips}} full of {{pair}}",
+    "quads": "Four of a kind, {{rank}}",
+    "quads_elision": "Four of a kind, {{rank}}",
+    "straightFlush": "{{high}}-high straight flush",
+    "royalFlush": "Royal flush",
+    "twoPairShort": "2 pair {{high}}-{{low}}",
+    "fullHouseShort": "Full house {{trips}}-{{pair}}"
+  },
+  "errors": {
+    "unknownPlayer": "Unknown player",
+    "eliminated": "Player eliminated",
+    "notDealPhase": "Not the dealing phase",
+    "inconsistentDeal": "Inconsistent deal",
+    "duplicateCard": "Duplicate card in the deal",
+    "dealCardCountMismatch": "Deal doesn't match players' card counts",
+    "notChooseBoardPhase": "Not the board-choice phase",
+    "onlyStarterChoosesBoard": "Only the first player chooses the middle",
+    "boardCountOutOfRange": "The middle must have 0 to {{max}} cards",
+    "notBiddingPhase": "Not the bidding phase",
+    "notYourTurn": "It's not your turn",
+    "royalFlushUnbeatable": "A royal flush cannot be outbid",
+    "claimNotHigher": "The call must be strictly higher",
+    "firstPlayerMustClaim": "The first player must make a call",
+    "nothingToConfirm": "Nothing to confirm",
+    "roundNotOver": "The round isn't over"
+  },
+  "connection": {
+    "not_found": "Table not found — check the code",
+    "full": "The table is full",
+    "unavailable": "Server unavailable, try again",
+    "bad_token": "Session expired"
+  },
+  "disconnect": {
+    "host_left": "The host left the table",
+    "expired": "The table expired",
+    "hostQuit": "The host ended the game",
+    "generic": "Game over"
+  },
+  "setup": {
+    "subtitle": "2 to 6 players. Everyone gets hidden cards, calls climb higher and higher across all cards in play… until someone shouts \"Liar!\". The loser takes a card — at 5 cards, you're out.",
+    "modePassPlay": "On this phone",
+    "modeOnline": "Online",
+    "noPlayersYet": "No players yet",
+    "maxPlayersReached": "Player limit reached",
+    "searchOrCreatePlayer": "Search or create a player…",
+    "yourPseudo": "Your nickname",
+    "pseudoPlaceholder": "Name shown at the table",
+    "joinTable": "Join a table",
+    "join": "Join",
+    "dealCards": "Deal the cards",
+    "createTable": "Create a table"
+  },
+  "game": {
+    "roundBadge": "R{{round}}",
+    "chooseBoardYou": "Choose the middle",
+    "chooseBoardOther": "{{name}} is choosing the middle",
+    "openBiddingYou": "Open the bidding",
+    "openBiddingOther": "{{name}} opens the bidding",
+    "revealHolds": "The call was good — {{name}} loses the round",
+    "revealBluff": "It was a bluff! {{name}} loses the round",
+    "revealSubEliminated": "{{claim}} · {{name}} is eliminated!",
+    "victory": "VICTORY",
+    "winnerSub": "{{name}} wins the game",
+    "boardStepper": "Cards in the middle",
+    "revealBoard": "Reveal the middle",
+    "royalFlushHint": "A royal flush cannot be outbid",
+    "liar": "Liar!",
+    "announce": "Announce",
+    "nextRound": "Next round",
+    "replay": "Play again"
+  },
+  "play": {
+    "noPlayers": "No players for this game.",
+    "peekHint": "{{name}}'s cards — hold to peek",
+    "passPhoneTo": "Pass the phone to",
+    "itsMe": "It's me, show my turn",
+    "finish": "Finish"
+  },
+  "online": {
+    "title": "Online Bluff",
+    "headerCode": "Bluff · {{code}}",
+    "connecting": "Connecting to the server…",
+    "tableCode": "Table code",
+    "shareCode": "Share this code with the other players",
+    "waitingHostStart": "Waiting for the host to start…",
+    "players": "Players ({{current}}/{{max}})",
+    "youSuffix": "{{name}} (you)",
+    "startGame": "Start the game",
+    "startsWhenHostLaunches": "The game starts as soon as the host launches it",
+    "waitingBoard": "{{name}} is choosing the middle…",
+    "waitingTurn": "{{name}}'s turn…",
+    "waitingNextRound": "The host starts the next round…",
+    "quit": "Leave"
+  },
+  "picker": {
+    "title": "Announce",
+    "announceClaim": "Announce {{claim}}",
+    "toBeat": "To beat",
+    "noClaim": "No call yet — open the bidding",
+    "wheelHint": "A-2-3-4-5 = 5-high straight",
+    "lowPair": "Low pair",
+    "pairOf": "Pair of",
+    "primary": {
+      "pair": "Pair rank",
+      "twoPair": "High pair",
+      "straight": "Straight high card",
+      "trips": "Trips rank",
+      "flush": "Flush high card",
+      "fullHouse": "Trips of",
+      "quads": "Quads rank",
+      "straightFlush": "Straight flush high card"
+    }
+  },
+  "table": {
+    "eliminated": "Eliminated",
+    "eliminatedNow": "Eliminated!",
+    "plusOneCard": "+1 card"
+  }
+}

@@ -8,6 +8,10 @@ export interface Card {
 
 export type Street = 'preflop' | 'flop' | 'turn' | 'river';
 
+// Unit the whole hand's amounts are expressed in: big blinds (SB=0.5/BB=1, decimals allowed)
+// or raw chip counts. Chosen once at setup — never mixed within a hand.
+export type UnitMode = 'bb' | 'chips';
+
 export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allin' | 'post';
 
 export interface HandAction {
@@ -58,6 +62,8 @@ export interface HandHistory {
   winnerId?: string;
   winningHandDescription?: string;
   heroNet?: number;
+  // Absent on hands recorded before unit modes existed — treat as 'chips'.
+  unitMode?: UnitMode;
 }
 
 export const RANKS: Rank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];

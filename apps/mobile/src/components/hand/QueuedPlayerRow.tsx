@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import { initials } from '../../lib/format';
@@ -7,9 +8,12 @@ import type { HandPlayer } from '../../types';
 interface Props {
   player: HandPlayer;
   position?: string;
+  // Pre-formatted remaining stack (unit handling stays with the caller).
+  stackLabel?: string;
 }
 
-export function QueuedPlayerRow({ player, position }: Props) {
+export function QueuedPlayerRow({ player, position, stackLabel }: Props) {
+  const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   return (
     <View style={styles.wrap}>
@@ -20,7 +24,8 @@ export function QueuedPlayerRow({ player, position }: Props) {
         {player.name}
         {position ? ` (${position})` : ''}
       </Text>
-      <Text style={[styles.status, { color: colors.textTertiary }]}>en attente</Text>
+      {stackLabel ? <Text style={[styles.status, { color: colors.textTertiary }]}>{stackLabel}</Text> : null}
+      <Text style={[styles.status, { color: colors.textTertiary }]}>{t('waiting')}</Text>
     </View>
   );
 }

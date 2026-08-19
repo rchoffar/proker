@@ -1,0 +1,17 @@
+{
+  "hub": {
+    "title": "Degen Hub",
+    "subtitle": "Mini-jeux entre joueurs, bientôt disponibles"
+  },
+  "games": {
+    "flip": "Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise",
+    "bluff": "Annonces, surenchères… qui ose crier menteur ?",
+    "roulette": "Misez, tournez, tentez le sort",
+    "lastLonger": "Le dernier en lice remporte tout",
+    "ofc": "Trois lignes, treize cartes — sans jamais fauler"
+  },
+  "tile": {
+    "comingSoon": "Bientôt disponible",
+    "discover": "Découvrir"
+  }
+}

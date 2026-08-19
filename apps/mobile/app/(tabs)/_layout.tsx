@@ -15,6 +15,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="degen"
+        options={{
+          tabBarIcon: ({ color }) => <Dices color={color} size={22} strokeWidth={1.5} />,
+        }}
+      />
+      <Tabs.Screen
         name="festivals"
         options={{
           tabBarIcon: ({ color }) => <Search color={color} size={22} strokeWidth={1.5} />,
@@ -24,12 +30,6 @@ export default function TabLayout() {
         name="planning"
         options={{
           tabBarIcon: ({ color }) => <Calendar color={color} size={22} strokeWidth={1.5} />,
-        }}
-      />
-      <Tabs.Screen
-        name="degen"
-        options={{
-          tabBarIcon: ({ color }) => <Dices color={color} size={22} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen

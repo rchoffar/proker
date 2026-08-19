@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Trophy, Banknote } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
+import { formatAmount, formatDateShort } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Session, Festival, Tournament } from '../../types';
@@ -19,28 +21,23 @@ function getProfit(session: Session): number {
   return session.cashOut - session.buyIn;
 }
 
-function formatCurrency(val: number): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '+';
-  return `${sign}${abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+function signedAmount(val: number): string {
+  return `${val < 0 ? '-' : '+'}${formatAmount(val)}`;
 }
 
 export function SessionRow({ session, festival, tournament, onPress }: Props) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const profit = getProfit(session);
   const isPositive = profit >= 0;
   const profitColor = isPositive ? colors.accent : colors.loss;
   const isTournament = session.type === 'tournament';
 
-  const typeLabel = isTournament ? 'Tournoi' : 'Cash';
+  const typeLabel = isTournament ? t('types.tournament') : t('types.cash');
   const titleName = isTournament ? (tournament?.name ?? festival?.name ?? session.venue) : session.venue;
   const venue = isTournament ? (festival?.name ?? session.venue) : session.venue;
   const detail = isTournament
-    ? (session.reEntries > 0 ? `${session.reEntries} re-entry` : 'sans re-entry')
+    ? (session.reEntries > 0 ? t('row.reEntries', { count: session.reEntries }) : t('row.noReEntry'))
     : `${session.stakes} ${session.gameType}`;
 
   return (
@@ -58,10 +55,10 @@ export function SessionRow({ session, festival, tournament, onPress }: Props) {
           </View>
           <View style={styles.right}>
             <Text style={[styles.profit, { color: profitColor }]}>
-              {formatCurrency(profit)}
+              {signedAmount(profit)}
             </Text>
             <Text style={[styles.meta, { color: colors.textTertiary }]}>
-              {formatDate(session.date)} · {session.durationHours}h
+              {formatDateShort(session.date.slice(0, 10))} · {t('hoursShort', { hours: session.durationHours })}
             </Text>
           </View>
         </View>

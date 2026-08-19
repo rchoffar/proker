@@ -1,6 +1,8 @@
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BlurView } from 'expo-blur';
 import { X, Users, Clock } from 'lucide-react-native';
+import { formatAmount, formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Stake, Player, Festival, Tournament } from '../../types';
@@ -13,20 +15,8 @@ interface Props {
   onClose: () => void;
 }
 
-function formatCurrency(val: number, showSign = false): string {
-  const abs = Math.abs(val);
-  const formatted = abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  if (!showSign) return `${formatted} €`;
-  return `${val >= 0 ? '+' : '−'}${formatted} €`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+function signedAmount(val: number): string {
+  return `${val >= 0 ? '+' : '−'}${formatAmount(val)}`;
 }
 
 function InfoRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
@@ -45,6 +35,7 @@ function Divider() {
 }
 
 export function StakeDetailModal({ stake, player, festival, tournament, onClose }: Props) {
+  const { t } = useTranslation('tracker');
   const { colors, scheme } = useTheme();
   if (!stake) return null;
 
@@ -60,7 +51,7 @@ export function StakeDetailModal({ stake, player, festival, tournament, onClose 
   const festivalLabel = festival?.name ?? null;
   const subtitle = [festivalLabel, tournamentLabel].filter(Boolean).join(' · ');
 
-  const statusLabel = !stake.settled ? 'En attente' : stake.cashed ? 'ITM ✓' : 'Éliminé';
+  const statusLabel = !stake.settled ? t('status.pending') : stake.cashed ? t('status.itmCheck') : t('status.eliminated');
   const statusColor = !stake.settled
     ? colors.textTertiary
     : stake.cashed ? colors.accent : colors.textSecondary;
@@ -81,7 +72,7 @@ export function StakeDetailModal({ stake, player, festival, tournament, onClose 
           <View style={styles.headerRow}>
             <View style={[styles.typePill, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
               <Users size={11} color={colors.textSecondary} strokeWidth={2} />
-              <Text style={[styles.typePillText, { color: colors.textSecondary }]}>Staking</Text>
+              <Text style={[styles.typePillText, { color: colors.textSecondary }]}>{t('types.staking')}</Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
               <X size={20} color={colors.textSecondary} strokeWidth={2} />
@@ -96,7 +87,7 @@ export function StakeDetailModal({ stake, player, festival, tournament, onClose 
             {subtitle ? <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
             <View style={styles.metaRow}>
               <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
-              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDate(stake.date)}</Text>
+              <Text style={[styles.metaText, { color: colors.textTertiary }]}>{formatDateRange(stake.date.slice(0, 10))}</Text>
             </View>
           </View>
 
@@ -104,52 +95,52 @@ export function StakeDetailModal({ stake, player, festival, tournament, onClose 
           {stake.settled ? (
             <View style={[styles.profitCard, { borderColor: `${profitColor}28` }]}>
               <View style={[styles.profitGlow, { backgroundColor: `${profitColor}0D` }]} />
-              <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>Mon résultat</Text>
+              <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>{t('stakeDetail.myResult')}</Text>
               <Text style={[styles.profitValue, { color: profitColor }]}>
-                {formatCurrency(profit, true)}
+                {signedAmount(profit)}
               </Text>
               {myReturn > 0 && (
-                <Text style={[styles.profitSub, { color: colors.textTertiary }]}>{formatCurrency(myReturn)} récupérés</Text>
+                <Text style={[styles.profitSub, { color: colors.textTertiary }]}>{t('detail.recovered', { amount: formatAmount(myReturn) })}</Text>
               )}
             </View>
           ) : (
             <View style={[styles.profitCard, { borderColor: colors.hairline }]}>
               <View style={[styles.profitGlow, { backgroundColor: colors.neutralTileBg }]} />
-              <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>Résultat</Text>
+              <Text style={[styles.profitLabel, { color: colors.textTertiary }]}>{t('stakeDetail.result')}</Text>
               <Text style={[styles.profitValue, { color: colors.textTertiary, fontSize: 36 }]}>
-                En attente
+                {t('status.pending')}
               </Text>
-              <Text style={[styles.profitSub, { color: colors.textTertiary }]}>{formatCurrency(-invested)} engagés</Text>
+              <Text style={[styles.profitSub, { color: colors.textTertiary }]}>{t('stakeDetail.committed', { amount: formatAmount(invested) })}</Text>
             </View>
           )}
 
           {/* Info grid */}
           <View style={[styles.section, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
-            <InfoRow label="Joueur" value={player?.name ?? '—'} />
+            <InfoRow label={t('stakeDetail.player')} value={player?.name ?? '—'} />
             <Divider />
-            <InfoRow label="Buy-in" value={formatCurrency(stake.buyIn)} />
+            <InfoRow label={t('detail.buyIn')} value={formatAmount(stake.buyIn)} />
             <Divider />
-            <InfoRow label="Pourcentage" value={`${stake.percentage} %`} />
+            <InfoRow label={t('stakeDetail.percentage')} value={t('percent', { value: stake.percentage })} />
             <Divider />
-            <InfoRow label="Mise engagée" value={formatCurrency(invested)} />
+            <InfoRow label={t('stakeDetail.stakeCommitted')} value={formatAmount(invested)} />
             {stake.settled && (
               <>
                 <Divider />
                 <InfoRow
-                  label="Statut"
+                  label={t('stakeDetail.status')}
                   value={statusLabel}
                   valueColor={statusColor}
                 />
                 {stake.cashed && stake.theirCashout != null && (
                   <>
                     <Divider />
-                    <InfoRow label="Leur cashout" value={formatCurrency(stake.theirCashout)} />
+                    <InfoRow label={t('stakeDetail.theirCashout')} value={formatAmount(stake.theirCashout)} />
                     <Divider />
-                    <InfoRow label="Mon retour" value={formatCurrency(myReturn)} />
+                    <InfoRow label={t('stakeDetail.myReturn')} value={formatAmount(myReturn)} />
                     <Divider />
                     <InfoRow
-                      label="ROI"
-                      value={invested > 0 ? `${((profit / invested) * 100).toFixed(1)} %` : '—'}
+                      label={t('stakeDetail.roi')}
+                      value={invested > 0 ? t('percent', { value: ((profit / invested) * 100).toFixed(1) }) : '—'}
                       valueColor={isPositive ? colors.accent : colors.loss}
                     />
                   </>
@@ -160,7 +151,7 @@ export function StakeDetailModal({ stake, player, festival, tournament, onClose 
 
           {stake.notes ? (
             <View style={[styles.notesCard, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
-              <Text style={[styles.notesLabel, { color: colors.textTertiary }]}>Notes</Text>
+              <Text style={[styles.notesLabel, { color: colors.textTertiary }]}>{t('detail.notes')}</Text>
               <Text style={[styles.notesText, { color: colors.textSecondary }]}>{stake.notes}</Text>
             </View>
           ) : null}

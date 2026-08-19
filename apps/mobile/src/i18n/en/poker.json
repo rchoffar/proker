@@ -1,0 +1,45 @@
+{
+  "ranks": {
+    "A": { "singular": "Ace", "plural": "Aces" },
+    "K": { "singular": "King", "plural": "Kings" },
+    "Q": { "singular": "Queen", "plural": "Queens" },
+    "J": { "singular": "Jack", "plural": "Jacks" },
+    "T": { "singular": "Ten", "plural": "Tens" },
+    "9": { "singular": "Nine", "plural": "Nines" },
+    "8": { "singular": "Eight", "plural": "Eights" },
+    "7": { "singular": "Seven", "plural": "Sevens" },
+    "6": { "singular": "Six", "plural": "Sixes" },
+    "5": { "singular": "Five", "plural": "Fives" },
+    "4": { "singular": "Four", "plural": "Fours" },
+    "3": { "singular": "Three", "plural": "Threes" },
+    "2": { "singular": "Two", "plural": "Twos" }
+  },
+  "handCategories": {
+    "highCard": "High card",
+    "pair": "Pair",
+    "twoPair": "Two pair",
+    "trips": "Three of a kind",
+    "straight": "Straight",
+    "flush": "Flush",
+    "fullHouse": "Full house",
+    "quads": "Four of a kind",
+    "straightFlush": "Straight flush",
+    "royalFlush": "Royal flush"
+  },
+  "phases": {
+    "preflop": "Preflop",
+    "flop": "Flop",
+    "turn": "Turn",
+    "river": "River",
+    "showdown": "Showdown"
+  },
+  "actions": {
+    "fold": "folds",
+    "check": "checks",
+    "call": "calls",
+    "bet": "bets",
+    "raise": "raises",
+    "allin": "all-in",
+    "post": "posts"
+  }
+}

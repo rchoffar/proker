@@ -1,0 +1,36 @@
+{
+  "setup": {
+    "noPlayersYet": "No players yet",
+    "searchPlaceholder": "Search or create a player…"
+  },
+  "play": {
+    "noPlayers": "No players in this game."
+  },
+  "flip": {
+    "subtitle": "2 to 6 players, everyone gets a hand, then the flop, turn and river are revealed one by one. The weakest hand pays.",
+    "maxPlayersReached": "Player limit reached",
+    "dealCards": "Deal the cards",
+    "revealFlop": "Reveal the flop",
+    "revealTurn": "Reveal the turn",
+    "revealRiver": "Reveal the river",
+    "playAgain": "Play again",
+    "dealing": "Dealing",
+    "victory": "VICTORY",
+    "winsHand_one": "{{names}} wins the hand",
+    "winsHand_other": "{{names}} win the hand",
+    "losesHand_one": "{{names}} loses the hand",
+    "losesHand_other": "{{names}} lose the hand",
+    "twoNames": "{{a}} and {{b}}",
+    "playersCount_one": "{{count}} player",
+    "playersCount_other": "{{count}} players"
+  },
+  "roulette": {
+    "subtitle": "Who's at the table? Add at least 2 players — the wheel picks one of them to pay the tab.",
+    "start": "Start the roulette",
+    "spinWheel": "Spin the wheel",
+    "spinning": "Spinning…",
+    "spinAgain": "Spin again",
+    "payUp": "Pay up",
+    "paysTheBill": "pays the tab 🍻"
+  }
+}

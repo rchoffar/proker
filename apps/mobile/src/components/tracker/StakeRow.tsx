@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Users } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
+import { formatAmount, formatDateShort } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Stake, Player, Festival, Tournament } from '../../types';
@@ -13,17 +15,12 @@ interface Props {
   onPress?: () => void;
 }
 
-function formatCurrency(val: number): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '+';
-  return `${sign}${abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+function signedAmount(val: number): string {
+  return `${val < 0 ? '-' : '+'}${formatAmount(val)}`;
 }
 
 export function StakeRow({ stake, player, festival, tournament, onPress }: Props) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const invested = (stake.percentage / 100) * stake.buyIn;
   const myReturn = stake.settled && stake.cashed
@@ -34,7 +31,7 @@ export function StakeRow({ stake, player, festival, tournament, onPress }: Props
   const tournamentLabel = tournament?.name ?? null;
   const festivalLabel = festival?.name ?? null;
 
-  const primaryLabel = `${player?.name ?? '—'} · Staking`;
+  const primaryLabel = `${player?.name ?? '—'} · ${t('types.staking')}`;
   const secondaryLabel = [festivalLabel, tournamentLabel].filter(Boolean).join(' · ') || '—';
 
   return (
@@ -51,12 +48,12 @@ export function StakeRow({ stake, player, festival, tournament, onPress }: Props
           <View style={styles.right}>
             {stake.settled ? (
               <Text style={[styles.profit, { color: profit >= 0 ? colors.accent : colors.loss }]}>
-                {formatCurrency(profit)}
+                {signedAmount(profit)}
               </Text>
             ) : (
-              <Text style={[styles.pending, { color: colors.textTertiary }]}>En attente</Text>
+              <Text style={[styles.pending, { color: colors.textTertiary }]}>{t('status.pending')}</Text>
             )}
-            <Text style={[styles.meta, { color: colors.textTertiary }]}>{formatDate(stake.date)} · {stake.percentage}%</Text>
+            <Text style={[styles.meta, { color: colors.textTertiary }]}>{formatDateShort(stake.date.slice(0, 10))} · {t('percent', { value: stake.percentage })}</Text>
           </View>
         </View>
       </GlassCard>

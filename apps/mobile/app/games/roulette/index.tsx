@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, X } from 'lucide-react-native';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
-import { PickerField, SearchCreateList } from '../../../src/components/ui/PickerField';
+import { SearchCreateList } from '../../../src/components/ui/PickerField';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
@@ -13,13 +14,13 @@ import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
 
 export default function RouletteSetupScreen() {
+  const { t } = useTranslation('games');
   const { colors } = useTheme();
   const router = useRouter();
   const { players, addPlayer, rouletteLastPlayers, setRouletteLastPlayers } = useAppStore();
   const setDraftPlayers = useRouletteDraft((s) => s.setPlayers);
 
   const [selected, setSelected] = useState<Player[]>(rouletteLastPlayers);
-  const [pickerExpanded, setPickerExpanded] = useState(false);
   const [query, setQuery] = useState('');
 
   const canSpin = selected.length >= 2;
@@ -27,7 +28,6 @@ export default function RouletteSetupScreen() {
   const addToSelection = (player: Player) => {
     setSelected((prev) => (prev.some((p) => p.id === player.id) ? prev : [...prev, player]));
     setQuery('');
-    setPickerExpanded(false);
   };
 
   const removeFromSelection = (id: string) => {
@@ -64,7 +64,7 @@ export default function RouletteSetupScreen() {
         <View style={styles.stack}>
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}>
             <Text style={[styles.subtitle, { color: colors.textTertiary }]}>
-              Qui est à la table ? Ajoutez au moins 2 joueurs, la roue en désigne un pour payer l’addition.
+              {t('roulette.subtitle')}
             </Text>
           </Animated.View>
 
@@ -72,7 +72,7 @@ export default function RouletteSetupScreen() {
             <GlassCard padding={16}>
               <View style={styles.chipGrid}>
                 {selected.length === 0 ? (
-                  <Text style={[styles.emptyText, { color: colors.textTertiary }]}>Aucun joueur pour l’instant</Text>
+                  <Text style={[styles.emptyText, { color: colors.textTertiary }]}>{t('setup.noPlayersYet')}</Text>
                 ) : (
                   selected.map((p) => (
                     <View key={p.id} style={[styles.playerChip, { borderColor: colors.accent, backgroundColor: colors.accentTint }]}>
@@ -88,26 +88,18 @@ export default function RouletteSetupScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
-            <PickerField
-              label="Ajouter un joueur"
-              value=""
-              placeholder="Chercher ou créer un joueur…"
-              expanded={pickerExpanded}
-              onToggleExpand={() => setPickerExpanded((e) => !e)}
-            >
-              <SearchCreateList
-                items={availableNames}
-                selected=""
-                query={query}
-                onQueryChange={setQuery}
-                onSelect={(name) => {
-                  const existing = players.find((p) => p.name === name);
-                  if (existing) addToSelection(existing);
-                }}
-                onCreate={(name) => addToSelection({ id: `p-${Date.now()}`, name })}
-                placeholder="Chercher ou créer un joueur…"
-              />
-            </PickerField>
+            <SearchCreateList
+              items={availableNames}
+              selected=""
+              query={query}
+              onQueryChange={setQuery}
+              onSelect={(name) => {
+                const existing = players.find((p) => p.name === name);
+                if (existing) addToSelection(existing);
+              }}
+              onCreate={(name) => addToSelection({ id: `p-${Date.now()}`, name })}
+              placeholder={t('setup.searchPlaceholder')}
+            />
           </Animated.View>
 
           <View style={{ height: 100 }} />
@@ -121,7 +113,7 @@ export default function RouletteSetupScreen() {
           disabled={!canSpin}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Lancer la roulette</Text>
+          <Text style={styles.primaryBtnText}>{t('roulette.start')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

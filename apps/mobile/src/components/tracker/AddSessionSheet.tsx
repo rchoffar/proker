@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
 import { SegmentedControl } from '../ui/SegmentedControl';
@@ -8,18 +9,21 @@ import { BuyInField } from '../ui/BuyInField';
 import { AmountInput } from '../ui/AmountInput';
 import { Stepper } from '../ui/Stepper';
 import { sessionNetValues } from '../../store/useAppStore';
+import { formatAmount } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import type { Festival, Tournament, Session, TournamentSession, CashSession, GameType, Stake, Player, Backing } from '../../types';
+import type { Festival, Tournament, Session, TournamentSession, CashSession, GameType, Stake, Player, Stacking } from '../../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type SessionKind = 'tournament' | 'cash' | 'stake';
 
-interface BackingDraft {
+interface StackingDraft {
   player: Player | null;
+  kind: 'swap' | 'stack';
   profitShare: number;
-  paysBuyIn: boolean;
+  buyInAmount: string; // free-text € amount, seeded with the proportional default and freely editable (including to blank/0)
+  buyInAmountTouched: boolean; // once true, buyInAmount stops following profitShare changes
 }
 
 interface Draft {
@@ -35,7 +39,7 @@ interface Draft {
   gameType: GameType;
   stakes: string;
   durationHours: number;
-  backings: BackingDraft[];
+  stackings: StackingDraft[];
   stakingPlayer: Player | null;
   stakingPercentage: number;
   stakingSettled: boolean;
@@ -56,7 +60,7 @@ const INITIAL_DRAFT: Draft = {
   gameType: 'NLH',
   stakes: '2/5',
   durationHours: 4,
-  backings: [],
+  stackings: [],
   stakingPlayer: null,
   stakingPercentage: 10,
   stakingSettled: false,
@@ -141,9 +145,20 @@ function ResultToggle({
   );
 }
 
-// ─── Backing sub-section (shared by Tournoi & Cash) ──────────────────────────
+// ─── Stacking sub-section (shared by Tournoi & Cash) ─────────────────────────
 
-function BackingSection({
+/** The proportional € amount for a given profit share — used only to seed the field's initial value. */
+function defaultStackAmount(profitShare: number, totalBuyIn: number): number {
+  return Math.round((profitShare / 100) * totalBuyIn);
+}
+
+/** Resolves the effective € amount a stack entry contributes toward the buy-in — swap entries always contribute 0. */
+function resolveStackAmount(entry: StackingDraft): number {
+  if (entry.kind !== 'stack') return 0;
+  return parseFloat(entry.buyInAmount) || 0;
+}
+
+function StackingSection({
   draft,
   update,
   players,
@@ -156,100 +171,141 @@ function BackingSection({
   activePicker: string | null;
   setActivePicker: (v: string | null) => void;
 }) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const [queries, setQueries] = useState<Record<number, string>>({});
   const buyIn = parseFloat(draft.buyIn) || 0;
   const totalBuyIn = draft.sessionType === 'tournament' ? (draft.reEntries + 1) * buyIn : buyIn;
-  const totalProfitPct = draft.backings.reduce((sum, b) => sum + b.profitShare, 0);
+  const totalProfitPct = draft.stackings.reduce((sum, s) => sum + s.profitShare, 0);
   const yourSharePct = 100 - totalProfitPct;
-  const totalBuyInCovered = draft.backings.reduce((sum, b) => sum + (b.paysBuyIn ? b.profitShare : 0), 0);
-  const yourActualCost = totalBuyIn > 0 ? ((100 - totalBuyInCovered) / 100) * totalBuyIn : 0;
+  const totalBuyInCovered = draft.stackings.reduce((sum, s) => sum + resolveStackAmount(s), 0);
+  const yourActualCost = totalBuyIn > 0 ? totalBuyIn - totalBuyInCovered : 0;
 
-  const addBacking = useCallback(() => {
-    update({ backings: [...draft.backings, { player: null, profitShare: 10, paysBuyIn: true }] });
-  }, [draft.backings, update]);
+  const addStacking = useCallback(() => {
+    update({
+      stackings: [
+        ...draft.stackings,
+        { player: null, profitShare: 10, kind: 'stack', buyInAmount: String(defaultStackAmount(10, totalBuyIn)), buyInAmountTouched: false },
+      ],
+    });
+  }, [draft.stackings, totalBuyIn, update]);
 
-  const removeBacking = useCallback((idx: number) => {
-    update({ backings: draft.backings.filter((_, i) => i !== idx) });
-  }, [draft.backings, update]);
+  const removeStacking = useCallback((idx: number) => {
+    update({ stackings: draft.stackings.filter((_, i) => i !== idx) });
+  }, [draft.stackings, update]);
 
-  const updateBacking = useCallback(
-    (idx: number, patch: Partial<BackingDraft>) => {
-      update({ backings: draft.backings.map((b, i) => (i === idx ? { ...b, ...patch } : b)) });
+  const updateStacking = useCallback(
+    (idx: number, patch: Partial<StackingDraft>) => {
+      update({ stackings: draft.stackings.map((s, i) => (i === idx ? { ...s, ...patch } : s)) });
     },
-    [draft.backings, update]
+    [draft.stackings, update]
+  );
+
+  /** Updates profitShare, and — unless the user has manually overridden the amount — keeps buyInAmount following it. */
+  const updateProfitShare = useCallback(
+    (idx: number, profitShare: number) => {
+      const stacking = draft.stackings[idx];
+      const followsDefault = stacking.kind === 'stack' && !stacking.buyInAmountTouched;
+      updateStacking(idx, {
+        profitShare,
+        ...(followsDefault ? { buyInAmount: String(defaultStackAmount(profitShare, totalBuyIn)) } : {}),
+      });
+    },
+    [draft.stackings, totalBuyIn, updateStacking]
   );
 
   return (
     <View style={{ gap: spacing.md }}>
-      <FieldLabel>Backing (optionnel)</FieldLabel>
+      <FieldLabel>{t('stacking.sectionOptional')}</FieldLabel>
 
-      {draft.backings.map((backing, idx) => {
-        const pickerKey = `backing-${idx}`;
+      {draft.stackings.map((stacking, idx) => {
+        const pickerKey = `stacking-${idx}`;
         return (
-          <View key={idx} style={[backingStyles.entry, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
-            <View style={backingStyles.entryHeader}>
-              <Text style={[sharedStyles.fieldLabelInline, { color: colors.textSecondary }]}>Backer {idx + 1}</Text>
-              <TouchableOpacity onPress={() => removeBacking(idx)} activeOpacity={0.7}>
-                <Text style={[backingStyles.removeText, { color: colors.loss }]}>Retirer</Text>
+          <View key={idx} style={[stackingStyles.entry, { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg }]}>
+            <View style={stackingStyles.entryHeader}>
+              <Text style={[sharedStyles.fieldLabelInline, { color: colors.textSecondary }]}>
+                {stacking.kind === 'stack' ? t('stacking.stackerN', { n: idx + 1 }) : t('stacking.swapN', { n: idx + 1 })}
+              </Text>
+              <TouchableOpacity onPress={() => removeStacking(idx)} activeOpacity={0.7}>
+                <Text style={[stackingStyles.removeText, { color: colors.loss }]}>{t('stacking.remove')}</Text>
               </TouchableOpacity>
             </View>
             <PickerField
-              label="Joueur"
-              value={backing.player?.name ?? ''}
-              placeholder="Chercher ou ajouter un joueur…"
+              label={t('stakeDetail.player')}
+              value={stacking.player?.name ?? ''}
+              placeholder={t('addSession.searchAddPlayer')}
               expanded={activePicker === pickerKey}
               onToggleExpand={() => setActivePicker(activePicker === pickerKey ? null : pickerKey)}
             >
               <SearchCreateList
                 items={players.map((p) => p.name)}
-                selected={backing.player?.name ?? ''}
+                selected={stacking.player?.name ?? ''}
                 query={queries[idx] ?? ''}
                 onQueryChange={(v) => setQueries((q) => ({ ...q, [idx]: v }))}
                 onSelect={(name) => {
                   const existing = players.find((p) => p.name === name);
-                  updateBacking(idx, { player: existing ?? { id: `p-${Date.now()}`, name } });
+                  updateStacking(idx, { player: existing ?? { id: `p-${Date.now()}`, name } });
                   setActivePicker(null);
                 }}
                 onCreate={(name) => {
-                  updateBacking(idx, { player: { id: `p-${Date.now()}`, name } });
+                  updateStacking(idx, { player: { id: `p-${Date.now()}`, name } });
                   setActivePicker(null);
                 }}
-                placeholder="Chercher ou ajouter un joueur…"
+                placeholder={t('addSession.searchAddPlayer')}
               />
             </PickerField>
             <Stepper
-              label="Part des gains"
-              value={backing.profitShare}
-              onDecrement={() => updateBacking(idx, { profitShare: Math.max(1, backing.profitShare - 1) })}
-              onIncrement={() => updateBacking(idx, { profitShare: Math.min(100 - totalProfitPct + backing.profitShare, backing.profitShare + 1) })}
+              label={t('stacking.profitShare')}
+              value={stacking.profitShare}
+              onDecrement={() => updateProfitShare(idx, Math.max(1, stacking.profitShare - 1))}
+              onIncrement={() => updateProfitShare(idx, Math.min(100 - totalProfitPct + stacking.profitShare, stacking.profitShare + 1))}
               min={1}
-              max={100 - totalProfitPct + backing.profitShare}
-              format={(v) => `${v} %`}
+              max={100 - totalProfitPct + stacking.profitShare}
+              format={(v) => t('percent', { value: v })}
             />
             <View style={{ gap: spacing.sm }}>
-              <FieldLabel>Participe au buy-in ?</FieldLabel>
+              <FieldLabel>{t('stacking.type')}</FieldLabel>
               <ResultToggle
-                options={[{ key: 'yes', label: 'Oui' }, { key: 'no', label: 'Non' }]}
-                value={backing.paysBuyIn ? 'yes' : 'no'}
-                onChange={(k) => updateBacking(idx, { paysBuyIn: k === 'yes' })}
+                options={[{ key: 'swap', label: t('stacking.swap') }, { key: 'stack', label: t('stacking.stack') }]}
+                value={stacking.kind}
+                onChange={(k) => {
+                  const kind = k as 'swap' | 'stack';
+                  if (kind === 'stack' && stacking.kind !== 'stack') {
+                    updateStacking(idx, {
+                      kind,
+                      buyInAmount: String(defaultStackAmount(stacking.profitShare, totalBuyIn)),
+                      buyInAmountTouched: false,
+                    });
+                  } else {
+                    updateStacking(idx, { kind });
+                  }
+                }}
               />
             </View>
+            {stacking.kind === 'stack' && (
+              <AmountInput
+                label={t('stacking.amountInvested')}
+                value={stacking.buyInAmount}
+                onChange={(v) => updateStacking(idx, { buyInAmount: v, buyInAmountTouched: true })}
+              />
+            )}
           </View>
         );
       })}
 
       {totalProfitPct < 100 && (
-        <TouchableOpacity style={[backingStyles.addBtn, { borderColor: colors.hairline }]} onPress={addBacking} activeOpacity={0.7}>
+        <TouchableOpacity style={[stackingStyles.addBtn, { borderColor: colors.hairline }]} onPress={addStacking} activeOpacity={0.7}>
           <Plus size={14} color={colors.textSecondary} strokeWidth={2} />
-          <Text style={[backingStyles.addBtnText, { color: colors.textSecondary }]}>Ajouter un backer</Text>
+          <Text style={[stackingStyles.addBtnText, { color: colors.textSecondary }]}>{t('stacking.add')}</Text>
         </TouchableOpacity>
       )}
 
-      {draft.backings.length > 0 && (
+      {draft.stackings.length > 0 && (
         <SummaryLine
-          label="Votre part des gains"
-          value={`${yourSharePct} %${totalBuyIn > 0 ? ` — Mise réelle : ${yourActualCost.toFixed(0)} €` : ''}`}
+          label={t('stacking.yourShare')}
+          value={totalBuyIn > 0
+            ? t('stacking.shareWithCost', { pct: yourSharePct, amount: formatAmount(yourActualCost) })
+            : t('stacking.shareOnly', { pct: yourSharePct })}
         />
       )}
     </View>
@@ -275,12 +331,13 @@ function TournamentFields({
   activePicker: string | null;
   setActivePicker: (v: string | null) => void;
 }) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const [festivalQuery, setFestivalQuery] = useState('');
   const [tournamentQuery, setTournamentQuery] = useState('');
 
   const festivalTournaments = useMemo(
-    () => tournaments.filter((t) => t.festivalId === draft.festival?.id),
+    () => tournaments.filter((tour) => tour.festivalId === draft.festival?.id),
     [tournaments, draft.festival]
   );
   const inferred = draft.tournament != null && tournaments.some((t) => t.id === draft.tournament!.id);
@@ -288,9 +345,9 @@ function TournamentFields({
   return (
     <View style={{ gap: spacing.lg }}>
       <PickerField
-        label="Festival · lieu"
+        label={t('addSession.festivalVenue')}
         value={draft.festival?.name ?? ''}
-        placeholder="Choisir un festival"
+        placeholder={t('addSession.chooseFestival')}
         expanded={activePicker === 'festival'}
         onToggleExpand={() => setActivePicker(activePicker === 'festival' ? null : 'festival')}
       >
@@ -308,14 +365,14 @@ function TournamentFields({
             update({ festival: { id: `f-${Date.now()}`, name }, tournament: null, buyIn: '' });
             setActivePicker(null);
           }}
-          placeholder="Chercher ou créer un festival…"
+          placeholder={t('addSession.searchCreateFestival')}
         />
       </PickerField>
 
       <PickerField
-        label="Tournoi"
+        label={t('addSession.tournament')}
         value={draft.tournament?.name ?? ''}
-        placeholder={draft.festival ? 'Choisir un tournoi' : 'Choisissez un festival d’abord'}
+        placeholder={draft.festival ? t('addSession.chooseTournament') : t('addSession.chooseFestivalFirst')}
         disabled={!draft.festival}
         expanded={activePicker === 'tournament'}
         onToggleExpand={() => setActivePicker(activePicker === 'tournament' ? null : 'tournament')}
@@ -338,28 +395,28 @@ function TournamentFields({
             });
             setActivePicker(null);
           }}
-          placeholder="Chercher ou créer un tournoi…"
+          placeholder={t('addSession.searchCreateTournament')}
         />
       </PickerField>
 
-      <BuyInField value={draft.buyIn} onChange={(v) => update({ buyIn: v })} inferred={inferred} />
+      <BuyInField value={draft.buyIn} onChange={(v) => update({ buyIn: v })} inferred={inferred} inferredNote={t('addSession.buyInInferredNote')} />
 
       <Stepper
-        label="Re-entries"
+        label={t('detail.reEntries')}
         value={draft.reEntries}
         onDecrement={() => update({ reEntries: Math.max(0, draft.reEntries - 1) })}
         onIncrement={() => update({ reEntries: Math.min(10, draft.reEntries + 1) })}
         max={10}
       />
 
-      <BackingSection draft={draft} update={update} players={players} activePicker={activePicker} setActivePicker={setActivePicker} />
+      <StackingSection draft={draft} update={update} players={players} activePicker={activePicker} setActivePicker={setActivePicker} />
 
       <View style={{ gap: spacing.sm }}>
-        <FieldLabel>Résultat</FieldLabel>
+        <FieldLabel>{t('addSession.result')}</FieldLabel>
         <ResultToggle
           options={[
-            { key: 'out', label: 'Éliminé', activeColor: colors.loss },
-            { key: 'itm', label: 'ITM', activeColor: colors.accent },
+            { key: 'out', label: t('status.eliminated'), activeColor: colors.loss },
+            { key: 'itm', label: t('status.itm'), activeColor: colors.accent },
           ]}
           value={draft.cashed ? 'itm' : 'out'}
           onChange={(k) => update({ cashed: k === 'itm' })}
@@ -368,26 +425,26 @@ function TournamentFields({
 
       {draft.cashed && (
         <Stepper
-          label="Gains"
+          label={t('addSession.winnings')}
           value={parseFloat(draft.cashOut) || 0}
           onDecrement={() => update({ cashOut: String(Math.max(0, (parseFloat(draft.cashOut) || 0) - MONEY_STEP)) })}
           onIncrement={() => update({ cashOut: String((parseFloat(draft.cashOut) || 0) + MONEY_STEP) })}
           max={MONEY_MAX}
-          format={formatMoney}
+          format={formatAmount}
         />
       )}
       {draft.cashed && (
-        <AmountInput label="Position (optionnel)" value={draft.position} onChange={(v) => update({ position: v })} placeholder="ex. 8" unit="#" />
+        <AmountInput label={t('addSession.positionOptional')} value={draft.position} onChange={(v) => update({ position: v })} placeholder={t('addSession.positionPlaceholder')} unit="#" />
       )}
 
       <Stepper
-        label="Durée"
+        label={t('addSession.duration')}
         value={draft.durationHours}
         onDecrement={() => update({ durationHours: Math.max(0.5, draft.durationHours - 0.5) })}
         onIncrement={() => update({ durationHours: Math.min(48, draft.durationHours + 0.5) })}
         min={0.5}
         max={48}
-        format={(v) => `${v}h`}
+        format={(v) => t('hoursShort', { hours: v })}
       />
     </View>
   );
@@ -410,6 +467,7 @@ function CashFields({
   activePicker: string | null;
   setActivePicker: (v: string | null) => void;
 }) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const [venueQuery, setVenueQuery] = useState('');
   const knownVenues = useMemo(() => [...new Set(festivals.map((f) => f.name))], [festivals]);
@@ -417,9 +475,9 @@ function CashFields({
   return (
     <View style={{ gap: spacing.lg }}>
       <PickerField
-        label="Festival · lieu"
+        label={t('addSession.festivalVenue')}
         value={draft.venue}
-        placeholder="Choisir ou saisir un lieu"
+        placeholder={t('addSession.chooseOrEnterVenue')}
         expanded={activePicker === 'venue'}
         onToggleExpand={() => setActivePicker(activePicker === 'venue' ? null : 'venue')}
       >
@@ -429,12 +487,12 @@ function CashFields({
           query={venueQuery}
           onQueryChange={(v) => { setVenueQuery(v); update({ venue: v }); }}
           onSelect={(v) => { update({ venue: v }); setActivePicker(null); }}
-          placeholder="Chercher ou saisir un lieu…"
+          placeholder={t('addSession.searchVenue')}
         />
       </PickerField>
 
       <View style={{ gap: spacing.sm }}>
-        <FieldLabel>Variante</FieldLabel>
+        <FieldLabel>{t('detail.variant')}</FieldLabel>
         <ResultToggle
           options={(['NLH', 'PLO'] as GameType[]).map((g) => ({ key: g, label: g }))}
           value={draft.gameType}
@@ -443,7 +501,7 @@ function CashFields({
       </View>
 
       <View style={{ gap: spacing.sm }}>
-        <FieldLabel>Mises</FieldLabel>
+        <FieldLabel>{t('detail.stakes')}</FieldLabel>
         <View style={sharedStyles.chipRow}>
           {STAKES_OPTIONS.map((s) => {
             const active = draft.stakes === s;
@@ -467,25 +525,25 @@ function CashFields({
 
       <BuyInField value={draft.buyIn} onChange={(v) => update({ buyIn: v })} />
 
-      <BackingSection draft={draft} update={update} players={players} activePicker={activePicker} setActivePicker={setActivePicker} />
+      <StackingSection draft={draft} update={update} players={players} activePicker={activePicker} setActivePicker={setActivePicker} />
 
       <Stepper
-        label="Gains"
+        label={t('addSession.winnings')}
         value={parseFloat(draft.cashOut) || 0}
         onDecrement={() => update({ cashOut: String(Math.max(0, (parseFloat(draft.cashOut) || 0) - MONEY_STEP)) })}
         onIncrement={() => update({ cashOut: String((parseFloat(draft.cashOut) || 0) + MONEY_STEP) })}
         max={MONEY_MAX}
-        format={formatMoney}
+        format={formatAmount}
       />
 
       <Stepper
-        label="Durée"
+        label={t('addSession.duration')}
         value={draft.durationHours}
         onDecrement={() => update({ durationHours: Math.max(0.5, draft.durationHours - 0.5) })}
         onIncrement={() => update({ durationHours: Math.min(48, draft.durationHours + 0.5) })}
         min={0.5}
         max={48}
-        format={(v) => `${v}h`}
+        format={(v) => t('hoursShort', { hours: v })}
       />
     </View>
   );
@@ -510,6 +568,7 @@ function StakingFields({
   activePicker: string | null;
   setActivePicker: (v: string | null) => void;
 }) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const [playerQuery, setPlayerQuery] = useState('');
   const [festivalQuery, setFestivalQuery] = useState('');
@@ -522,7 +581,6 @@ function StakingFields({
   const inferred = draft.tournament != null && tournaments.some((t) => t.id === draft.tournament!.id);
   const buyIn = parseFloat(draft.buyIn) || 0;
   const investedNum = (draft.stakingPercentage / 100) * buyIn;
-  const invested = investedNum.toFixed(0);
   const theirCashout = parseFloat(draft.stakingTheirCashout) || 0;
   const myReturn = (draft.stakingPercentage / 100) * theirCashout;
   const profit = myReturn - investedNum;
@@ -530,9 +588,9 @@ function StakingFields({
   return (
     <View style={{ gap: spacing.lg }}>
       <PickerField
-        label="Joueur backé"
+        label={t('addSession.backedPlayer')}
         value={draft.stakingPlayer?.name ?? ''}
-        placeholder="Chercher ou ajouter un joueur…"
+        placeholder={t('addSession.searchAddPlayer')}
         expanded={activePicker === 'stakingPlayer'}
         onToggleExpand={() => setActivePicker(activePicker === 'stakingPlayer' ? null : 'stakingPlayer')}
       >
@@ -550,14 +608,14 @@ function StakingFields({
             update({ stakingPlayer: { id: `p-${Date.now()}`, name } });
             setActivePicker(null);
           }}
-          placeholder="Chercher ou ajouter un joueur…"
+          placeholder={t('addSession.searchAddPlayer')}
         />
       </PickerField>
 
       <PickerField
-        label="Festival · lieu (optionnel)"
+        label={t('addSession.festivalVenueOptional')}
         value={draft.festival?.name ?? ''}
-        placeholder="Choisir un festival"
+        placeholder={t('addSession.chooseFestival')}
         expanded={activePicker === 'stakeFestival'}
         onToggleExpand={() => setActivePicker(activePicker === 'stakeFestival' ? null : 'stakeFestival')}
       >
@@ -575,15 +633,15 @@ function StakingFields({
             update({ festival: { id: `f-${Date.now()}`, name }, tournament: null });
             setActivePicker(null);
           }}
-          placeholder="Chercher un festival…"
+          placeholder={t('addSession.searchFestival')}
         />
       </PickerField>
 
       {draft.festival && (
         <PickerField
-          label="Tournoi (optionnel)"
+          label={t('addSession.tournamentOptional')}
           value={draft.tournament?.name ?? ''}
-          placeholder="Choisir un tournoi"
+          placeholder={t('addSession.chooseTournament')}
           expanded={activePicker === 'stakeTournament'}
           onToggleExpand={() => setActivePicker(activePicker === 'stakeTournament' ? null : 'stakeTournament')}
         >
@@ -605,31 +663,31 @@ function StakingFields({
               });
               setActivePicker(null);
             }}
-            placeholder="Chercher un tournoi…"
+            placeholder={t('addSession.searchTournament')}
           />
         </PickerField>
       )}
 
-      <BuyInField label="Mise" value={draft.buyIn} onChange={(v) => update({ buyIn: v })} inferred={inferred} />
+      <BuyInField label={t('addSession.stakeAmount')} value={draft.buyIn} onChange={(v) => update({ buyIn: v })} inferred={inferred} inferredNote={t('addSession.buyInInferredNote')} />
 
       <Stepper
-        label="Pourcentage"
+        label={t('stakeDetail.percentage')}
         value={draft.stakingPercentage}
         onDecrement={() => update({ stakingPercentage: Math.max(1, draft.stakingPercentage - 1) })}
         onIncrement={() => update({ stakingPercentage: Math.min(100, draft.stakingPercentage + 1) })}
         min={1}
         max={100}
-        format={(v) => `${v} %`}
+        format={(v) => t('percent', { value: v })}
       />
-      {buyIn > 0 && <SummaryLine label="Mise engagée" value={`${invested} €`} />}
+      {buyIn > 0 && <SummaryLine label={t('stakeDetail.stakeCommitted')} value={formatAmount(investedNum)} />}
 
       <View style={{ gap: spacing.sm }}>
-        <FieldLabel>Statut</FieldLabel>
+        <FieldLabel>{t('stakeDetail.status')}</FieldLabel>
         <ResultToggle
           options={[
-            { key: 'pending', label: 'En attente' },
-            { key: 'out', label: 'Éliminé', activeColor: colors.loss },
-            { key: 'itm', label: 'ITM', activeColor: colors.accent },
+            { key: 'pending', label: t('status.pending') },
+            { key: 'out', label: t('status.eliminated'), activeColor: colors.loss },
+            { key: 'itm', label: t('status.itm'), activeColor: colors.accent },
           ]}
           value={!draft.stakingSettled ? 'pending' : draft.stakingCashed ? 'itm' : 'out'}
           onChange={(k) => {
@@ -643,15 +701,15 @@ function StakingFields({
       {draft.stakingSettled && draft.stakingCashed && (
         <>
           <Stepper
-            label="Leur cashout"
+            label={t('stakeDetail.theirCashout')}
             value={theirCashout}
             onDecrement={() => update({ stakingTheirCashout: String(Math.max(0, theirCashout - MONEY_STEP)) })}
             onIncrement={() => update({ stakingTheirCashout: String(theirCashout + MONEY_STEP) })}
             max={MONEY_MAX}
-            format={formatMoney}
+            format={formatAmount}
           />
           {theirCashout > 0 && (
-            <SummaryLine label="Mon gain" value={`${profit >= 0 ? '+' : ''}${profit.toFixed(0)} €`} color={profit >= 0 ? colors.accent : colors.loss} />
+            <SummaryLine label={t('addSession.myProfit')} value={signedAmount(profit)} color={profit >= 0 ? colors.accent : colors.loss} />
           )}
         </>
       )}
@@ -662,10 +720,12 @@ function StakingFields({
 // ─── Edit support & serialization ────────────────────────────────────────────
 
 function sessionToDraft(session: Session, festivals: Festival[], tournaments: Tournament[], players: Player[]): Draft {
-  const backings: BackingDraft[] = (session.backings ?? []).map((b) => ({
-    player: players.find((p) => p.id === b.playerId) ?? { id: b.playerId, name: '' },
-    profitShare: b.profitShare,
-    paysBuyIn: b.buyInShare > 0,
+  const stackings: StackingDraft[] = (session.stackings ?? []).map((s) => ({
+    player: players.find((p) => p.id === s.playerId) ?? { id: s.playerId, name: '' },
+    kind: s.kind,
+    profitShare: s.profitShare,
+    buyInAmount: s.kind === 'stack' ? String(s.buyInAmount) : '',
+    buyInAmountTouched: s.kind === 'stack',
   }));
 
   if (session.type === 'tournament') {
@@ -682,7 +742,7 @@ function sessionToDraft(session: Session, festivals: Festival[], tournaments: To
       cashOut: session.cashed ? String(session.cashOut) : '',
       position: session.position ? String(session.position) : '',
       durationHours: session.durationHours,
-      backings,
+      stackings,
     };
   }
 
@@ -695,7 +755,7 @@ function sessionToDraft(session: Session, festivals: Festival[], tournaments: To
     buyIn: String(session.buyIn),
     cashOut: String(session.cashOut),
     durationHours: session.durationHours,
-    backings,
+    stackings,
   };
 }
 
@@ -706,9 +766,14 @@ function draftToSessionShape(draft: Draft, editing?: Session | null): Session | 
   const date = editing?.date ?? nowIso;
   const createdAt = editing?.createdAt ?? nowIso;
 
-  const backings: Backing[] = draft.backings
-    .filter((b) => b.player !== null)
-    .map((b) => ({ playerId: b.player!.id, profitShare: b.profitShare, buyInShare: b.paysBuyIn ? b.profitShare : 0 }));
+  const stackings: Stacking[] = draft.stackings
+    .filter((s) => s.player !== null)
+    .map((s) => ({
+      playerId: s.player!.id,
+      kind: s.kind,
+      profitShare: s.profitShare,
+      buyInAmount: resolveStackAmount(s),
+    }));
 
   if (draft.sessionType === 'tournament') {
     if (!draft.tournament) return null;
@@ -726,7 +791,7 @@ function draftToSessionShape(draft: Draft, editing?: Session | null): Session | 
       cashed: draft.cashed,
       position: draft.position ? parseInt(draft.position, 10) : undefined,
       durationHours: draft.durationHours,
-      backings: backings.length > 0 ? backings : undefined,
+      stackings: stackings.length > 0 ? stackings : undefined,
       createdAt,
     };
     return session;
@@ -743,7 +808,7 @@ function draftToSessionShape(draft: Draft, editing?: Session | null): Session | 
       buyIn: parseFloat(draft.buyIn) || 0,
       cashOut: parseFloat(draft.cashOut) || 0,
       durationHours: draft.durationHours,
-      backings: backings.length > 0 ? backings : undefined,
+      stackings: stackings.length > 0 ? stackings : undefined,
       createdAt,
     };
     return session;
@@ -780,7 +845,7 @@ function buildRecord(draft: Draft, editing?: Session | null): SaveRecord {
   const session = draftToSessionShape(draft, editing);
   if (!session) return {};
 
-  const newPlayers = draft.backings.filter((b) => b.player !== null).map((b) => b.player!);
+  const newPlayers = draft.stackings.filter((s) => s.player !== null).map((s) => s.player!);
 
   if (draft.sessionType === 'tournament') {
     return {
@@ -807,26 +872,14 @@ function canSave(draft: Draft): boolean {
   }
 }
 
-function formatCurrency(val: number): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '+';
-  return `${sign}${abs.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
-}
-
-function formatMoney(val: number): string {
-  return `${val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
+function signedAmount(val: number): string {
+  return `${val < 0 ? '-' : '+'}${formatAmount(val)}`;
 }
 
 const MONEY_STEP = 50;
 const MONEY_MAX = 200000;
 
 // ─── Main component ──────────────────────────────────────────────────────────
-
-const SEGMENT_OPTIONS: { key: SessionKind; label: string }[] = [
-  { key: 'tournament', label: 'Tournoi' },
-  { key: 'cash', label: 'Cash' },
-  { key: 'stake', label: 'Staking' },
-];
 
 export function AddSessionSheet({
   visible,
@@ -839,10 +892,17 @@ export function AddSessionSheet({
   initialTournament,
   initialFestival,
 }: Props) {
+  const { t } = useTranslation('tracker');
   const { colors } = useTheme();
   const [draft, setDraft] = useState<Draft>(INITIAL_DRAFT);
   const [activePicker, setActivePicker] = useState<string | null>(null);
   const isEditing = initialSession != null;
+
+  const segmentOptions = useMemo<{ key: SessionKind; label: string }[]>(() => [
+    { key: 'tournament', label: t('types.tournament') },
+    { key: 'cash', label: t('types.cash') },
+    { key: 'stake', label: t('types.staking') },
+  ], [t]);
 
   useEffect(() => {
     if (!visible) return;
@@ -912,14 +972,14 @@ export function AddSessionSheet({
     <BottomSheet
       visible={visible}
       onClose={handleClose}
-      title={isEditing ? 'Modifier la session' : 'Nouvelle session'}
+      title={isEditing ? t('addSession.editTitle') : t('addSession.newTitle')}
       footer={
         <View style={{ gap: spacing.md }}>
           {netPreview !== null && (
             <View style={styles.netRow}>
-              <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Résultat net</Text>
+              <Text style={[styles.netLabel, { color: colors.textSecondary }]}>{t('detail.netResult')}</Text>
               <Text style={[styles.netValue, { color: netPreview >= 0 ? colors.accent : colors.loss }]}>
-                {formatCurrency(netPreview)}
+                {signedAmount(netPreview)}
               </Text>
             </View>
           )}
@@ -929,12 +989,12 @@ export function AddSessionSheet({
             activeOpacity={0.85}
             disabled={!canProceed}
           >
-            <Text style={styles.ctaText}>{isEditing ? 'Mettre à jour' : 'Enregistrer la session'}</Text>
+            <Text style={styles.ctaText}>{isEditing ? t('addSession.updateCta') : t('addSession.saveCta')}</Text>
           </TouchableOpacity>
         </View>
       }
     >
-      <SegmentedControl options={SEGMENT_OPTIONS} value={draft.sessionType} onChange={handleSegmentChange} />
+      <SegmentedControl options={segmentOptions} value={draft.sessionType} onChange={handleSegmentChange} />
       <View style={{ height: spacing.lg }} />
 
       {draft.sessionType === 'tournament' && (
@@ -1040,7 +1100,7 @@ const sharedStyles = StyleSheet.create({
   },
 });
 
-const backingStyles = StyleSheet.create({
+const stackingStyles = StyleSheet.create({
   entry: {
     gap: spacing.md,
     padding: spacing.base,

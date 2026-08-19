@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Club, Spade, Heart, Diamond } from 'lucide-react-native';
-import { BottomSheet } from '../ui/BottomSheet';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import { RANKS, SUITS, cardKey } from '../../types';
 import type { Card, Suit } from '../../types';
 
 interface Props {
-  visible: boolean;
-  onClose: () => void;
-  onComplete: (cards: Card[]) => void;
+  // The card group's slots (2 hero, 3 flop, 1 turn/river…). Holes stay in place: deselecting
+  // the first hero card must not shift the second one into slot 0.
+  value: (Card | undefined)[];
+  onChange: (next: (Card | undefined)[]) => void;
+  // Cards owned by OTHER groups — unpressable here.
   disabledCards: Card[];
-  slots?: number;
   label?: string;
 }
 
@@ -23,31 +23,35 @@ const SUIT_ICONS: Record<Suit, typeof Club> = {
   diamonds: Diamond,
 };
 
-export function CardPicker({ visible, onClose, onComplete, disabledCards, slots = 1, label }: Props) {
+export function CardGrid({ value, onChange, disabledCards, label }: Props) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
-  const [picked, setPicked] = useState<Card[]>([]);
 
-  useEffect(() => {
-    if (visible) setPicked([]);
-  }, [visible]);
+  const selectedKeys = new Set(value.filter(Boolean).map((c) => cardKey(c!)));
+  const disabledKeys = new Set(disabledCards.map(cardKey));
+  const pickedCount = value.filter(Boolean).length;
+  const full = pickedCount >= value.length;
 
-  const disabledKeys = new Set([...disabledCards, ...picked].map(cardKey));
-
-  const handleSelect = (card: Card) => {
-    const next = [...picked, card];
-    if (next.length >= slots) {
-      setPicked([]);
-      onComplete(next);
-    } else {
-      setPicked(next);
+  const handlePress = (card: Card) => {
+    const key = cardKey(card);
+    if (selectedKeys.has(key)) {
+      onChange(value.map((c) => (c && cardKey(c) === key ? undefined : c)));
+      return;
     }
+    if (full) return; // deselect first — the grid is the editor, no separate re-edit mode
+    const next = [...value];
+    next[next.findIndex((c) => !c)] = card;
+    onChange(next);
   };
 
-  const title =
-    slots > 1 ? `${label ?? 'Choisissez une carte'} — carte ${picked.length + 1}/${slots}` : label ?? 'Choisissez une carte';
-
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title}>
+    <View style={styles.wrap}>
+      {label || value.length > 1 ? (
+        <Text style={[styles.counter, { color: colors.textSecondary }]}>
+          {label ? `${label} — ` : ''}
+          {pickedCount}/{t('common:cardCount', { count: value.length })}
+        </Text>
+      ) : null}
       <View style={styles.grid}>
         {SUITS.map((suit) => {
           const isRed = suit === 'hearts' || suit === 'diamonds';
@@ -61,20 +65,28 @@ export function CardPicker({ visible, onClose, onComplete, disabledCards, slots 
               <View style={styles.cells}>
                 {RANKS.map((rank) => {
                   const card: Card = { rank, suit };
-                  const isDisabled = disabledKeys.has(cardKey(card));
+                  const key = cardKey(card);
+                  const isSelected = selectedKeys.has(key);
+                  const isDisabled = disabledKeys.has(key);
                   return (
                     <TouchableOpacity
                       key={rank}
-                      onPress={() => handleSelect(card)}
+                      onPress={() => handlePress(card)}
                       disabled={isDisabled}
                       activeOpacity={0.7}
                       style={[
                         styles.cell,
                         { backgroundColor: colors.cardFaceBg, borderColor: colors.cardFaceBorder },
+                        isSelected && {
+                          borderColor: colors.accent,
+                          backgroundColor: colors.accentTint,
+                          borderWidth: 1.5,
+                        },
                         isDisabled && styles.disabled,
                       ]}
                     >
                       <Text style={[styles.rankText, { color: suitColor }]}>{rank}</Text>
+                      <SuitIcon size={11} color={suitColor} fill={suitColor} strokeWidth={0} />
                     </TouchableOpacity>
                   );
                 })}
@@ -83,11 +95,18 @@ export function CardPicker({ visible, onClose, onComplete, disabledCards, slots 
           );
         })}
       </View>
-    </BottomSheet>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    gap: spacing.sm,
+  },
+  counter: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+  },
   grid: {
     gap: spacing.sm,
   },
@@ -97,24 +116,25 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   suitLabel: {
-    width: 20,
+    width: 16,
     alignItems: 'center',
   },
   cells: {
     flex: 1,
     flexDirection: 'row',
-    gap: 3,
+    gap: 2,
   },
   cell: {
     flex: 1,
-    height: 34,
+    height: 54,
     borderRadius: radius.sm,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
   },
   rankText: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.md,
     fontFamily: fontFamily.extrabold,
   },
   disabled: {

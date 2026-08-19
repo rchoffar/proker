@@ -17,25 +17,39 @@ import {
 } from '@expo-google-fonts/geist';
 import { EnvironmentBackground } from '../src/components/ui/EnvironmentBackground';
 import { ThemeProvider, useTheme } from '../src/design-system/ThemeProvider';
+import { useAuthStore } from '../src/store/useAuthStore';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { scheme } = useTheme();
+  const status = useAuthStore((s) => s.status);
+  const hasPseudo = useAuthStore((s) => !!s.user?.pseudo);
   return (
     <View style={{ flex: 1 }}>
       <EnvironmentBackground />
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="tracker" />
-        <Stack.Screen name="festival/[id]" />
-        <Stack.Screen name="hand-replayer/index" />
-        <Stack.Screen name="hand-replayer/play" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="games/roulette/index" />
-        <Stack.Screen name="games/roulette/play" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="games/flip/index" />
-        <Stack.Screen name="games/flip/play" options={{ presentation: 'modal' }} />
+        <Stack.Protected guard={status !== 'signedIn'}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === 'signedIn' && !hasPseudo}>
+          <Stack.Screen name="choose-pseudo" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === 'signedIn' && hasPseudo}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="tracker" />
+          <Stack.Screen name="festival/[id]" />
+          <Stack.Screen name="hand-replayer/index" />
+          <Stack.Screen name="hand-replayer/play" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="games/roulette/index" />
+          <Stack.Screen name="games/roulette/play" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="games/flip/index" />
+          <Stack.Screen name="games/flip/play" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="games/bluff/index" />
+          <Stack.Screen name="games/bluff/play" />
+          <Stack.Screen name="games/bluff/online" />
+        </Stack.Protected>
       </Stack>
     </View>
   );
@@ -50,12 +64,20 @@ export default function RootLayout() {
     Geist_700Bold,
     Geist_800ExtraBold,
   });
+  const authStatus = useAuthStore((s) => s.status);
+  const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    hydrate();
+  }, [hydrate]);
 
-  if (!fontsLoaded) return null;
+  const ready = fontsLoaded && authStatus !== 'loading';
+
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

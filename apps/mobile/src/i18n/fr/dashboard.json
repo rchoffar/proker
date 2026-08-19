@@ -1,0 +1,38 @@
+{
+  "title": "Dashboard",
+  "hero": {
+    "ongoing": "En ce moment",
+    "liked": "Votre festival liké",
+    "viewTournaments": "Voir les tournois",
+    "addResult": "Enregistrer un résultat",
+    "featured": "À la une"
+  },
+  "emptyHero": {
+    "title": "Aimez un festival",
+    "subtitle": "Retrouvez ici vos festivals préférés pour suivre leurs tournois"
+  },
+  "sections": {
+    "games": "Jeux",
+    "featuredTournament": "Tournoi à la une",
+    "tools": "Outils"
+  },
+  "games": {
+    "replayTitle": "Rejouer une main",
+    "replayDesc": "Analysez une main jouée avec vos amis"
+  },
+  "sessions": {
+    "title": "Mes sessions",
+    "count_one": "{{count}} session enregistrée",
+    "count_other": "{{count}} sessions enregistrées"
+  },
+  "addSession": "Ajouter une session",
+  "tournament": {
+    "buyIn": "Buy-in {{amount}}",
+    "guaranteed": "{{amount}} garantis"
+  },
+  "addSessionDesc": "Cash game ou tournoi, en quelques secondes",
+  "tilePills": {
+    "add": "Ajouter",
+    "open": "Ouvrir"
+  }
+}

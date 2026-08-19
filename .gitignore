@@ -50,3 +50,8 @@ pnpm-debug.log*
 # ── Misc ──────────────────────────────────────────────────────
 *.tsbuildinfo
 .cache/
+
+# ── Local SQLite (apps/api dev) ───────────────────────────────
+dev.db
+dev.db-*
+

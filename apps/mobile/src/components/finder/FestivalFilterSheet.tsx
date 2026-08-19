@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { BottomSheet } from '../ui/BottomSheet';
 import { FilterChipGroup } from './FilterChipGroup';
 import { MultiFilterChipGroup } from './MultiFilterChipGroup';
@@ -32,21 +34,25 @@ export function countActiveFestivalFilters(filters: FestivalFilterState): number
   );
 }
 
-const CONTINENTS: { key: Continent; label: string }[] = [
-  { key: 'Europe', label: 'Europe' },
-  { key: 'North America', label: 'Amérique du Nord' },
-  { key: 'South America', label: 'Amérique du Sud' },
-  { key: 'Asia', label: 'Asie' },
-  { key: 'Africa', label: 'Afrique' },
-  { key: 'Oceania', label: 'Océanie' },
-];
+const CONTINENT_KEYS = {
+  'Europe': 'europe',
+  'North America': 'northAmerica',
+  'South America': 'southAmerica',
+  'Asia': 'asia',
+  'Africa': 'africa',
+  'Oceania': 'oceania',
+} as const satisfies Record<Continent, string>;
 
-const BUY_IN_OPTIONS: { key: BuyInRange; label: string }[] = [
-  { key: 'low',   label: '< 500 €'        },
-  { key: 'mid',   label: '500 – 999 €'    },
-  { key: 'high',  label: '1k – 2 999 €'   },
-  { key: 'vhigh', label: '≥ 3 000 €'      },
-];
+const CONTINENT_ORDER: Continent[] = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania'];
+
+const BUY_IN_RANGE_KEYS: BuyInRange[] = ['low', 'mid', 'high', 'vhigh'];
+
+// Countries are user-extensible: mock countries resolve through finder:countries.<ISO>,
+// user-added ones have no key and fall back to their stored name.
+export function countryDisplayName(country: Country): string {
+  const key = `finder:countries.${country.code}`;
+  return i18n.exists(key) ? (i18n.t as (k: string) => string)(key) : country.name;
+}
 
 function toggleInArray<T>(arr: T[], value: T): T[] {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
@@ -63,7 +69,18 @@ interface Props {
 
 export function FestivalFilterSheet({ visible, filters, countries, organizers, onApply, onClose }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation('finder');
   const [draft, setDraft] = useState<FestivalFilterState>(filters);
+
+  const continentOptions = useMemo(
+    () => CONTINENT_ORDER.map((key) => ({ key, label: t(`continents.${CONTINENT_KEYS[key]}`) })),
+    [t]
+  );
+
+  const buyInOptions = useMemo(
+    () => BUY_IN_RANGE_KEYS.map((key) => ({ key, label: t(`filters.buyInRanges.${key}`) })),
+    [t]
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reseed the draft each time the sheet opens
@@ -81,25 +98,25 @@ export function FestivalFilterSheet({ visible, filters, countries, organizers, o
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title="Filtres"
+      title={t('filters.title')}
       footer={
         <TouchableOpacity style={[styles.applyButton, { backgroundColor: colors.accent }]} onPress={() => onApply(draft)} activeOpacity={0.85}>
           <Text style={styles.applyText}>
-            Appliquer{activeCount > 0 ? ` · ${activeCount} filtre${activeCount > 1 ? 's' : ''}` : ''}
+            {activeCount > 0 ? t('filters.applyWithCount', { count: activeCount }) : t('filters.apply')}
           </Text>
         </TouchableOpacity>
       }
     >
       <View style={styles.resetRow}>
         <TouchableOpacity onPress={() => setDraft(DEFAULT_FESTIVAL_FILTERS)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={[styles.resetText, { color: colors.textSecondary }]}>Réinitialiser</Text>
+          <Text style={[styles.resetText, { color: colors.textSecondary }]}>{t('filters.reset')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.body}>
         <MultiFilterChipGroup
-          title="Continent"
-          options={CONTINENTS}
+          title={t('filters.continent')}
+          options={continentOptions}
           selected={draft.continents}
           onToggle={(key) =>
             setDraft((d) => ({
@@ -113,8 +130,8 @@ export function FestivalFilterSheet({ visible, filters, countries, organizers, o
 
         {availableCountries.length > 0 && (
           <MultiFilterChipGroup
-            title="Pays"
-            options={availableCountries.map((c) => ({ key: c.id, label: c.name }))}
+            title={t('filters.country')}
+            options={availableCountries.map((c) => ({ key: c.id, label: countryDisplayName(c) }))}
             selected={draft.countryIds}
             onToggle={(key) => setDraft((d) => ({ ...d, countryIds: toggleInArray(d.countryIds, key) }))}
             onClear={() => setDraft((d) => ({ ...d, countryIds: [] }))}
@@ -122,8 +139,8 @@ export function FestivalFilterSheet({ visible, filters, countries, organizers, o
         )}
 
         <MultiFilterChipGroup
-          title="Buy-in"
-          options={BUY_IN_OPTIONS}
+          title={t('filters.buyIn')}
+          options={buyInOptions}
           selected={draft.buyInRanges}
           onToggle={(key) => setDraft((d) => ({ ...d, buyInRanges: toggleInArray(d.buyInRanges, key as BuyInRange) }))}
           onClear={() => setDraft((d) => ({ ...d, buyInRanges: [] }))}
@@ -131,8 +148,8 @@ export function FestivalFilterSheet({ visible, filters, countries, organizers, o
 
         {organizers.length > 0 && (
           <FilterChipGroup
-            title="Organisateur"
-            options={[{ key: '__all__', label: 'Tout' }, ...organizers.map((o) => ({ key: o.id, label: o.name }))]}
+            title={t('filters.organizer')}
+            options={[{ key: '__all__', label: t('filters.all') }, ...organizers.map((o) => ({ key: o.id, label: o.name }))]}
             selected={draft.organizerId ?? '__all__'}
             onSelect={(key) => setDraft((d) => ({ ...d, organizerId: key === '__all__' ? null : key }))}
           />

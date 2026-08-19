@@ -1,4 +1,4 @@
-# Proker Design System
+# UPK Design System
 
 > "Frosted Glass" — a light, bright, near-monochrome bento aesthetic. Frosted-glass cards float
 > over a softly-lit environment background. Charcoal glass cards alternate with light glass cards

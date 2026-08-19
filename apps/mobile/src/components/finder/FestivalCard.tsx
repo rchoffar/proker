@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { MapPin } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { LikeButton } from '../ui/LikeButton';
@@ -36,6 +37,7 @@ export function FestivalCard({
   variant = 'full',
 }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation('finder');
 
   if (variant === 'mini') {
     const dateRange = formatDateRangeShort(festival.startDate, festival.endDate);
@@ -101,7 +103,7 @@ export function FestivalCard({
             </View>
           ) : null}
           <Text style={[styles.tournamentCount, { color: colors.textTertiary }]}>
-            {tournamentCount} tournoi{tournamentCount > 1 ? 's' : ''}
+            {t('tournamentCount', { count: tournamentCount })}
           </Text>
         </View>
       </GlassCard>

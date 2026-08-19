@@ -1,14 +1,14 @@
 import type { Session, Stake, TournamentSession, ComputedStats, BankrollSnapshot } from '../types';
 
 export function sessionNetValues(session: Session): { invested: number; profit: number } {
-  const bs = session.backings ?? [];
+  const ss = session.stackings ?? [];
   const totalBuyIn = session.type === 'tournament'
     ? (session.reEntries + 1) * session.buyIn
     : session.buyIn;
-  // what you actually pay after backer contributions
-  const yourInvested = totalBuyIn - bs.reduce((sum, b) => sum + (b.buyInShare / 100) * totalBuyIn, 0);
-  // what you actually receive after paying out backers
-  const yourCashout = session.cashOut - bs.reduce((sum, b) => sum + (b.profitShare / 100) * session.cashOut, 0);
+  // what you actually pay after stacker contributions
+  const yourInvested = totalBuyIn - ss.reduce((sum, s) => sum + s.buyInAmount, 0);
+  // what you actually receive after paying out stackers
+  const yourCashout = session.cashOut - ss.reduce((sum, s) => sum + (s.profitShare / 100) * session.cashOut, 0);
   return { invested: yourInvested, profit: yourCashout - yourInvested };
 }
 

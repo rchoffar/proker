@@ -14,15 +14,15 @@ export const mockUser: User = {
 
 export const mockCountries: Country[] = [
   { id: 'co1', name: 'France',         code: 'FR', continent: 'Europe' },
-  { id: 'co2', name: 'Espagne',        code: 'ES', continent: 'Europe' },
+  { id: 'co2', name: 'Spain',          code: 'ES', continent: 'Europe' },
   { id: 'co3', name: 'Monaco',         code: 'MC', continent: 'Europe' },
-  { id: 'co4', name: 'République Tchèque', code: 'CZ', continent: 'Europe' },
-  { id: 'co5', name: 'Malte',          code: 'MT', continent: 'Europe' },
-  { id: 'co6', name: 'Royaume-Uni',    code: 'GB', continent: 'Europe' },
-  { id: 'co7', name: 'Italie',         code: 'IT', continent: 'Europe' },
-  { id: 'co8', name: 'Belgique',       code: 'BE', continent: 'Europe' },
-  { id: 'co9', name: 'États-Unis',     code: 'US', continent: 'North America' },
-  { id: 'co10', name: 'Brésil',        code: 'BR', continent: 'South America' },
+  { id: 'co4', name: 'Czech Republic', code: 'CZ', continent: 'Europe' },
+  { id: 'co5', name: 'Malta',          code: 'MT', continent: 'Europe' },
+  { id: 'co6', name: 'United Kingdom', code: 'GB', continent: 'Europe' },
+  { id: 'co7', name: 'Italy',          code: 'IT', continent: 'Europe' },
+  { id: 'co8', name: 'Belgium',        code: 'BE', continent: 'Europe' },
+  { id: 'co9', name: 'United States',  code: 'US', continent: 'North America' },
+  { id: 'co10', name: 'Brazil',        code: 'BR', continent: 'South America' },
 ];
 
 export const mockOrganizers: Organizer[] = [
@@ -49,21 +49,21 @@ export const mockFestivals: Festival[] = [
   // Monaco
   { id: 'f7',  name: 'Casino de Monte-Carlo',    location: 'Monaco',    countryId: 'co3', organizerId: 'or5', startDate: '2026-09-15', endDate: '2026-09-25' },
   // Espagne
-  { id: 'f4',  name: 'EPT Barcelone',            location: 'Barcelone', countryId: 'co2', organizerId: 'or3', startDate: '2026-08-20', endDate: '2026-08-30' },
+  { id: 'f4',  name: 'EPT Barcelone',            location: 'Barcelona', countryId: 'co2', organizerId: 'or3', startDate: '2026-08-20', endDate: '2026-08-30' },
   { id: 'f10', name: 'WPT Spain',                location: 'Madrid',    countryId: 'co2', organizerId: 'or4', startDate: '2026-07-10', endDate: '2026-07-18', featured: true },
   // République Tchèque
   { id: 'f11', name: 'EPT Prague',               location: 'Prague',    countryId: 'co4', organizerId: 'or3', startDate: '2026-10-01', endDate: '2026-10-12' },
   // Malte
-  { id: 'f12', name: 'EPT Malta',                location: 'La Valette',countryId: 'co5', organizerId: 'or3', startDate: '2026-11-01', endDate: '2026-11-10' },
-  { id: 'f13', name: 'GGPoker Series Malta',     location: 'La Valette',countryId: 'co5', organizerId: 'or8', startDate: '2026-11-15', endDate: '2026-11-22' },
+  { id: 'f12', name: 'EPT Malta',                location: 'Valletta',  countryId: 'co5', organizerId: 'or3', startDate: '2026-11-01', endDate: '2026-11-10' },
+  { id: 'f13', name: 'GGPoker Series Malta',     location: 'Valletta',  countryId: 'co5', organizerId: 'or8', startDate: '2026-11-15', endDate: '2026-11-22' },
   // Royaume-Uni
-  { id: 'f14', name: 'WSOP Circuit London',      location: 'Londres',   countryId: 'co6', organizerId: 'or7', startDate: '2026-10-15', endDate: '2026-10-25' },
-  { id: 'f15', name: 'GGPoker UK Open',          location: 'Londres',   countryId: 'co6', organizerId: 'or8', startDate: '2026-12-01', endDate: '2026-12-08' },
+  { id: 'f14', name: 'WSOP Circuit London',      location: 'London',    countryId: 'co6', organizerId: 'or7', startDate: '2026-10-15', endDate: '2026-10-25' },
+  { id: 'f15', name: 'GGPoker UK Open',          location: 'London',    countryId: 'co6', organizerId: 'or8', startDate: '2026-12-01', endDate: '2026-12-08' },
   // Italie
   { id: 'f16', name: 'EPT Rome',                 location: 'Rome',      countryId: 'co7', organizerId: 'or3', startDate: '2027-01-10', endDate: '2027-01-20' },
-  { id: 'f17', name: 'WPT Italy',                location: 'Venise',    countryId: 'co7', organizerId: 'or4', startDate: '2027-02-01', endDate: '2027-02-08' },
+  { id: 'f17', name: 'WPT Italy',                location: 'Venice',    countryId: 'co7', organizerId: 'or4', startDate: '2027-02-01', endDate: '2027-02-08' },
   // Belgique
-  { id: 'f18', name: 'WSOP Circuit Brussels',    location: 'Bruxelles', countryId: 'co8', organizerId: 'or7', startDate: '2027-03-01', endDate: '2027-03-10' },
+  { id: 'f18', name: 'WSOP Circuit Brussels',    location: 'Brussels',  countryId: 'co8', organizerId: 'or7', startDate: '2027-03-01', endDate: '2027-03-10' },
   // États-Unis
   { id: 'f19', name: 'WSOP Las Vegas',           location: 'Las Vegas', countryId: 'co9', organizerId: 'or7', startDate: '2026-09-27', endDate: '2026-10-15' },
   // Brésil
@@ -127,13 +127,13 @@ const WSOP_MAIN_EVENT_STRUCTURE: BlindStructure = {
 
 export const mockTournaments: Tournament[] = [
   // Casino de Paris
-  { id: 't1',  festivalId: 'f1',  name: 'Sunday Special',      buyIn: 500,  totalPlayers: 150, isMainEvent: true, blindStructure: buildBlindStructure(500)   },
+  { id: 't1',  festivalId: 'f1',  name: 'Sunday Special',      buyIn: 500,  totalPlayers: 150, startDate: '2026-06-28', endDate: '2026-07-02', isMainEvent: true, blindStructure: buildBlindStructure(500)   },
   { id: 't2',  festivalId: 'f1',  name: 'Big Bounty',          buyIn: 200,  totalPlayers: 290  },
   // Cercle Clichy
   { id: 't3',  festivalId: 'f2',  name: 'Big Stack',           buyIn: 300,  totalPlayers: 98   },
   { id: 't4',  festivalId: 'f2',  name: 'Sunday Deepstack',    buyIn: 300,  totalPlayers: 112, isMainEvent: true, blindStructure: buildBlindStructure(300)   },
   // Casino Barrière Paris
-  { id: 't5',  festivalId: 'f3',  name: 'Warm-Up',             buyIn: 200,  totalPlayers: 212, startDate: '2026-07-20' },
+  { id: 't5',  festivalId: 'f3',  name: 'Warm-Up',             buyIn: 200,  totalPlayers: 212, startDate: '2026-07-20', endDate: '2026-07-22' },
   { id: 't6',  festivalId: 'f3',  name: 'Saturday Festival',   buyIn: 500,  totalPlayers: 175, isMainEvent: true, blindStructure: buildBlindStructure(500)   },
   { id: 't7',  festivalId: 'f3',  name: 'Marathon',            buyIn: 300,  totalPlayers: 320  },
   // SHRPO Cannes
@@ -184,7 +184,7 @@ export const mockTournaments: Tournament[] = [
   { id: 't38', festivalId: 'f18', name: 'Main Event',          buyIn: 1700, totalPlayers: 540, isMainEvent: true, blindStructure: buildBlindStructure(1700)  },
   { id: 't39', festivalId: 'f18', name: 'High Roller',         buyIn: 5000, totalPlayers: 140  },
   // WSOP Las Vegas
-  { id: 't40', festivalId: 'f19', name: 'Main Event',          buyIn: 10000, totalPlayers: 8500, startDate: '2026-10-05', guaranteed: 80000000, isMainEvent: true, blindStructure: WSOP_MAIN_EVENT_STRUCTURE },
+  { id: 't40', festivalId: 'f19', name: 'Main Event',          buyIn: 10000, totalPlayers: 8500, startDate: '2026-10-05', endDate: '2026-10-12', guaranteed: 80000000, isMainEvent: true, blindStructure: WSOP_MAIN_EVENT_STRUCTURE },
   { id: 't41', festivalId: 'f19', name: 'Colossus',            buyIn: 400,  totalPlayers: 9200  },
   // BSOP São Paulo
   { id: 't42', festivalId: 'f20', name: 'Main Event',          buyIn: 3000, totalPlayers: 1200, isMainEvent: true, blindStructure: buildBlindStructure(3000) },

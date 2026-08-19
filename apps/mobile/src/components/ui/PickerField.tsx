@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Check, Plus } from 'lucide-react-native';
 import Animated, { useAnimatedStyle, withTiming, useSharedValue } from 'react-native-reanimated';
 import { fontFamily, fontSize, radius, shadow, spacing } from '../../design-system/theme';
@@ -73,6 +74,7 @@ export function SearchCreateList({
   onCreate,
   placeholder,
 }: SearchCreateListProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const trimmedQuery = query.trim();
   const filtered = items.filter((i) => i.toLowerCase().includes(query.toLowerCase()));
@@ -128,7 +130,7 @@ export function SearchCreateList({
             activeOpacity={0.7}
           >
             <Plus size={11} color={colors.accent} strokeWidth={2.5} />
-            <Text style={[styles.chipText, { color: colors.accent }]}>Créer «{trimmedQuery}»</Text>
+            <Text style={[styles.chipText, { color: colors.accent }]}>{t('common:createNamed', { name: trimmedQuery })}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -171,6 +173,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm + 2,
+    // Explicit defaults: Fabric recycles native TextInputs across screens, and a recycled
+    // instance keeps any letterSpacing/textAlign the previous owner set unless overridden.
+    letterSpacing: 0,
+    textAlign: 'left',
   },
   chipGrid: {
     flexDirection: 'row',

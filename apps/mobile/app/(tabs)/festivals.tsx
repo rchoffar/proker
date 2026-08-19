@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Search, SlidersHorizontal } from 'lucide-react-native';
@@ -14,7 +15,7 @@ import {
 } from '../../src/components/finder/FestivalFilterSheet';
 import type { FestivalFilterState, BuyInRange } from '../../src/components/finder/FestivalFilterSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
+import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
 import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 
@@ -30,12 +31,13 @@ function matchesBuyInRange(buyIn: number, range: BuyInRange): boolean {
 
 export default function FestivalsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation('finder');
   const router = useRouter();
   const { festivals, tournaments, countries, organizers, likedFestivalIds, toggleLikedFestival } = useAppStore();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FestivalFilterState>(DEFAULT_FESTIVAL_FILTERS);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
-  const animKey = useFocusAnimKey();
+  const isActive = useIsActiveTab();
 
   const tournamentsByFestival = useMemo(() => {
     const map: Record<string, typeof tournaments> = {};
@@ -96,14 +98,16 @@ export default function FestivalsScreen() {
   const featuredTournaments = featured ? tournamentsByFestival[featured.id] ?? [] : [];
   const featuredBuyIns = featuredTournaments.map((t) => t.buyIn);
 
+  if (!isActive) return <View style={styles.screen} />;
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View key={animKey} style={styles.stack}>
+      <View style={styles.stack}>
         <Animated.View
           entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}
           style={styles.header}
         >
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Festivals</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
         </Animated.View>
 
         <Animated.View
@@ -114,7 +118,7 @@ export default function FestivalsScreen() {
             <Search size={16} color={colors.textTertiary} strokeWidth={1.5} />
             <TextInput
               style={[styles.searchInput, { color: colors.textPrimary }]}
-              placeholder="Rechercher un festival..."
+              placeholder={t('searchPlaceholder')}
               placeholderTextColor={colors.textTertiary}
               value={search}
               onChangeText={setSearch}
@@ -147,8 +151,8 @@ export default function FestivalsScreen() {
         >
           {filteredFestivals.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun festival</Text>
-              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Essayez de modifier vos filtres</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('empty.title')}</Text>
+              <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>{t('empty.subtitle')}</Text>
             </View>
           ) : (
             <FlatList
@@ -160,7 +164,7 @@ export default function FestivalsScreen() {
               ListHeaderComponent={
                 showCoupDeCoeur && featured ? (
                   <View style={styles.coupDeCoeurWrap}>
-                    <SectionLabel style={styles.coupDeCoeurLabel}>Coup de cœur</SectionLabel>
+                    <SectionLabel style={styles.coupDeCoeurLabel}>{t('featured')}</SectionLabel>
                     <CoupDeCoeurCard
                       festival={featured}
                       organizer={featured.organizerId ? organizerById[featured.organizerId] : undefined}
@@ -168,7 +172,7 @@ export default function FestivalsScreen() {
                       buyInRange={featuredBuyIns.length > 0 ? { min: Math.min(...featuredBuyIns), max: Math.max(...featuredBuyIns) } : undefined}
                       onPress={() => router.push(`/festival/${featured.id}`)}
                     />
-                    <SectionLabel style={styles.allLabel}>Tous les festivals</SectionLabel>
+                    <SectionLabel style={styles.allLabel}>{t('allFestivals')}</SectionLabel>
                   </View>
                 ) : null
               }

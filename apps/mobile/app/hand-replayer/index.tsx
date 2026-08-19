@@ -1,43 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { Stepper } from '../../src/components/ui/Stepper';
 import { AmountInput } from '../../src/components/ui/AmountInput';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
-import { CardPicker } from '../../src/components/hand/CardPicker';
+import { CardGrid } from '../../src/components/hand/CardGrid';
 import { PlayerActionRow } from '../../src/components/hand/PlayerActionRow';
 import { QueuedPlayerRow } from '../../src/components/hand/QueuedPlayerRow';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
+import { useAuthStore } from '../../src/store/useAuthStore';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-import { formatChips } from '../../src/lib/format';
-import type { ActionType, Card, HandAction, HandHistory, HandPlayer, PotState, Street } from '../../src/types';
+import { formatHandAmount, roundAmount } from '../../src/lib/format';
+import type { ActionType, Card, HandAction, HandHistory, HandPlayer, PotState, Street, UnitMode } from '../../src/types';
 
-const STEP_TITLES = ['Joueurs', 'Mes cartes', 'Preflop', 'Board', 'Showdown'];
 const BOARD_PHASES: Street[] = ['flop', 'turn', 'river'];
-const PHASE_LABELS: Record<'flop' | 'turn' | 'river', string> = { flop: 'Flop', turn: 'Turn', river: 'River' };
-const ACTION_LABELS: Record<ActionType, string> = {
-  fold: 'fold',
-  check: 'check',
-  call: 'suit',
-  bet: 'mise',
-  raise: 'relance',
-  allin: 'all-in',
-  post: 'poste',
-};
 
 type CardGroupKind = 'hero' | 'flop' | 'turn' | 'river' | 'opponent';
-
-interface PickerTarget {
-  kind: CardGroupKind;
-  playerId?: string;
-  startIndex: number;
-  slots: number;
-}
 
 interface BettingRoundState {
   street: Street;
@@ -58,10 +43,10 @@ interface BlindPositions {
   bbId: string;
 }
 
-function makePlayers(count: number): HandPlayer[] {
+function makePlayers(count: number, heroName: string, defaultName: (seatNumber: number) => string): HandPlayer[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `p${i}`,
-    name: i === 0 ? 'Moi' : `Joueur ${i + 1}`,
+    name: i === 0 ? heroName : defaultName(i + 1),
     isHero: i === 0,
     seat: i,
     cardsKnown: i === 0,
@@ -69,14 +54,14 @@ function makePlayers(count: number): HandPlayer[] {
   }));
 }
 
-function resizePlayers(prev: HandPlayer[], newCount: number): HandPlayer[] {
+function resizePlayers(prev: HandPlayer[], newCount: number, defaultName: (seatNumber: number) => string): HandPlayer[] {
   let next: HandPlayer[];
   if (newCount <= prev.length) {
     next = prev.slice(0, newCount);
   } else {
     const additions: HandPlayer[] = Array.from({ length: newCount - prev.length }, (_, i) => {
       const idx = prev.length + i;
-      return { id: `p${idx}`, name: `Joueur ${idx + 1}`, isHero: false, seat: idx, cardsKnown: false, isFolded: false };
+      return { id: `p${idx}`, name: defaultName(idx + 1), isHero: false, seat: idx, cardsKnown: false, isFolded: false };
     });
     next = [...prev, ...additions];
   }
@@ -100,7 +85,7 @@ function computePots(actions: HandAction[]): PotState[] {
     streetActions.forEach((a) => {
       if (a.amount !== undefined) contribution[a.playerId] = a.amount;
     });
-    running += Object.values(contribution).reduce((sum, v) => sum + v, 0);
+    running = roundAmount(running + Object.values(contribution).reduce((sum, v) => sum + v, 0));
     pots.push({ street, amount: running });
   });
   return pots;
@@ -173,30 +158,29 @@ function getPositionLabels(players: HandPlayer[], bigBlindId: string): Record<st
   return labels;
 }
 
-function CardSlot({ card, onPress }: { card?: Card; onPress: () => void }) {
-  const { colors } = useTheme();
-  if (card) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
-        <PlayingCard card={card} size="lg" />
-      </TouchableOpacity>
-    );
-  }
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.emptySlot, { borderColor: colors.hairline }]} />
-    </TouchableOpacity>
-  );
+// Lenient comma-aware positive-number parse for user-typed amounts ("12,5" → 12.5, junk → 0).
+function parsePositiveAmount(raw: string): number {
+  const value = parseFloat(raw.replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 export default function HandReplayerBuilderScreen() {
+  const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   const router = useRouter();
   const setDraft = useHandReplayerDraft((s) => s.setHand);
+  const heroName = useAuthStore((s) => s.user?.pseudo) ?? t('common:me');
   const actionCounter = useRef(0);
 
+  const defaultPlayerName = useCallback((seatNumber: number) => t('defaultPlayerName', { index: seatNumber }), [t]);
+
+  const stepTitles = useMemo(
+    () => [t('steps.players'), t('steps.myCards'), t('steps.preflop'), t('steps.board'), t('steps.showdown')],
+    [t]
+  );
+
   const [step, setStep] = useState(0);
-  const [players, setPlayers] = useState<HandPlayer[]>(() => makePlayers(3));
+  const [players, setPlayers] = useState<HandPlayer[]>(() => makePlayers(3, heroName, defaultPlayerName));
   const [actions, setActions] = useState<HandAction[]>([]);
   const [heroCards, setHeroCards] = useState<(Card | undefined)[]>([undefined, undefined]);
   const [flopCards, setFlopCards] = useState<(Card | undefined)[]>([undefined, undefined, undefined]);
@@ -208,12 +192,16 @@ export default function HandReplayerBuilderScreen() {
   const [winningHandDescription, setWinningHandDescription] = useState('');
   const [customTitle, setCustomTitle] = useState('');
   const [customStakes, setCustomStakes] = useState('');
-  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [allInIds, setAllInIds] = useState<Set<string>>(new Set());
   const [boardPhase, setBoardPhase] = useState<'flop' | 'turn' | 'river'>('flop');
   const [round, setRound] = useState<BettingRoundState | null>(null);
   const [bigBlindPlayerId, setBigBlindPlayerId] = useState<string | undefined>('p1');
   const [bigBlindAmount, setBigBlindAmount] = useState('2');
+  const [unitMode, setUnitMode] = useState<UnitMode>('bb');
+  // Per-player stack strings; absent/empty = the mode's default (100 BB / 200 chips).
+  const [stackOverrides, setStackOverrides] = useState<Record<string, string>>({});
+  const [editingBoard, setEditingBoard] = useState(false);
+  const [editingOpponentId, setEditingOpponentId] = useState<string | null>(null);
 
   const activePlayers = useMemo(() => players.filter((p) => !p.isFolded), [players]);
 
@@ -224,11 +212,63 @@ export default function HandReplayerBuilderScreen() {
     setBigBlindPlayerId(players[1]?.id);
   }, [players, bigBlindPlayerId]);
 
+  // In BB mode the blinds are the unit itself: SB = 0.5, BB = 1, nothing to type.
   const bigBlindValue = useMemo(() => {
-    const value = parseFloat(bigBlindAmount.replace(',', '.'));
-    return Number.isFinite(value) && value > 0 ? value : 0;
-  }, [bigBlindAmount]);
-  const smallBlindValue = Math.round(bigBlindValue / 2);
+    if (unitMode === 'bb') return 1;
+    return parsePositiveAmount(bigBlindAmount);
+  }, [unitMode, bigBlindAmount]);
+  const smallBlindValue = unitMode === 'bb' ? 0.5 : Math.round(bigBlindValue / 2);
+
+  // Every player has a stack; it's the hard cap on what they can put in. Default is 100 BB
+  // (in chips mode: 100 × the big blind); a typed value per player overrides it.
+  const defaultStackValue = unitMode === 'bb' ? 100 : roundAmount(bigBlindValue * 100) || 200;
+
+  const stackFor = useCallback(
+    (playerId: string): number => {
+      const override = parsePositiveAmount(stackOverrides[playerId] ?? '');
+      return override > 0 ? override : defaultStackValue;
+    },
+    [stackOverrides, defaultStackValue]
+  );
+
+  // Total already committed across all streets, latest-amount-per-street like computePots
+  // ("raise to" convention: a player's later action on a street supersedes their earlier one).
+  const committedByPlayer = useMemo(() => {
+    const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
+    const totals: Record<string, number> = {};
+    streets.forEach((street) => {
+      const latest: Record<string, number> = {};
+      actions
+        .filter((a) => a.street === street)
+        .sort((a, b) => a.order - b.order)
+        .forEach((a) => {
+          if (a.amount !== undefined) latest[a.playerId] = a.amount;
+        });
+      Object.entries(latest).forEach(([id, v]) => {
+        totals[id] = roundAmount((totals[id] ?? 0) + v);
+      });
+    });
+    return totals;
+  }, [actions]);
+
+  const remainingStackFor = useCallback(
+    (playerId: string): number => Math.max(0, roundAmount(stackFor(playerId) - (committedByPlayer[playerId] ?? 0))),
+    [stackFor, committedByPlayer]
+  );
+
+  // Largest legal "bet/raise to" this street: what's already in front of the player plus
+  // everything left behind. Committing exactly this amount IS an all-in.
+  const maxToFor = useCallback(
+    (playerId: string): number => roundAmount((round?.contributions[playerId] ?? 0) + remainingStackFor(playerId)),
+    [round, remainingStackFor]
+  );
+
+  const handleUnitModeChange = (mode: UnitMode) => {
+    if (mode === unitMode) return;
+    setUnitMode(mode);
+    // Stacks are expressed in the unit — carrying values across a unit switch would corrupt them.
+    setStackOverrides({});
+  };
 
   const blindPositions = useMemo(
     () => (bigBlindPlayerId ? getBlindPositions(players, bigBlindPlayerId) : null),
@@ -260,64 +300,38 @@ export default function HandReplayerBuilderScreen() {
     [heroCards, flopCards, turnCard, riverCard, opponentCards]
   );
 
-  const openPicker = useCallback(
-    (kind: CardGroupKind, tappedIndex: number, playerId?: string) => {
+  // Cards a grid may not offer: everything used elsewhere, minus the group's own picks
+  // (those must stay pressable so the user can deselect them).
+  const disabledCardsFor = useCallback(
+    (kind: CardGroupKind, playerId?: string): Card[] => {
       const group = getGroupArray(kind, playerId);
-      const allEmpty = group.every((c) => !c);
-      const slots = allEmpty ? group.length : 1;
-      const startIndex = allEmpty ? 0 : tappedIndex;
-      setPickerTarget({ kind, playerId, startIndex, slots });
+      return usedCards.filter((c) => !group.some((g) => g && cardsEqual(g, c)));
     },
-    [getGroupArray]
+    [usedCards, getGroupArray]
   );
 
-  const applyCards = useCallback((target: PickerTarget, cards: Card[]) => {
-    const write = (arr: (Card | undefined)[]) => {
-      const next = [...arr];
-      cards.forEach((c, j) => {
-        next[target.startIndex + j] = c;
-      });
-      return next;
-    };
-    if (target.kind === 'hero') {
-      setHeroCards((prev) => write(prev));
-    } else if (target.kind === 'flop') {
-      setFlopCards((prev) => write(prev));
-    } else if (target.kind === 'turn') {
-      setTurnCard(cards[0]);
-    } else if (target.kind === 'river') {
-      setRiverCard(cards[0]);
-    } else {
-      setOpponentCards((prev) => {
-        const pair = prev[target.playerId!] ? [...prev[target.playerId!]] : [undefined, undefined];
-        cards.forEach((c, j) => {
-          pair[target.startIndex + j] = c;
-        });
-        return { ...prev, [target.playerId!]: pair };
-      });
-    }
-    setPickerTarget(null);
+  const handleBoardCardsChange = useCallback(
+    (next: (Card | undefined)[]) => {
+      if (boardPhase === 'flop') setFlopCards(next);
+      else if (boardPhase === 'turn') setTurnCard(next[0]);
+      else setRiverCard(next[0]);
+      if (!next.every(Boolean)) return;
+      setEditingBoard(false);
+      // All-in run-out: no betting round will happen on this phase, so jump to the next one
+      // in the same commit. Leaving it to the effects paints the phase's full-size card row
+      // for a frame before it collapses into the small completed row — a visible flash.
+      const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
+      if (eligible.length <= 1 && boardPhase !== 'river') {
+        setBoardPhase(boardPhase === 'flop' ? 'turn' : 'river');
+      }
+    },
+    [boardPhase, players, allInIds]
+  );
+
+  const handleOpponentCardsChange = useCallback((playerId: string, next: (Card | undefined)[]) => {
+    setOpponentCards((prev) => ({ ...prev, [playerId]: next }));
+    if (next.every(Boolean)) setEditingOpponentId(null);
   }, []);
-
-  const pickerDisabledCards = useMemo(() => {
-    if (!pickerTarget) return usedCards;
-    const group = getGroupArray(pickerTarget.kind, pickerTarget.playerId);
-    const editing: Card[] = [];
-    for (let j = 0; j < pickerTarget.slots; j += 1) {
-      const c = group[pickerTarget.startIndex + j];
-      if (c) editing.push(c);
-    }
-    return usedCards.filter((c) => !editing.some((e) => cardsEqual(e, c)));
-  }, [pickerTarget, usedCards, getGroupArray]);
-
-  const pickerLabel = useMemo(() => {
-    if (!pickerTarget) return undefined;
-    if (pickerTarget.kind === 'hero') return 'Mes cartes';
-    if (pickerTarget.kind === 'flop') return 'Flop';
-    if (pickerTarget.kind === 'turn') return 'Turn';
-    if (pickerTarget.kind === 'river') return 'River';
-    return `Cartes de ${players.find((p) => p.id === pickerTarget.playerId)?.name ?? ''}`;
-  }, [pickerTarget, players]);
 
   const startRound = useCallback(
     (street: Street) => {
@@ -335,18 +349,22 @@ export default function HandReplayerBuilderScreen() {
 
       if (street === 'preflop' && blindPositions) {
         const { sbId, bbId } = blindPositions;
+        // Posts are capped at the poster's stack. The step-0 gate (every stack >= BB) makes a
+        // short post unreachable in practice, but the cap keeps pot math honest regardless.
+        const sbPostAmount = roundAmount(Math.min(smallBlindValue, stackFor(sbId)));
+        const bbPostAmount = roundAmount(Math.min(bigBlindValue, stackFor(bbId)));
         const baseOrder = actions.filter((a) => a.street === 'preflop').length;
         actionCounter.current += 1;
-        const sbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: sbId, type: 'post', amount: smallBlindValue, order: baseOrder };
+        const sbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: sbId, type: 'post', amount: sbPostAmount, order: baseOrder };
         actionCounter.current += 1;
-        const bbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: bbId, type: 'post', amount: bigBlindValue, order: baseOrder + 1 };
+        const bbPost: HandAction = { id: `a${actionCounter.current}`, street, playerId: bbId, type: 'post', amount: bbPostAmount, order: baseOrder + 1 };
         setActions((prev) => [...prev, sbPost, bbPost]);
         setRound({
           street,
           toAct: seatOrderFrom(eligible, bbId).map((p) => p.id),
           lastAggressorId: undefined,
-          currentBet: bigBlindValue,
-          contributions: { [sbId]: smallBlindValue, [bbId]: bigBlindValue },
+          currentBet: bbPostAmount,
+          contributions: { [sbId]: sbPostAmount, [bbId]: bbPostAmount },
         });
         return;
       }
@@ -355,17 +373,25 @@ export default function HandReplayerBuilderScreen() {
       const ordered = anchorId ? seatOrderFrom(eligible, anchorId) : eligible;
       setRound({ street, toAct: ordered.map((p) => p.id), lastAggressorId: undefined, currentBet: 0, contributions: {} });
     },
-    [players, allInIds, blindPositions, bigBlindValue, smallBlindValue, actions]
+    [players, allInIds, blindPositions, bigBlindValue, smallBlindValue, actions, stackFor]
   );
 
   const recordAction = useCallback(
     (street: Street, playerId: string, type: ActionType, amount?: number) => {
       // A call always matches the street's outstanding bet — the caller never types this
       // amount themselves, so pull it from the round instead of trusting an undefined arg.
-      const finalAmount = type === 'call' ? round?.currentBet : amount;
+      const maxTo = maxToFor(playerId);
+      let resolvedType = type;
+      let finalAmount = type === 'call' ? round?.currentBet : amount;
+      if (finalAmount !== undefined && (type === 'call' || type === 'bet' || type === 'raise' || type === 'allin')) {
+        // Nobody can put in more than they have; committing everything IS an all-in, whatever
+        // button produced it (short-stack "call" of a bigger bet included).
+        finalAmount = roundAmount(Math.min(finalAmount, maxTo));
+        if (finalAmount >= maxTo) resolvedType = 'allin';
+      }
       actionCounter.current += 1;
       const order = actions.filter((a) => a.street === street).length;
-      const newAction: HandAction = { id: `a${actionCounter.current}`, street, playerId, type, amount: finalAmount, order };
+      const newAction: HandAction = { id: `a${actionCounter.current}`, street, playerId, type: resolvedType, amount: finalAmount, order };
       setActions((prev) => [...prev, newAction]);
 
       let updatedPlayers = players;
@@ -383,7 +409,7 @@ export default function HandReplayerBuilderScreen() {
         }
       }
 
-      if (type === 'allin') {
+      if (resolvedType === 'allin') {
         updatedAllIn = new Set(allInIds).add(playerId);
         setAllInIds(updatedAllIn);
       }
@@ -392,28 +418,42 @@ export default function HandReplayerBuilderScreen() {
         if (!prev || prev.street !== street) return prev;
         const contributions =
           finalAmount !== undefined ? { ...prev.contributions, [playerId]: finalAmount } : prev.contributions;
-        if (type === 'bet' || type === 'raise' || type === 'allin') {
+        // Only an amount that actually raises the outstanding bet reopens the action — a
+        // short-stack all-in below (or matching) the current bet is a call, and forcing
+        // players who already matched to act again would be wrong.
+        const aggressionBet =
+          (resolvedType === 'bet' || resolvedType === 'raise' || resolvedType === 'allin') &&
+          finalAmount !== undefined &&
+          finalAmount > prev.currentBet
+            ? finalAmount
+            : undefined;
+        if (aggressionBet !== undefined) {
           const reopened = reopenQueueFrom(updatedPlayers, playerId, updatedAllIn);
           return {
             street,
             toAct: reopened,
             lastAggressorId: playerId,
-            currentBet: finalAmount !== undefined && finalAmount > prev.currentBet ? finalAmount : prev.currentBet,
+            currentBet: aggressionBet,
             contributions,
           };
         }
         return { ...prev, toAct: prev.toAct.filter((id) => id !== playerId), contributions };
       });
     },
-    [actions, players, allInIds, round]
+    [actions, players, allInIds, round, maxToFor]
   );
 
   const availableActionsFor = useCallback(
     (playerId: string): ActionType[] => {
       const owed = (round?.currentBet ?? 0) - (round?.contributions[playerId] ?? 0);
-      return owed > 0 ? ['fold', 'call', 'raise', 'allin'] : ['fold', 'check', 'bet', 'allin'];
+      if (owed > 0) {
+        // Too short to raise above the current bet → calling already means all-in.
+        if (maxToFor(playerId) <= (round?.currentBet ?? 0)) return ['fold', 'call', 'allin'];
+        return ['fold', 'call', 'raise', 'allin'];
+      }
+      return ['fold', 'check', 'bet', 'allin'];
     },
-    [round]
+    [round, maxToFor]
   );
 
   // Preflop's round starts as soon as the builder reaches the Preflop step.
@@ -444,6 +484,8 @@ export default function HandReplayerBuilderScreen() {
     if (round.toAct.length !== 0) return;
     if (boardPhase === 'flop') setBoardPhase('turn');
     else if (boardPhase === 'turn') setBoardPhase('river');
+    else return;
+    setEditingBoard(false);
   }, [step, round, boardPhase]);
 
   const goNext = () => setStep((s) => s + 1);
@@ -451,7 +493,7 @@ export default function HandReplayerBuilderScreen() {
 
   const reset = () => {
     setStep(0);
-    setPlayers(makePlayers(3));
+    setPlayers(makePlayers(3, heroName, defaultPlayerName));
     setActions([]);
     setHeroCards([undefined, undefined]);
     setFlopCards([undefined, undefined, undefined]);
@@ -468,24 +510,29 @@ export default function HandReplayerBuilderScreen() {
     setRound(null);
     setBigBlindPlayerId('p1');
     setBigBlindAmount('2');
+    setUnitMode('bb');
+    setStackOverrides({});
+    setEditingBoard(false);
+    setEditingOpponentId(null);
   };
 
   const computeAutoTitle = useCallback((): string => {
-    const finalStreet = riverCard ? 'River' : turnCard ? 'Turn' : flopCards.every(Boolean) ? 'Flop' : 'Preflop';
+    const finalStreetId = riverCard ? 'river' : turnCard ? 'turn' : flopCards.every(Boolean) ? 'flop' : 'preflop';
+    const street = t(`poker:phases.${finalStreetId}`);
     const heroShort = heroCards[0] && heroCards[1] ? `${heroCards[0].rank}${heroCards[1].rank}` : '';
     const revealedOpponent = activePlayers.find(
       (p) => !p.isHero && opponentReveal[p.id] && opponentCards[p.id]?.[0] && opponentCards[p.id]?.[1]
     );
     if (heroShort && revealedOpponent) {
       const pair = opponentCards[revealedOpponent.id]!;
-      return `${heroShort} vs ${pair[0]!.rank}${pair[1]!.rank} — ${finalStreet}`;
+      return t('autoTitle.vsHand', { hero: heroShort, villain: `${pair[0]!.rank}${pair[1]!.rank}`, street });
     }
     if (heroShort) {
       const opponentCount = Math.max(activePlayers.length - 1, 0);
-      return `${heroShort} vs ${opponentCount} joueur${opponentCount > 1 ? 's' : ''} — ${finalStreet}`;
+      return t('autoTitle.vsPlayers', { hero: heroShort, count: opponentCount, street });
     }
-    return `Main — ${finalStreet}`;
-  }, [heroCards, flopCards, turnCard, riverCard, activePlayers, opponentReveal, opponentCards]);
+    return t('autoTitle.generic', { street });
+  }, [t, heroCards, flopCards, turnCard, riverCard, activePlayers, opponentReveal, opponentCards]);
 
   const buildHandHistory = useCallback((): HandHistory => {
     const finalPlayers: HandPlayer[] = players.map((p) => {
@@ -501,7 +548,7 @@ export default function HandReplayerBuilderScreen() {
         cardsKnown = revealed && !!holeCards;
       }
       const result: HandPlayer['result'] = p.id === winnerId ? 'won' : p.isFolded ? 'folded' : winnerId ? 'lost' : 'unknown';
-      return { ...p, holeCards, cardsKnown, result, position: positionLabels[p.id] };
+      return { ...p, holeCards, cardsKnown, result, position: positionLabels[p.id], startingStack: stackFor(p.id) };
     });
 
     return {
@@ -520,8 +567,9 @@ export default function HandReplayerBuilderScreen() {
       pots: computePots(actions),
       winnerId,
       winningHandDescription: winningHandDescription.trim() || undefined,
+      unitMode,
     };
-  }, [players, heroCards, opponentReveal, opponentCards, winnerId, customTitle, computeAutoTitle, customStakes, flopCards, turnCard, riverCard, actions, winningHandDescription, positionLabels]);
+  }, [players, heroCards, opponentReveal, opponentCards, winnerId, customTitle, computeAutoTitle, customStakes, flopCards, turnCard, riverCard, actions, winningHandDescription, positionLabels, stackFor, unitMode]);
 
   const handleReplay = () => {
     setDraft(buildHandHistory());
@@ -534,7 +582,15 @@ export default function HandReplayerBuilderScreen() {
   };
 
   const canContinue = () => {
-    if (step === 0) return players.length >= 2 && !!bigBlindPlayerId && bigBlindValue > 0;
+    if (step === 0)
+      return (
+        players.length >= 2 &&
+        !!bigBlindPlayerId &&
+        bigBlindValue > 0 &&
+        // Every stack must at least cover the BB post — a sub-blind stack breaks the engine's
+        // assumption that blinds are always fully posted.
+        players.every((p) => stackFor(p.id) >= bigBlindValue)
+      );
     if (step === 1) return !!heroCards[0] && !!heroCards[1];
     if (step === 2) return !!round && round.street === 'preflop' && round.toAct.length === 0;
     if (step === 3) return boardPhase === 'river' && !!riverCard && !!round && round.street === 'river' && round.toAct.length === 0;
@@ -546,11 +602,7 @@ export default function HandReplayerBuilderScreen() {
     const doneActions = actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
 
     if (round.toAct.length === 0 && doneActions.length === 0) {
-      return (
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Plus aucune mise possible — la main se termine au tapis.
-        </Text>
-      );
+      return <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('noMoreBetting')}</Text>;
     }
 
     const currentId = round.toAct[0];
@@ -569,13 +621,13 @@ export default function HandReplayerBuilderScreen() {
                   <>
                     {p?.name}
                     {position ? ` (${position})` : ''}
-                    {a.amount ? ` ${formatChips(a.amount)}` : ''}
+                    {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
                   </>
                 ) : (
                   <>
                     {p?.name}
-                    {position ? ` (${position})` : ''} — {ACTION_LABELS[a.type]}
-                    {a.amount ? ` ${formatChips(a.amount)}` : ''}
+                    {position ? ` (${position})` : ''} — {t(`poker:actions.${a.type}`)}
+                    {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
                   </>
                 )}
               </Text>
@@ -588,12 +640,17 @@ export default function HandReplayerBuilderScreen() {
             availableActions={availableActionsFor(currentPlayer.id)}
             position={positionLabels[currentPlayer.id]}
             currentBet={round.currentBet}
+            unitMode={unitMode}
+            remainingStack={remainingStackFor(currentPlayer.id)}
+            maxTo={maxToFor(currentPlayer.id)}
             onAction={(type, amount) => recordAction(street, currentPlayer.id, type, amount)}
           />
         )}
         {queuedIds.map((id) => {
           const p = players.find((pp) => pp.id === id);
-          return p ? <QueuedPlayerRow key={id} player={p} position={positionLabels[id]} /> : null;
+          return p ? (
+            <QueuedPlayerRow key={id} player={p} position={positionLabels[id]} stackLabel={formatHandAmount(remainingStackFor(id), unitMode)} />
+          ) : null;
         })}
       </View>
     );
@@ -611,7 +668,7 @@ export default function HandReplayerBuilderScreen() {
     return streetActions
       .map((a) => {
         const p = players.find((pp) => pp.id === a.playerId);
-        return `${p?.name ?? '?'} ${ACTION_LABELS[a.type]}${a.amount ? ` ${formatChips(a.amount)}` : ''}`;
+        return `${p?.name ?? '?'} ${t(`poker:actions.${a.type}`)}${a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}`;
       })
       .join(' · ');
   };
@@ -622,7 +679,7 @@ export default function HandReplayerBuilderScreen() {
       <View style={styles.stepBody}>
         {BOARD_PHASES.slice(0, phaseIndex).map((phase) => (
           <View key={phase} style={styles.completedPhase}>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>{PHASE_LABELS[phase as 'flop' | 'turn' | 'river']}</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>{t(`poker:phases.${phase as 'flop' | 'turn' | 'river'}`)}</Text>
             <View style={styles.cardsRow}>
               {cardsForPhase(phase as 'flop' | 'turn' | 'river').map((c, i) => (
                 <PlayingCard key={i} card={c} size="sm" />
@@ -635,13 +692,26 @@ export default function HandReplayerBuilderScreen() {
         ))}
 
         <Animated.View key={boardPhase} entering={FadeInDown.springify().damping(18).stiffness(140)} style={styles.stepBody}>
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>{PHASE_LABELS[boardPhase]}</Text>
-          <View style={styles.cardsRow}>
-            {boardPhase === 'flop' &&
-              [0, 1, 2].map((i) => <CardSlot key={i} card={flopCards[i]} onPress={() => openPicker('flop', i)} />)}
-            {boardPhase === 'turn' && <CardSlot card={turnCard} onPress={() => openPicker('turn', 0)} />}
-            {boardPhase === 'river' && <CardSlot card={riverCard} onPress={() => openPicker('river', 0)} />}
-          </View>
+          {!boardPhaseCardsReady(boardPhase) || editingBoard ? (
+            <CardGrid
+              value={boardPhase === 'flop' ? flopCards : boardPhase === 'turn' ? [turnCard] : [riverCard]}
+              onChange={handleBoardCardsChange}
+              disabledCards={disabledCardsFor(boardPhase)}
+              label={t(`poker:phases.${boardPhase}`)}
+            />
+          ) : (
+            <>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>{t(`poker:phases.${boardPhase}`)}</Text>
+              <View style={styles.cardsRow}>
+                {cardsForPhase(boardPhase).map((c, i) => (
+                  <PlayingCard key={i} card={c} size="lg" />
+                ))}
+                <TouchableOpacity onPress={() => setEditingBoard(true)} activeOpacity={0.7} style={styles.editCardsBtn}>
+                  <Text style={[styles.editCardsText, { color: colors.textTertiary }]}>{t('common:edit')}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
           {boardPhaseCardsReady(boardPhase) && renderBettingRound(boardPhase)}
         </Animated.View>
       </View>
@@ -652,7 +722,7 @@ export default function HandReplayerBuilderScreen() {
     const previewHand = buildHandHistory();
     return (
       <View style={styles.stepBody}>
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>Cartes adverses connues et gagnant.</Text>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('showdownHint')}</Text>
         {activePlayers
           .filter((p) => !p.isHero)
           .map((p) => {
@@ -673,21 +743,29 @@ export default function HandReplayerBuilderScreen() {
                       <EyeOff size={14} color={colors.textTertiary} strokeWidth={2} />
                     )}
                     <Text style={[styles.revealText, { color: revealed ? colors.accent : colors.textTertiary }]}>
-                      {revealed ? 'Cartes connues' : 'Cartes inconnues'}
+                      {revealed ? t('cardsKnown') : t('cardsUnknown')}
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {revealed && (
-                  <View style={styles.cardsRow}>
-                    <CardSlot card={pair[0]} onPress={() => openPicker('opponent', 0, p.id)} />
-                    <CardSlot card={pair[1]} onPress={() => openPicker('opponent', 1, p.id)} />
-                  </View>
-                )}
+                {revealed &&
+                  (pair[0] && pair[1] && editingOpponentId !== p.id ? (
+                    <TouchableOpacity style={styles.cardsRow} onPress={() => setEditingOpponentId(p.id)} activeOpacity={0.75}>
+                      <PlayingCard card={pair[0]} size="lg" />
+                      <PlayingCard card={pair[1]} size="lg" />
+                    </TouchableOpacity>
+                  ) : (
+                    <CardGrid
+                      value={pair}
+                      onChange={(next) => handleOpponentCardsChange(p.id, next)}
+                      disabledCards={disabledCardsFor('opponent', p.id)}
+                      label={t('opponentCardsLabel', { name: p.name })}
+                    />
+                  ))}
               </View>
             );
           })}
 
-        <Text style={[styles.hint, { color: colors.textSecondary, marginTop: spacing.md }]}>Qui remporte la main ?</Text>
+        <Text style={[styles.hint, { color: colors.textSecondary, marginTop: spacing.md }]}>{t('whoWins')}</Text>
         <View style={styles.winnerRow}>
           {activePlayers.map((p) => (
             <TouchableOpacity
@@ -708,7 +786,7 @@ export default function HandReplayerBuilderScreen() {
         <TextInput
           value={winningHandDescription}
           onChangeText={setWinningHandDescription}
-          placeholder="Description (ex : Paire d'As)"
+          placeholder={t('descriptionPlaceholder')}
           placeholderTextColor={colors.textTertiary}
           style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
         />
@@ -716,14 +794,14 @@ export default function HandReplayerBuilderScreen() {
         <TextInput
           value={customTitle}
           onChangeText={setCustomTitle}
-          placeholder={`Titre (optionnel) — ex : ${computeAutoTitle()}`}
+          placeholder={t('titlePlaceholder', { example: computeAutoTitle() })}
           placeholderTextColor={colors.textTertiary}
           style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
         />
         <TextInput
           value={customStakes}
           onChangeText={setCustomStakes}
-          placeholder="Enjeux (optionnel, ex : 1€/2€)"
+          placeholder={t('stakesPlaceholder')}
           placeholderTextColor={colors.textTertiary}
           style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
         />
@@ -733,17 +811,17 @@ export default function HandReplayerBuilderScreen() {
         </View>
 
         <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={handleReplay} activeOpacity={0.85}>
-          <Text style={styles.primaryBtnText}>Rejouer la main</Text>
+          <Text style={styles.primaryBtnText}>{t('replayHand')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.secondaryBtn, { backgroundColor: colors.neutralTileBg }]}
           onPress={handleExport}
           activeOpacity={0.85}
         >
-          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>Exporter l'image</Text>
+          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('exportImage')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.neutralTileBg }]} onPress={reset} activeOpacity={0.85}>
-          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>Recommencer</Text>
+          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('restart')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -754,62 +832,96 @@ export default function HandReplayerBuilderScreen() {
       case 0:
         return (
           <View style={styles.stepBody}>
+            <SegmentedControl
+              options={[
+                { key: 'bb', label: t('unitBlinds') },
+                { key: 'chips', label: t('unitChips') },
+              ]}
+              value={unitMode}
+              onChange={handleUnitModeChange}
+            />
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              {unitMode === 'bb' ? t('unitHintBb') : t('unitHintChips')}
+            </Text>
             <Stepper
-              label="Joueurs"
+              label={t('steps.players')}
               value={players.length}
               min={2}
               max={9}
-              onDecrement={() => setPlayers((prev) => resizePlayers(prev, Math.max(2, prev.length - 1)))}
-              onIncrement={() => setPlayers((prev) => resizePlayers(prev, Math.min(9, prev.length + 1)))}
+              onDecrement={() => setPlayers((prev) => resizePlayers(prev, Math.max(2, prev.length - 1), defaultPlayerName))}
+              onIncrement={() => setPlayers((prev) => resizePlayers(prev, Math.min(9, prev.length + 1), defaultPlayerName))}
             />
             <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              "Moi" est toujours au premier siège. Choisissez qui est la grosse blinde — ça
-              détermine qui parle en premier à chaque tour.
+              {t('setupHint', { name: heroName, stack: formatHandAmount(defaultStackValue, unitMode) })}
             </Text>
             <View style={styles.playerList}>
-              {players.map((p) => (
-                <View key={p.id} style={[styles.playerRow, { borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}>
-                  <TouchableOpacity
-                    onPress={() => setBigBlindPlayerId(p.id)}
-                    activeOpacity={0.7}
-                    style={[
-                      styles.bbToggle,
-                      { borderColor: colors.hairline },
-                      bigBlindPlayerId === p.id && { borderColor: colors.accent, backgroundColor: colors.accentTint },
-                    ]}
-                  >
-                    <Text style={[styles.bbToggleText, { color: bigBlindPlayerId === p.id ? colors.accent : colors.textTertiary }]}>
-                      BB
-                    </Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    value={p.name}
-                    onChangeText={(text) => setPlayers((prev) => prev.map((pp) => (pp.id === p.id ? { ...pp, name: text } : pp)))}
-                    style={[styles.nameInput, { color: colors.textPrimary }]}
-                    placeholderTextColor={colors.textTertiary}
-                  />
-                </View>
-              ))}
+              {players.map((p) => {
+                const overridden = !!(stackOverrides[p.id] ?? '').trim();
+                return (
+                  <View key={p.id} style={[styles.playerRow, { borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}>
+                    <TouchableOpacity
+                      onPress={() => setBigBlindPlayerId(p.id)}
+                      activeOpacity={0.7}
+                      style={[
+                        styles.bbToggle,
+                        { borderColor: colors.hairline },
+                        bigBlindPlayerId === p.id && { borderColor: colors.accent, backgroundColor: colors.accentTint },
+                      ]}
+                    >
+                      <Text style={[styles.bbToggleText, { color: bigBlindPlayerId === p.id ? colors.accent : colors.textTertiary }]}>
+                        BB
+                      </Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      value={p.name}
+                      onChangeText={(text) => setPlayers((prev) => prev.map((pp) => (pp.id === p.id ? { ...pp, name: text } : pp)))}
+                      style={[styles.nameInput, { color: colors.textPrimary }]}
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                    <TextInput
+                      value={stackOverrides[p.id] ?? ''}
+                      onChangeText={(text) =>
+                        setStackOverrides((prev) => ({ ...prev, [p.id]: text.replace(/[^0-9.,]/g, '') }))
+                      }
+                      placeholder={String(defaultStackValue)}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType={unitMode === 'bb' ? 'decimal-pad' : 'numeric'}
+                      style={[
+                        styles.stackInput,
+                        { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.neutralTileBg },
+                        overridden && { borderColor: colors.accent, backgroundColor: colors.accentTint },
+                      ]}
+                    />
+                    <Text style={[styles.stackUnit, { color: colors.textTertiary }]}>{unitMode === 'bb' ? 'BB' : t('chipsUnit')}</Text>
+                  </View>
+                );
+              })}
             </View>
-            <AmountInput label="Grosse blinde" value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
+            {unitMode === 'chips' && (
+              <AmountInput label={t('bigBlindLabel')} value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
+            )}
           </View>
         );
 
       case 1:
         return (
           <View style={styles.stepBody}>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>Sélectionnez vos deux cartes.</Text>
-            <View style={styles.cardsRow}>
-              <CardSlot card={heroCards[0]} onPress={() => openPicker('hero', 0)} />
-              <CardSlot card={heroCards[1]} onPress={() => openPicker('hero', 1)} />
-            </View>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('heroCardsHint')}</Text>
+            {heroCards.some(Boolean) && (
+              <View style={styles.cardsRow}>
+                {heroCards.filter(Boolean).map((c, i) => (
+                  <PlayingCard key={i} card={c!} size="md" />
+                ))}
+              </View>
+            )}
+            <CardGrid value={heroCards} onChange={setHeroCards} disabledCards={disabledCardsFor('hero')} />
           </View>
         );
 
       case 2:
         return (
           <View style={styles.stepBody}>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>Actions preflop, dans l'ordre.</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('preflopHint')}</Text>
             {renderBettingRound('preflop')}
           </View>
         );
@@ -834,11 +946,11 @@ export default function HandReplayerBuilderScreen() {
         >
           <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{STEP_TITLES[step]}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{stepTitles[step]}</Text>
       </View>
 
       <View style={styles.dots}>
-        {STEP_TITLES.map((_, i) => (
+        {stepTitles.map((_, i) => (
           <View key={i} style={[styles.dot, { backgroundColor: i <= step ? colors.accent : colors.hairline }]} />
         ))}
       </View>
@@ -848,7 +960,7 @@ export default function HandReplayerBuilderScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {step < 4 && (
+      {step < 4 && (step !== 1 || canContinue()) && (
         <View style={[styles.footer, { borderTopColor: colors.hairline }]}>
           <TouchableOpacity
             style={[styles.primaryBtn, !canContinue() && styles.disabledBtn, { backgroundColor: colors.accentBright }]}
@@ -856,19 +968,10 @@ export default function HandReplayerBuilderScreen() {
             disabled={!canContinue()}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryBtnText}>Continuer</Text>
+            <Text style={styles.primaryBtnText}>{step === 1 ? t('common:confirm') : t('common:continue')}</Text>
           </TouchableOpacity>
         </View>
       )}
-
-      <CardPicker
-        visible={pickerTarget !== null}
-        onClose={() => setPickerTarget(null)}
-        onComplete={(cards) => pickerTarget && applyCards(pickerTarget, cards)}
-        disabledCards={pickerDisabledCards}
-        slots={pickerTarget?.slots ?? 1}
-        label={pickerLabel}
-      />
     </SafeAreaView>
   );
 }
@@ -946,14 +1049,31 @@ const styles = StyleSheet.create({
   },
   cardsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
   },
-  emptySlot: {
-    width: 64,
-    height: 90,
+  stackInput: {
+    minWidth: 56,
+    textAlign: 'right',
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.semibold,
+    borderWidth: 1,
     borderRadius: radius.sm,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  stackUnit: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.medium,
+  },
+  editCardsBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  editCardsText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.semibold,
+    textDecorationLine: 'underline',
   },
   actionsList: {
     gap: spacing.xs,

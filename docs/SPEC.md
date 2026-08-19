@@ -1,4 +1,4 @@
-# Proker — Product Specification
+# Ultimate Poker Kit (UPK) — Product Specification
 
 > Poker ecosystem app for professional players. All data is mocked locally in JSON for V1. External APIs and database integration deferred to later phases.
 
@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Name | Proker |
+| Name | Ultimate Poker Kit (UPK) |
 | Tagline | Play smarter. Track everything. |
 | Languages | French + English (i18n from day 1) |
 | Platforms | iOS (primary), Android |
@@ -228,7 +228,7 @@ placeholder. The 3 originally-specced games were expanded to 4 per a later produ
 
 **8a. Flex Cards**
 - After logging a session, offer "Share this result"
-- Generates a Story-format visual: profit, curve, venue, Proker logo
+- Generates a Story-format visual: profit, curve, venue, UPK logo
 - Export as image to camera roll / share sheet
 
 **8b. Hand Replayer**

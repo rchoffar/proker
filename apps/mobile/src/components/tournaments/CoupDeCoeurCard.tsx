@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { GlowBlob } from '../ui/GlowBlob';
@@ -24,15 +25,17 @@ function formatBuyInRange(range?: { min: number; max: number }): string {
 }
 
 function Badge() {
+  const { t } = useTranslation('finder');
   return (
     <View style={styles.badge}>
       <Sparkles size={11} color={colors.accentBright} strokeWidth={2} />
-      <Text style={styles.badgeText}>Coup de cœur</Text>
+      <Text style={styles.badgeText}>{t('featured')}</Text>
     </View>
   );
 }
 
 export function CoupDeCoeurCard({ festival, organizer, tournamentCount, buyInRange, variant = 'full', onPress }: Props) {
+  const { t } = useTranslation('finder');
   if (variant === 'mini') {
     const dateRange = formatDateRangeShort(festival.startDate, festival.endDate);
     const subtitle = [dateRange, festival.location, organizer?.name].filter(Boolean).join(' · ');
@@ -88,7 +91,7 @@ export function CoupDeCoeurCard({ festival, organizer, tournamentCount, buyInRan
             </View>
           ) : null}
           {tournamentCount ? (
-            <Text style={styles.meta}>{tournamentCount} tournoi{tournamentCount > 1 ? 's' : ''}</Text>
+            <Text style={styles.meta}>{t('tournamentCount', { count: tournamentCount })}</Text>
           ) : null}
         </View>
       </GlassCard>

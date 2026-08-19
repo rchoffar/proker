@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Heart } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import { Heart, Star } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { GlowBlob } from '../ui/GlowBlob';
 import { PokerChip } from '../ui/PokerChip';
@@ -10,18 +11,23 @@ import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Festival, Organizer } from '../../types';
 
+type HeroBadge = 'featured' | 'ongoing' | 'liked';
+
 interface Props {
   festival: Festival;
   organizer?: Organizer;
-  isOngoing: boolean;
+  badge: HeroBadge;
+  liked: boolean;
   onPress: () => void;
   onAddResult: () => void;
   onToggleLike: () => void;
 }
 
-export function FestivalHeroCard({ festival, organizer, isOngoing, onPress, onAddResult, onToggleLike }: Props) {
+export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, onAddResult, onToggleLike }: Props) {
+  const { t } = useTranslation('dashboard');
   const { colors } = useTheme();
   const dateRange = formatDateRange(festival.startDate, festival.endDate);
+  const BadgeIcon = badge === 'featured' ? Star : Heart;
 
   return (
     <GlassCard variant="dark" padding={20} style={styles.card}>
@@ -29,12 +35,10 @@ export function FestivalHeroCard({ festival, organizer, isOngoing, onPress, onAd
       <PokerChip size={80} style={styles.chip} color={colors.onDarkHairline} />
       <View style={styles.headerRow}>
         <View style={[styles.badge, { backgroundColor: colors.accentGlow }]}>
-          <Heart size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
-          <Text style={[styles.badgeText, { color: colors.accentBright }]}>
-            {isOngoing ? 'En ce moment' : 'Votre festival liké'}
-          </Text>
+          <BadgeIcon size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
+          <Text style={[styles.badgeText, { color: colors.accentBright }]}>{t(`hero.${badge}`)}</Text>
         </View>
-        <LikeButton liked onToggle={onToggleLike} tone="dark" />
+        <LikeButton liked={liked} onToggle={onToggleLike} tone="dark" />
       </View>
 
       <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -52,10 +56,10 @@ export function FestivalHeroCard({ festival, organizer, isOngoing, onPress, onAd
 
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.accentBright }]} onPress={onPress} activeOpacity={0.85}>
-          <Text style={styles.primaryButtonText}>Voir les tournois</Text>
+          <Text style={styles.primaryButtonText}>{t('hero.viewTournaments')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.onDarkHairline }]} onPress={onAddResult} activeOpacity={0.85}>
-          <Text style={[styles.secondaryButtonText, { color: colors.onDarkPrimary }]}>Enregistrer un résultat</Text>
+          <Text style={[styles.secondaryButtonText, { color: colors.onDarkPrimary }]}>{t('hero.addResult')}</Text>
         </TouchableOpacity>
       </View>
     </GlassCard>

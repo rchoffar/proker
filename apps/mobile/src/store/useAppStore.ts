@@ -4,6 +4,7 @@ import { createMMKV } from 'react-native-mmkv';
 import type { User, Session, Stake, Player, BankrollSnapshot, ComputedStats, Festival, Tournament, Country, Organizer } from '../types';
 import { mockUser, mockFestivals, mockTournaments, mockCountries, mockOrganizers } from '../data/mock';
 import { computeWindowedStats, computeBankrollHistory } from '../lib/stats';
+import i18n, { defaultLocale } from '../i18n';
 import type { FlipGameType } from '../lib/pokerHandEvaluator';
 
 export { sessionNetValues } from '../lib/stats';
@@ -36,6 +37,8 @@ interface AppStore {
   rouletteLastPlayers: Player[];
   flipLastPlayers: Player[];
   flipLastGameType: FlipGameType;
+  bluffLastPlayers: Player[];
+  bluffPseudo: string;
 
   addSession: (session: Session) => void;
   updateSession: (session: Session) => void;
@@ -50,13 +53,15 @@ interface AppStore {
   toggleLikedTournament: (tournamentId: string) => void;
   setRouletteLastPlayers: (players: Player[]) => void;
   setFlipDraftDefaults: (players: Player[], gameType: FlipGameType) => void;
+  setBluffDefaults: (patch: { players?: Player[]; pseudo?: string }) => void;
   resetStore: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
-      user: mockUser,
+      // First launch: follow the device locale; afterwards the persisted choice wins (rehydrate below).
+      user: { ...mockUser, settings: { ...mockUser.settings, language: defaultLocale } },
       sessions: [],
       stakes: [],
       bankrollHistory: [],
@@ -71,6 +76,8 @@ export const useAppStore = create<AppStore>()(
       rouletteLastPlayers: [],
       flipLastPlayers: [],
       flipLastGameType: 'holdem',
+      bluffLastPlayers: [],
+      bluffPseudo: '',
 
       addSession: (session) =>
         set((state) => {
@@ -138,6 +145,12 @@ export const useAppStore = create<AppStore>()(
 
       setFlipDraftDefaults: (players, gameType) => set({ flipLastPlayers: players, flipLastGameType: gameType }),
 
+      setBluffDefaults: (patch) =>
+        set((state) => ({
+          bluffLastPlayers: patch.players ?? state.bluffLastPlayers,
+          bluffPseudo: patch.pseudo ?? state.bluffPseudo,
+        })),
+
       resetStore: () => {
         mmkv.remove('proker-app-store');
         set({
@@ -156,6 +169,8 @@ export const useAppStore = create<AppStore>()(
           rouletteLastPlayers: [],
           flipLastPlayers: [],
           flipLastGameType: 'holdem',
+          bluffLastPlayers: [],
+          bluffPseudo: '',
         });
       },
     }),
@@ -176,6 +191,8 @@ export const useAppStore = create<AppStore>()(
         rouletteLastPlayers: state.rouletteLastPlayers,
         flipLastPlayers: state.flipLastPlayers,
         flipLastGameType: state.flipLastGameType,
+        bluffLastPlayers: state.bluffLastPlayers,
+        bluffPseudo: state.bluffPseudo,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
@@ -200,6 +217,12 @@ export const useAppStore = create<AppStore>()(
           );
           state.stats = computeStats(state.sessions, state.stakes);
           state.bankrollHistory = computeBankrollHistory(state.sessions, state.stakes);
+          // Re-apply the persisted language choice — i18next inits with the device
+          // locale and would otherwise silently override the user's setting on boot.
+          // MMKV rehydration is synchronous, so this runs before the first frame.
+          if (state.user?.settings?.language) {
+            i18n.changeLanguage(state.user.settings.language);
+          }
         }
       },
     }

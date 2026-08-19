@@ -2,41 +2,46 @@ import { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, ChevronRight, PartyPopper, Trophy } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { MonthCalendar, toIso } from '../../src/components/planning/MonthCalendar';
-import type { CalendarMarker } from '../../src/components/planning/MonthCalendar';
+import { PlanningCalendar, toIso, startOfWeek, addDays, weekStartFor } from '../../src/components/planning/MonthCalendar';
+import type { CalendarMarker, CalendarMode } from '../../src/components/planning/MonthCalendar';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
 import { TournamentDetailModal } from '../../src/components/finder/TournamentDetailModal';
 import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
-import { formatAmount, formatDateRangeShort, formatDateShort } from '../../src/lib/format';
+import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
+import { formatAmount, formatDateRangeShort, formatDateShort, parseIsoDate } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament, TournamentSession } from '../../src/types';
 
 export default function PlanningScreen() {
+  const { t, i18n } = useTranslation('planning');
   const { colors } = useTheme();
   const router = useRouter();
+  const weekStart = weekStartFor(i18n.language);
   const {
     festivals, tournaments, sessions, players,
     likedFestivalIds, likedTournamentIds,
     addSession, addStake, addFestival, addTournament, addPlayer,
   } = useAppStore();
 
-  const animKey = useFocusAnimKey();
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const isActive = useIsActiveTab();
+  const [viewMode, setViewMode] = useState<CalendarMode>('month');
+  const [anchor, setAnchor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [addSessionTournament, setAddSessionTournament] = useState<Tournament | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const likedFestivals = useMemo(() => festivals.filter((f) => likedFestivalIds.includes(f.id)), [festivals, likedFestivalIds]);
-  const likedTournaments = useMemo(() => tournaments.filter((t) => likedTournamentIds.includes(t.id)), [tournaments, likedTournamentIds]);
-  const undatedLikedTournaments = useMemo(() => likedTournaments.filter((t) => !t.startDate), [likedTournaments]);
+  const likedTournaments = useMemo(() => tournaments.filter((tn) => likedTournamentIds.includes(tn.id)), [tournaments, likedTournamentIds]);
+  const undatedLikedTournaments = useMemo(() => likedTournaments.filter((tn) => !tn.startDate), [likedTournaments]);
 
   const markers = useMemo<CalendarMarker[]>(() => {
     const result: CalendarMarker[] = [];
@@ -46,21 +51,25 @@ export default function PlanningScreen() {
         result.push({ id: f.id, label: f.name, kind: 'festival', startDate: f.startDate, endDate: f.endDate ?? f.startDate, color });
       }
     });
-    for (const t of likedTournaments) {
-      if (t.startDate) result.push({ id: t.id, label: t.name, kind: 'tournament', startDate: t.startDate, endDate: t.startDate, color: colors.textSecondary });
+    for (const tn of likedTournaments) {
+      if (tn.startDate) result.push({ id: tn.id, label: tn.name, kind: 'tournament', startDate: tn.startDate, endDate: tn.endDate ?? tn.startDate, color: colors.textSecondary });
     }
     return result;
   }, [likedFestivals, likedTournaments, colors]);
 
-  const monthStartIso = toIso(new Date(month.getFullYear(), month.getMonth(), 1));
-  const monthEndIso = toIso(new Date(month.getFullYear(), month.getMonth() + 1, 0));
+  const rangeStartIso = viewMode === 'month'
+    ? toIso(new Date(anchor.getFullYear(), anchor.getMonth(), 1))
+    : toIso(startOfWeek(anchor, weekStart));
+  const rangeEndIso = viewMode === 'month'
+    ? toIso(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0))
+    : toIso(addDays(startOfWeek(anchor, weekStart), 6));
 
   const listMarkers = useMemo(() => {
     const source = selectedDate
       ? markers.filter((m) => m.startDate <= selectedDate && selectedDate <= m.endDate)
-      : markers.filter((m) => m.startDate <= monthEndIso && m.endDate >= monthStartIso);
+      : markers.filter((m) => m.startDate <= rangeEndIso && m.endDate >= rangeStartIso);
     return [...source].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
-  }, [markers, selectedDate, monthStartIso, monthEndIso]);
+  }, [markers, selectedDate, rangeStartIso, rangeEndIso]);
 
   const tournamentSessions = useMemo(
     () => sessions.filter((s): s is TournamentSession => s.type === 'tournament'),
@@ -75,7 +84,7 @@ export default function PlanningScreen() {
   const handleMarkerPress = useCallback(
     (marker: CalendarMarker) => {
       if (marker.kind === 'tournament') {
-        const tournament = tournaments.find((t) => t.id === marker.id);
+        const tournament = tournaments.find((tn) => tn.id === marker.id);
         if (tournament) setSelectedTournament(tournament);
       } else {
         router.push(`/festival/${marker.id}`);
@@ -92,7 +101,7 @@ export default function PlanningScreen() {
       if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
         addFestival(record.newFestival);
       }
-      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
+      if (record.newTournament && !tournaments.find((tn) => tn.id === record.newTournament!.id)) {
         addTournament(record.newTournament);
       }
       if (record.session) addSession(record.session);
@@ -103,59 +112,92 @@ export default function PlanningScreen() {
     [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
   );
 
-  const monthLabel = month.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const navigate = (dir: 1 | -1) => {
+    setAnchor((a) => (viewMode === 'month'
+      ? new Date(a.getFullYear(), a.getMonth() + dir, 1)
+      : addDays(a, dir * 7)));
+    setSelectedDate(null);
+  };
+
+  const handleModeChange = (mode: CalendarMode) => {
+    setViewMode(mode);
+    setAnchor((a) => {
+      const today = new Date();
+      const ref = selectedDate
+        ? parseIsoDate(selectedDate)
+        : today.getFullYear() === a.getFullYear() && today.getMonth() === a.getMonth()
+          ? today
+          : a;
+      return mode === 'week' ? startOfWeek(ref, weekStart) : new Date(ref.getFullYear(), ref.getMonth(), 1);
+    });
+  };
+
+  const headerLabel = viewMode === 'month'
+    ? new Intl.DateTimeFormat(i18n.language === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' }).format(anchor)
+    : `${formatDateRangeShort(rangeStartIso, rangeEndIso)} ${anchor.getFullYear()}`;
+
+  if (!isActive) return <View style={styles.screen} />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View key={animKey} style={styles.stack}>
+        <View style={styles.stack}>
 
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Planning</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
             <GlassCard padding={18}>
+              <View style={styles.modeToggle}>
+                <SegmentedControl
+                  options={[{ key: 'month' as const, label: t('month') }, { key: 'week' as const, label: t('week') }]}
+                  value={viewMode}
+                  onChange={handleModeChange}
+                />
+              </View>
               <View style={styles.monthRow}>
                 <TouchableOpacity
                   style={[styles.monthNav, { backgroundColor: colors.neutralTileBg }]}
-                  onPress={() => { setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1)); setSelectedDate(null); }}
+                  onPress={() => navigate(-1)}
                   activeOpacity={0.7}
                 >
                   <ChevronLeft size={16} color={colors.textSecondary} strokeWidth={2} />
                 </TouchableOpacity>
-                <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>{monthLabel}</Text>
+                <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>{headerLabel}</Text>
                 <TouchableOpacity
                   style={[styles.monthNav, { backgroundColor: colors.neutralTileBg }]}
-                  onPress={() => { setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1)); setSelectedDate(null); }}
+                  onPress={() => navigate(1)}
                   activeOpacity={0.7}
                 >
                   <ChevronRight size={16} color={colors.textSecondary} strokeWidth={2} />
                 </TouchableOpacity>
               </View>
-              <MonthCalendar
-                month={month}
+              <PlanningCalendar
+                anchor={anchor}
+                mode={viewMode}
                 markers={markers}
                 selectedDate={selectedDate}
                 onSelectDate={(date) => setSelectedDate((d) => (d === date ? null : date))}
+                onPressMarker={handleMarkerPress}
               />
             </GlassCard>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)} style={styles.section}>
             <SectionLabel style={styles.sectionLabel}>
-              {selectedDate ? formatDateShort(selectedDate) : 'Ce mois-ci'}
+              {selectedDate ? formatDateShort(selectedDate) : viewMode === 'week' ? t('thisWeek') : t('thisMonth')}
             </SectionLabel>
             {listMarkers.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-                  Aucun festival ou tournoi liké {selectedDate ? 'ce jour-là' : 'ce mois-ci'}
+                  {selectedDate ? t('emptyDay') : viewMode === 'week' ? t('emptyWeek') : t('emptyMonth')}
                 </Text>
               </View>
             ) : (
               <View style={styles.list}>
                 {listMarkers.map((marker) => {
-                  const tournament = marker.kind === 'tournament' ? tournaments.find((t) => t.id === marker.id) : undefined;
+                  const tournament = marker.kind === 'tournament' ? tournaments.find((tn) => tn.id === marker.id) : undefined;
                   return (
                     <TouchableOpacity key={`${marker.kind}-${marker.id}`} onPress={() => handleMarkerPress(marker)} activeOpacity={0.75}>
                       <GlassCard padding={14}>
@@ -170,7 +212,7 @@ export default function PlanningScreen() {
                           <View style={styles.markerInfo}>
                             <Text style={[styles.markerName, { color: colors.textPrimary }]} numberOfLines={1}>{marker.label}</Text>
                             <Text style={[styles.markerMeta, { color: colors.textTertiary }]}>
-                              {marker.kind === 'festival' ? formatDateRangeShort(marker.startDate, marker.endDate) : formatDateShort(marker.startDate)}
+                              {formatDateRangeShort(marker.startDate, marker.endDate)}
                               {tournament ? ` · ${formatAmount(tournament.buyIn)}` : ''}
                             </Text>
                           </View>
@@ -185,21 +227,21 @@ export default function PlanningScreen() {
 
           {undatedLikedTournaments.length > 0 && (
             <Animated.View entering={FadeInDown.delay(160).springify().damping(18).stiffness(140)} style={styles.section}>
-              <SectionLabel style={styles.sectionLabel}>Date à confirmer</SectionLabel>
+              <SectionLabel style={styles.sectionLabel}>{t('dateTbc')}</SectionLabel>
               <View style={styles.list}>
-                {undatedLikedTournaments.map((t) => {
-                  const festival = festivals.find((f) => f.id === t.festivalId);
+                {undatedLikedTournaments.map((tn) => {
+                  const festival = festivals.find((f) => f.id === tn.festivalId);
                   return (
-                    <TouchableOpacity key={`undated-${t.id}`} onPress={() => setSelectedTournament(t)} activeOpacity={0.75}>
+                    <TouchableOpacity key={`undated-${tn.id}`} onPress={() => setSelectedTournament(tn)} activeOpacity={0.75}>
                       <GlassCard padding={14}>
                         <View style={styles.markerRow}>
                           <View style={[styles.markerIcon, { backgroundColor: colors.neutralTileBg }]}>
                             <Trophy size={15} color={colors.textSecondary} strokeWidth={1.5} />
                           </View>
                           <View style={styles.markerInfo}>
-                            <Text style={[styles.markerName, { color: colors.textPrimary }]} numberOfLines={1}>{t.name}</Text>
+                            <Text style={[styles.markerName, { color: colors.textPrimary }]} numberOfLines={1}>{tn.name}</Text>
                             <Text style={[styles.markerMeta, { color: colors.textTertiary }]}>
-                              {festival ? `${festival.name} · ` : ''}{formatAmount(t.buyIn)}
+                              {festival ? `${festival.name} · ` : ''}{formatAmount(tn.buyIn)}
                             </Text>
                           </View>
                         </View>
@@ -261,6 +303,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.display,
     fontFamily: fontFamily.display,
     letterSpacing: -1,
+  },
+  modeToggle: {
+    marginBottom: spacing.md,
   },
   monthRow: {
     flexDirection: 'row',

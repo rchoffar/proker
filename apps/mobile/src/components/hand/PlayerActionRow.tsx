@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react-native';
 import { AmountInput } from '../ui/AmountInput';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import { initials, formatChips } from '../../lib/format';
-import type { ActionType, HandPlayer } from '../../types';
+import { initials, formatHandAmount } from '../../lib/format';
+import type { ActionType, HandPlayer, UnitMode } from '../../types';
 
 interface Props {
   player: HandPlayer;
@@ -17,26 +18,32 @@ interface Props {
   // label and the minimum a raise must clear, so whoever is recording the hand can actually
   // see what they're responding to instead of entering amounts blind.
   currentBet?: number;
+  unitMode?: UnitMode;
+  // What the player still has behind, and the largest "bet to" they can reach this street
+  // (contribution + behind). All-in commits maxTo directly, no amount typed.
+  remainingStack?: number;
+  maxTo?: number;
   disabled?: boolean;
   onAction: (type: ActionType, amount?: number) => void;
 }
 
-const LABELS: Record<ActionType, string> = {
-  fold: 'Fold',
-  check: 'Check',
-  call: 'Call',
-  bet: 'Miser',
-  raise: 'Relancer',
-  allin: 'All-in',
-  post: 'Poste',
-};
-
-// All-in must collect an amount too — otherwise it never updates the street's current bet,
-// so a call right after an all-in has nothing correct to match and the pot total silently
-// drops that player's chips entirely.
+// Bet/raise collect a typed amount. All-in commits maxTo directly when the player's stack is
+// known; with no stack set it still must collect an amount — otherwise it never updates the
+// street's current bet and the pot silently drops that player's chips entirely.
 const NEEDS_AMOUNT: ActionType[] = ['bet', 'raise', 'allin'];
 
-export function PlayerActionRow({ player, availableActions, position, currentBet = 0, disabled = false, onAction }: Props) {
+export function PlayerActionRow({
+  player,
+  availableActions,
+  position,
+  currentBet = 0,
+  unitMode = 'chips',
+  remainingStack,
+  maxTo,
+  disabled = false,
+  onAction,
+}: Props) {
+  const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   const [amountFor, setAmountFor] = useState<ActionType | null>(null);
   const [amount, setAmount] = useState('');
@@ -56,6 +63,10 @@ export function PlayerActionRow({ player, availableActions, position, currentBet
   };
 
   const handlePress = (type: ActionType) => {
+    if (type === 'allin' && maxTo !== undefined) {
+      onAction('allin', maxTo);
+      return;
+    }
     if (NEEDS_AMOUNT.includes(type)) {
       setAmountFor(type);
       setAmount('');
@@ -69,7 +80,8 @@ export function PlayerActionRow({ player, availableActions, position, currentBet
   // needs to be positive. Catches the "0€ raise" / "raise below the current bet" mistakes
   // that used to slip through silently since nothing validated the typed amount at all.
   const minAmount = amountFor === 'raise' ? currentBet : 0;
-  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > minAmount;
+  const overMax = maxTo !== undefined && parsedAmount > maxTo;
+  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > minAmount && !overMax;
 
   const confirmAmount = () => {
     if (!amountFor || !amountValid) return;
@@ -79,9 +91,32 @@ export function PlayerActionRow({ player, availableActions, position, currentBet
   };
 
   const actionLabel = (type: ActionType) => {
-    if (type === 'call' && currentBet > 0) return `Call ${formatChips(currentBet)}`;
-    return LABELS[type];
+    // A short stack's call is capped at what they can actually put in — label the real amount.
+    if (type === 'call' && currentBet > 0)
+      return t('actionButtons.callAmount', {
+        amount: formatHandAmount(maxTo !== undefined ? Math.min(currentBet, maxTo) : currentBet, unitMode),
+      });
+    if (type === 'allin' && maxTo !== undefined)
+      return t('actionButtons.allinAmount', { amount: formatHandAmount(maxTo, unitMode) });
+    return t(`actionButtons.${type}`);
   };
+
+  // Whole-sentence hint per combination — never assembled from dash-joined fragments.
+  const amountHint = (() => {
+    const amountLabel = formatHandAmount(currentBet, unitMode);
+    const maxLabel = maxTo !== undefined ? formatHandAmount(maxTo, unitMode) : undefined;
+    if (currentBet > 0 && amountFor === 'raise') {
+      return maxLabel !== undefined
+        ? t('amountHint.minRaiseMax', { amount: amountLabel, max: maxLabel })
+        : t('amountHint.minRaise', { amount: amountLabel });
+    }
+    if (currentBet > 0) {
+      return maxLabel !== undefined
+        ? t('amountHint.currentBetMax', { amount: amountLabel, max: maxLabel })
+        : t('amountHint.currentBet', { amount: amountLabel });
+    }
+    return maxLabel !== undefined ? t('amountHint.maxOnly', { max: maxLabel }) : '';
+  })();
 
   return (
     <View style={[styles.wrap, disabled && styles.disabled]}>
@@ -93,6 +128,11 @@ export function PlayerActionRow({ player, availableActions, position, currentBet
           {player.name}
           {position ? ` (${position})` : ''}
         </Text>
+        {remainingStack !== undefined && (
+          <Text style={[styles.stackText, { color: colors.textTertiary }]}>
+            {t('stack', { amount: formatHandAmount(remainingStack, unitMode) })}
+          </Text>
+        )}
       </View>
 
       {!disabled && (
@@ -112,15 +152,12 @@ export function PlayerActionRow({ player, availableActions, position, currentBet
 
       {amountFor && (
         <View style={styles.amountGroup}>
-          {currentBet > 0 && (
-            <Text style={[styles.amountHint, { color: colors.textTertiary }]}>
-              Mise actuelle : {formatChips(currentBet)}
-              {amountFor === 'raise' ? ` — relance min. ${formatChips(currentBet + 1)}` : ''}
-            </Text>
+          {(currentBet > 0 || maxTo !== undefined) && (
+            <Text style={[styles.amountHint, { color: overMax ? colors.loss : colors.textTertiary }]}>{amountHint}</Text>
           )}
           <View style={styles.amountRow}>
             <View style={styles.amountField}>
-              <AmountInput value={amount} onChange={setAmount} placeholder="Montant" />
+              <AmountInput value={amount} onChange={setAmount} placeholder={t('amountPlaceholder')} unit={unitMode === 'bb' ? 'BB' : ''} allowDecimal={unitMode === 'bb'} />
             </View>
             <TouchableOpacity
               style={[styles.confirmBtn, { backgroundColor: colors.accentBright }, !amountValid && styles.confirmBtnDisabled]}
@@ -165,6 +202,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     fontFamily: fontFamily.semibold,
     flex: 1,
+  },
+  stackText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.medium,
   },
   actions: {
     flexDirection: 'row',

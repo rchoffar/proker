@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SectionLabel } from '../ui/SectionLabel';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -13,6 +14,7 @@ interface MultiFilterChipGroupProps {
 
 export function MultiFilterChipGroup({ title, options, selected, onToggle, onClear }: MultiFilterChipGroupProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation('finder');
   const isAll = selected.length === 0;
 
   return (
@@ -29,7 +31,7 @@ export function MultiFilterChipGroup({ title, options, selected, onToggle, onCle
           activeOpacity={0.7}
         >
           <Text style={[styles.label, { color: isAll ? colors.accent : colors.textSecondary }, isAll && { fontFamily: fontFamily.semibold }]}>
-            Tout
+            {t('filters.all')}
           </Text>
         </TouchableOpacity>
         {options.map((opt) => {

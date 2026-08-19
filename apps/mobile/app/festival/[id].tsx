@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -15,7 +16,7 @@ import { TournamentDetailModal } from '../../src/components/finder/TournamentDet
 import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
 import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
-import { formatAmount, formatDateRange, formatLevelDuration } from '../../src/lib/format';
+import { formatAmount, formatChips, formatDateRange, formatLevelDuration } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament, TournamentSession } from '../../src/types';
@@ -46,7 +47,7 @@ function TournamentRow({
               {tournament.totalPlayers ? (
                 <View style={styles.playersRow}>
                   <Users size={11} color={colors.textTertiary} strokeWidth={1.5} />
-                  <Text style={[styles.playersText, { color: colors.textTertiary }]}>{tournament.totalPlayers.toLocaleString('fr-FR')}</Text>
+                  <Text style={[styles.playersText, { color: colors.textTertiary }]}>{formatChips(tournament.totalPlayers)}</Text>
                 </View>
               ) : null}
             </View>
@@ -60,6 +61,7 @@ function TournamentRow({
 
 export default function FestivalDetailScreen() {
   const { colors } = useTheme();
+  const { t: tr } = useTranslation('finder');
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
@@ -128,7 +130,7 @@ export default function FestivalDetailScreen() {
           >
             <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Festival introuvable</Text>
+          <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>{tr('festival.notFound')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -178,17 +180,17 @@ export default function FestivalDetailScreen() {
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: colors.textPrimary }]}>{minBuyIn !== null ? formatAmount(minBuyIn) : '—'}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textTertiary }]} numberOfLines={1}>{smallestTournament?.name ?? 'Plus petit'}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textTertiary }]} numberOfLines={1}>{smallestTournament?.name ?? tr('festival.smallest')}</Text>
                   </View>
                   <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                   <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: colors.textPrimary }]}>{maxBuyIn !== null ? formatAmount(maxBuyIn) : '—'}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textTertiary }]} numberOfLines={1}>{biggestTournament?.name ?? 'Plus gros'}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textTertiary }]} numberOfLines={1}>{biggestTournament?.name ?? tr('festival.biggest')}</Text>
                   </View>
                   <View style={[styles.statDivider, { backgroundColor: colors.hairline }]} />
                   <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: colors.textPrimary }]}>{festivalTournaments.length}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Tournois</Text>
+                    <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{tr('festival.tournaments')}</Text>
                   </View>
                 </View>
               </GlassCard>
@@ -211,18 +213,18 @@ export default function FestivalDetailScreen() {
                         <View style={styles.mainEventMetaItem}>
                           <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
                           <Text style={[styles.mainEventMetaText, { color: colors.textTertiary }]}>
-                            {formatLevelDuration(mainEvent.blindStructure.levels)} / niveau
+                            {tr('festival.perLevel', { duration: formatLevelDuration(mainEvent.blindStructure.levels) })}
                           </Text>
                         </View>
                       ) : null}
                       {mainEvent.guaranteed ? (
-                        <Pill label={`${formatAmount(mainEvent.guaranteed)} garantis`} tone="accent" />
+                        <Pill label={tr('festival.guaranteed', { amount: formatAmount(mainEvent.guaranteed) })} tone="accent" />
                       ) : null}
                     </View>
                   ) : null}
                   {mainEvent.blindStructure ? (
                     <View style={styles.mainEventHint}>
-                      <Text style={[styles.mainEventHintText, { color: colors.textTertiary }]}>Voir la structure de blindes</Text>
+                      <Text style={[styles.mainEventHintText, { color: colors.textTertiary }]}>{tr('festival.viewBlindStructure')}</Text>
                       <ChevronRight size={14} color={colors.textTertiary} strokeWidth={1.8} />
                     </View>
                   ) : null}
@@ -233,7 +235,7 @@ export default function FestivalDetailScreen() {
 
           {otherTournaments.length > 0 && (
             <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)} style={styles.tournamentsSection}>
-              <SectionLabel style={styles.sectionLabel}>Autres tournois</SectionLabel>
+              <SectionLabel style={styles.sectionLabel}>{tr('festival.otherTournaments')}</SectionLabel>
               <View style={styles.tournamentsList}>
                 {otherTournaments.map((t) => (
                   <TournamentRow

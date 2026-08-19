@@ -12,6 +12,7 @@ interface BuyInFieldProps {
   onChange: (v: string) => void;
   presets?: number[];
   inferred?: boolean;
+  /** Shown when `inferred` — pass a translated string (no default: this UI component stays i18n-agnostic). */
   inferredNote?: string;
 }
 
@@ -21,7 +22,7 @@ export function BuyInField({
   onChange,
   presets = DEFAULT_PRESETS,
   inferred = false,
-  inferredNote = 'Défini automatiquement par le tournoi',
+  inferredNote,
 }: BuyInFieldProps) {
   const { colors } = useTheme();
 
@@ -32,10 +33,12 @@ export function BuyInField({
           <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
           <Text style={[styles.inferredValue, { color: colors.textPrimary }]}>{value || '0'} €</Text>
         </View>
-        <View style={styles.noteRow}>
-          <Info size={12} color={colors.textTertiary} strokeWidth={1.8} />
-          <Text style={[styles.note, { color: colors.textTertiary }]}>{inferredNote}</Text>
-        </View>
+        {inferredNote ? (
+          <View style={styles.noteRow}>
+            <Info size={12} color={colors.textTertiary} strokeWidth={1.8} />
+            <Text style={[styles.note, { color: colors.textTertiary }]}>{inferredNote}</Text>
+          </View>
+        ) : null}
       </View>
     );
   }

@@ -1,4 +1,4 @@
-# Proker — Architecture Decision Records
+# UPK (ex-Proker) — Architecture Decision Records
 
 > Decisions made during collaborative build sessions. Each ADR captures what was decided, why, and what was ruled out.
 
@@ -190,7 +190,7 @@ loaded via `@expo-google-fonts/jost` and `@expo-google-fonts/geist`.
 ## ADR-010 — Data Strategy: Local JSON → MMKV, No Backend in V1
 
 **Date:** 2026-06-24
-**Status:** Decided
+**Status:** Partially superseded by ADR-013 (auth + users DB on the Fly API; tracker/festival data still local)
 
 **Decision:** All user data stored locally. Mock tournament/finder data in static JSON files.
 
@@ -437,3 +437,59 @@ that mattered.
   at the root: this was the intermediate fix for the black-background bug above, but it causes a
   Skia shader-recompile flash on every first visit to a pushed screen — superseded by the single
   root mount, see Addendum 2
+
+---
+
+## ADR-013 — Auth: self-hosted Google/Apple sign-in on the Fly relay + SQLite users DB
+
+**Date:** 2026-08-18
+**Status:** Decided (partially supersedes ADR-010's "no backend / no auth")
+
+**Decision:** The app is gated behind a login screen (Sign in with Apple + Google, iOS only for
+now). The existing Fly.io relay (`apps/api`, app `proker-bluff-relay`) grows a small HTTP API:
+it verifies the provider identity token server-side (`jose` + remote JWKS, audience = iOS client
+ID / bundle ID), upserts a `users` row in SQLite (`better-sqlite3`, WAL, file on a 1 GB Fly
+volume `proker_data` mounted at `/data`), and issues its own stateless HS256 session JWT
+(~180 days, `AUTH_JWT_SECRET` Fly secret). Endpoints: `POST /auth/google`, `POST /auth/apple`,
+`GET /me`, `PATCH /me { pseudo }`. Mobile side: `useAuthStore` (zustand + MMKV cache of the
+profile, token in `expo-secure-store` only), `Stack.Protected` guards in the root layout
+(login → choose-pseudo → app), native modules `expo-apple-authentication` +
+`@react-native-google-signin/google-signin`. The account pseudo replaces the mock name /
+"Moi" everywhere (profile, dashboard avatar, hand-replayer hero, Bluff prefill).
+
+**Why:**
+- User accounts (email + pseudo) are the first server-side data; everything else (sessions,
+  stakes, festivals) stays local per ADR-010's migration path
+- Self-hosted beats Supabase/Firebase here: the Fly app already exists, four endpoints and one
+  table don't justify a third-party dependency, and data stays on our infra
+- SQLite-on-volume beats managed Postgres: essentially free, zero ops, and the single-machine
+  constraint already exists for the socket.io rooms
+- Stateless JWT beats a sessions table: survives scale-to-zero restarts with no DB lookup,
+  logout is client-side token deletion
+
+**Ruled out:**
+- Managed auth (Supabase/Firebase/Clerk): less code but a new external dependency + dashboard
+- Fly Managed Postgres: ~$5+/month and overkill for one users table
+- expo-auth-session for Google: browser-bounce UX; the dev-client already tolerates native modules
+- Syncing pseudo into `useAppStore.user.name`: dual-writes invite drift; display sites read
+  `authUser.pseudo ?? user.name` instead
+
+**Operational notes:** Dockerfile moved to `node:22-bookworm-slim` (better-sqlite3 prebuilt glibc
+binary). `db.close()` added to the SIGINT/SIGTERM handler so the WAL checkpoints before Fly stops
+the machine. Rotating `AUTH_JWT_SECRET` signs everyone out. Apple only sends the email claim on
+first authorization — the upsert `COALESCE`s and the client forwards `credential.email`.
+App Store follow-up: account deletion (guideline 5.1.1(v)) is required before shipping sign-in
+to production — `DELETE /me` is not implemented yet.
+
+**Addendum (2026-08-18) — rename Proker → Ultimate Poker Kit (UPK), done BEFORE any external
+resource was created:** display name "UPK" (home screen) / "Ultimate Poker Kit" (login wordmark,
+share cards), bundle identifier & Android package `fr.proker.app` → `fr.upk.app`
+(`APPLE_BUNDLE_ID` default updated to match), Fly app `proker-bluff-relay` → `upk-api`
+(new app — Fly can't rename; the old one can be destroyed once `upk-api` is deployed), volume
+`upk_data`, DB `/data/upk.db`, packages `@upk/api` / `@upk/shared-types`. Deliberately kept:
+slug/scheme `proker` (EAS project binding, invisible deep-link scheme) and all local persistence
+keys (`proker` MMKV ids, `proker-app-store`/`proker-auth-store`, `proker-session-token`) —
+renaming those would wipe local data/log users out for zero user-visible benefit. Since the
+Google OAuth client, Apple Sign-In capability, and Fly volume/secrets had not been created yet,
+nothing external was invalidated. Auth screens were also migrated to a new `auth` i18n namespace
+(they predated the i18n mandate).

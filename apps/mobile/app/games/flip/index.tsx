@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, X } from 'lucide-react-native';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
-import { PickerField, SearchCreateList } from '../../../src/components/ui/PickerField';
+import { SearchCreateList } from '../../../src/components/ui/PickerField';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
 import type { FlipGameType } from '../../../src/lib/pokerHandEvaluator';
@@ -22,6 +23,7 @@ const GAME_TYPE_OPTIONS: { key: FlipGameType; label: string }[] = [
 ];
 
 export default function FlipSetupScreen() {
+  const { t } = useTranslation('games');
   const { colors } = useTheme();
   const router = useRouter();
   const { players, addPlayer, flipLastPlayers, flipLastGameType, setFlipDraftDefaults } = useAppStore();
@@ -29,7 +31,6 @@ export default function FlipSetupScreen() {
 
   const [selected, setSelected] = useState<Player[]>(flipLastPlayers);
   const [gameType, setGameType] = useState<FlipGameType>(flipLastGameType);
-  const [pickerExpanded, setPickerExpanded] = useState(false);
   const [query, setQuery] = useState('');
 
   const canDeal = selected.length >= MIN_PLAYERS && selected.length <= MAX_PLAYERS;
@@ -39,7 +40,6 @@ export default function FlipSetupScreen() {
     if (atMax) return;
     setSelected((prev) => (prev.some((p) => p.id === player.id) ? prev : [...prev, player]));
     setQuery('');
-    setPickerExpanded(false);
   };
 
   const removeFromSelection = (id: string) => {
@@ -76,7 +76,7 @@ export default function FlipSetupScreen() {
         <View style={styles.stack}>
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}>
             <Text style={[styles.subtitle, { color: colors.textTertiary }]}>
-              2 à 6 joueurs, cartes distribuées à tous, le flop puis le turn puis la river se révèlent un par un. La main la plus faible paie.
+              {t('flip.subtitle')}
             </Text>
           </Animated.View>
 
@@ -104,7 +104,7 @@ export default function FlipSetupScreen() {
             <GlassCard padding={16}>
               <View style={styles.chipGrid}>
                 {selected.length === 0 ? (
-                  <Text style={[styles.emptyText, { color: colors.textTertiary }]}>Aucun joueur pour l’instant</Text>
+                  <Text style={[styles.emptyText, { color: colors.textTertiary }]}>{t('setup.noPlayersYet')}</Text>
                 ) : (
                   selected.map((p) => (
                     <View key={p.id} style={[styles.playerChip, { borderColor: colors.accent, backgroundColor: colors.accentTint }]}>
@@ -120,14 +120,9 @@ export default function FlipSetupScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
-            <PickerField
-              label={`Ajouter un joueur${atMax ? ' (max atteint)' : ''}`}
-              value=""
-              placeholder="Chercher ou créer un joueur…"
-              expanded={pickerExpanded && !atMax}
-              onToggleExpand={() => setPickerExpanded((e) => !e)}
-              disabled={atMax}
-            >
+            {atMax ? (
+              <Text style={[styles.emptyText, { color: colors.textTertiary }]}>{t('flip.maxPlayersReached')}</Text>
+            ) : (
               <SearchCreateList
                 items={availableNames}
                 selected=""
@@ -138,9 +133,9 @@ export default function FlipSetupScreen() {
                   if (existing) addToSelection(existing);
                 }}
                 onCreate={(name) => addToSelection({ id: `p-${Date.now()}`, name })}
-                placeholder="Chercher ou créer un joueur…"
+                placeholder={t('setup.searchPlaceholder')}
               />
-            </PickerField>
+            )}
           </Animated.View>
 
           <View style={{ height: 100 }} />
@@ -154,7 +149,7 @@ export default function FlipSetupScreen() {
           disabled={!canDeal}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Distribuer les cartes</Text>
+          <Text style={styles.primaryBtnText}>{t('flip.dealCards')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

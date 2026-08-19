@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, Dimensions, LayoutChangeEvent } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { GlassCard } from '../ui/GlassCard';
 import { PlayingCard } from './PlayingCard';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import { formatChips } from '../../lib/format';
+import { formatHandAmount } from '../../lib/format';
 import type { HandHistory, Street } from '../../types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -20,39 +22,22 @@ interface Props {
   onReady?: (size: { width: number; height: number }) => void;
 }
 
-const STREET_LABELS: Record<Street, string> = {
-  preflop: 'Preflop',
-  flop: 'Flop',
-  turn: 'Turn',
-  river: 'River',
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  fold: 'fold',
-  check: 'check',
-  call: 'call',
-  bet: 'mise',
-  raise: 'relance',
-  allin: 'all-in',
-  post: 'poste',
-};
-
-function streetSummary(hand: HandHistory, street: Street): string {
+function streetSummary(hand: HandHistory, street: Street, t: TFunction<'replayer'>): string {
   const streetActions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
   if (streetActions.length === 0) return '';
   return streetActions
     .map((a) => {
       const player = hand.players.find((p) => p.id === a.playerId);
-      const amount = a.amount ? ` ${formatChips(a.amount)}` : '';
+      const amount = a.amount ? ` ${formatHandAmount(a.amount, hand.unitMode)}` : '';
       const position = player?.position ? ` (${player.position})` : '';
       if (a.type === 'post') return `${player?.name ?? '?'}${position}${amount}`;
-      const label = ACTION_LABELS[a.type] ?? a.type;
-      return `${player?.name ?? '?'}${position} ${label}${amount}`;
+      return `${player?.name ?? '?'}${position} ${t(`poker:actions.${a.type}`)}${amount}`;
     })
     .join(' · ');
 }
 
 export function HandRecapCard({ hand, onReady }: Props) {
+  const { t } = useTranslation('replayer');
   const { colors } = useTheme();
   const hero = hand.players.find((p) => p.isHero);
   const winner = hand.winnerId ? hand.players.find((p) => p.id === hand.winnerId) : undefined;
@@ -60,7 +45,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
   const boardCards = [...(hand.board.flop ?? []), hand.board.turn, hand.board.river].filter(Boolean);
 
   const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
-  const summaries = streets.map((s) => ({ street: s, text: streetSummary(hand, s) })).filter((s) => s.text);
+  const summaries = streets.map((s) => ({ street: s, text: streetSummary(hand, s, t) })).filter((s) => s.text);
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -70,11 +55,11 @@ export function HandRecapCard({ hand, onReady }: Props) {
   return (
     <View style={[styles.outer, { width: CARD_WIDTH }]} collapsable={false} onLayout={handleLayout}>
       <GlassCard variant="dark" padding={22} style={styles.card}>
-        <Text style={[styles.title, { color: colors.onDarkPrimary }]}>{hand.title ?? 'Une main à raconter'}</Text>
+        <Text style={[styles.title, { color: colors.onDarkPrimary }]}>{hand.title ?? t('untitledHand')}</Text>
         {hand.stakes ? <Text style={[styles.stakes, { color: colors.onDarkSecondary }]}>{hand.stakes}</Text> : null}
 
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>Mes cartes</Text>
+          <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>{t('steps.myCards')}</Text>
           <View style={styles.cardsRow}>
             {hero?.holeCards ? (
               hero.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)
@@ -86,7 +71,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
 
         {boardCards.length > 0 && (
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>Board</Text>
+            <Text style={[styles.sectionLabel, { color: colors.onDarkTertiary }]}>{t('steps.board')}</Text>
             <View style={styles.cardsRow}>
               {boardCards.map((c, i) => (
                 // Smaller once turn/river join the flop — keeps 5 cards + gaps comfortably
@@ -101,7 +86,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
           <View style={styles.section}>
             {summaries.map(({ street, text }) => (
               <Text key={street} style={[styles.actionLine, { color: colors.onDarkSecondary }]} numberOfLines={2}>
-                <Text style={{ color: colors.onDarkTertiary }}>{STREET_LABELS[street]} — </Text>
+                <Text style={{ color: colors.onDarkTertiary }}>{t(`poker:phases.${street}`)} — </Text>
                 {text}
               </Text>
             ))}
@@ -111,11 +96,13 @@ export function HandRecapCard({ hand, onReady }: Props) {
         <View style={[styles.resultBox, { borderColor: colors.onDarkHairline }]}>
           {winner ? (
             <Text style={[styles.resultText, { color: colors.accentBright }]}>
-              {winner.name} remporte {finalPot ? formatChips(finalPot) : 'la main'}
+              {finalPot
+                ? t('winsAmount', { name: winner.name, amount: formatHandAmount(finalPot, hand.unitMode) })
+                : t('winsHand', { name: winner.name })}
             </Text>
           ) : (
             <Text style={[styles.resultText, { color: colors.onDarkSecondary }]}>
-              {finalPot ? `Pot final : ${formatChips(finalPot)}` : 'Main terminée'}
+              {finalPot ? t('finalPot', { amount: formatHandAmount(finalPot, hand.unitMode) }) : t('handOver')}
             </Text>
           )}
           {hand.winningHandDescription ? (
@@ -123,7 +110,7 @@ export function HandRecapCard({ hand, onReady }: Props) {
           ) : null}
         </View>
 
-        <Text style={[styles.wordmark, { color: colors.onDarkTertiary }]}>Proker</Text>
+        <Text style={[styles.wordmark, { color: colors.onDarkTertiary }]}>Ultimate Poker Kit</Text>
       </GlassCard>
     </View>
   );

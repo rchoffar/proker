@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E9E62" />
+      <stop offset="100%" stop-color="#17E58A" />
+    </linearGradient>
+  </defs>
+
+  <!-- chip rim -->
+  <circle cx="100" cy="100" r="58" fill="url(#emeraldGrad)" />
+
+  <!-- edge spots -->
+  <g fill="#0A0A0F">
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(0)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(45)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(90)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(135)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(180)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(225)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(270)" />
+    <rect x="-5" y="-56" width="10" height="16" rx="3" transform="translate(100,100) rotate(315)" />
+  </g>
+
+  <!-- chip face -->
+  <circle cx="100" cy="100" r="42" fill="#0A0A0F" />
+
+  <!-- inlay ring -->
+  <circle cx="100" cy="100" r="34" fill="none" stroke="url(#emeraldGrad)" stroke-width="4" />
+</svg>

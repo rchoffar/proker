@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { GlassCard } from '../ui/GlassCard';
 import { Pill } from '../ui/Pill';
 import { fontFamily, fontSize } from '../../design-system/theme';
@@ -10,9 +11,12 @@ interface Props {
   icon: React.ReactNode;
   comingSoon?: boolean;
   onPress?: () => void;
+  // Remplace le libellé du pill par défaut (Découvrir / Bientôt) — ex. tuiles tracker du dashboard.
+  pillLabel?: string;
 }
 
-export function GameTile({ name, description, icon, comingSoon = true, onPress }: Props) {
+export function GameTile({ name, description, icon, comingSoon = true, onPress, pillLabel }: Props) {
+  const { t } = useTranslation('degen');
   const { colors } = useTheme();
 
   const content = (
@@ -21,10 +25,12 @@ export function GameTile({ name, description, icon, comingSoon = true, onPress }
         <View style={[styles.iconWrap, { backgroundColor: colors.neutralTileBg }]}>{icon}</View>
         <Text style={[styles.name, { color: colors.textPrimary }]}>{name}</Text>
         <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={2}>{description}</Text>
-        {comingSoon ? (
-          <Pill label="Bientôt disponible" style={styles.pill} />
+        {pillLabel ? (
+          <Pill label={pillLabel} tone="accent" style={styles.pill} />
+        ) : comingSoon ? (
+          <Pill label={t('tile.comingSoon')} style={styles.pill} />
         ) : (
-          <Pill label="Découvrir" tone="accent" style={styles.pill} />
+          <Pill label={t('tile.discover')} tone="accent" style={styles.pill} />
         )}
       </View>
     </GlassCard>

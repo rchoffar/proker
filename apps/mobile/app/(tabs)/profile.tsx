@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
@@ -12,26 +13,16 @@ import { MetricGauge } from '../../src/components/ui/MetricGauge';
 import { AreaChart } from '../../src/components/charts/AreaChart';
 import { BarChart } from '../../src/components/charts/BarChart';
 import { useAppStore } from '../../src/store/useAppStore';
-import { useFocusAnimKey } from '../../src/hooks/useFocusAnimKey';
+import { useAuthStore } from '../../src/store/useAuthStore';
+import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
 import { computeWindowedStats, computeWeeklyVolume } from '../../src/lib/stats';
+import { formatAmount, initials } from '../../src/lib/format';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import i18n from '../../src/i18n';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
-}
-
-function formatCurrency(val: number, decimals = 0): string {
-  const abs = Math.abs(val);
-  const sign = val < 0 ? '-' : '';
-  return `${sign}${abs.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
-}
+// Native language names — deliberately NOT translated (a language is always named in itself).
+const LANGUAGE_NAMES: Record<'fr' | 'en', string> = { fr: 'Français', en: 'English' };
 
 function SettingRow({
   label,
@@ -66,9 +57,14 @@ function Divider() {
 }
 
 export default function ProfileScreen() {
+  const { t } = useTranslation('profile');
   const { colors, scheme, toggleScheme } = useTheme();
   const { user, stats, bankrollHistory, sessions, stakes, updateUser, resetStore } = useAppStore();
-  const animKey = useFocusAnimKey();
+  const authUser = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
+  const displayName = authUser?.pseudo ?? user.name;
+  const isActive = useIsActiveTab();
 
   const isMonthPositive = stats.thisMonthProfit >= 0;
   const isProfitPositive = stats.totalProfit >= 0;
@@ -100,24 +96,56 @@ export default function ProfileScreen() {
     updateUser({ settings: { ...user.settings, notifications: value } });
   }, [user.settings, updateUser]);
 
-  const handleReset = useCallback(() => {
+  const handleSignOut = useCallback(() => {
     Alert.alert(
-      'Réinitialiser les données',
-      'Cette action efface toutes les sessions et stakes, et restaure les données de démo. Continuer ?',
+      t('signOutAlert.title'),
+      t('signOutAlert.body'),
       [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Réinitialiser', style: 'destructive', onPress: resetStore },
+        { text: t('common:cancel'), style: 'cancel' },
+        { text: t('signOutAlert.confirm'), style: 'destructive', onPress: () => signOut() },
       ]
     );
-  }, [resetStore]);
+  }, [signOut, t]);
+
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      t('deleteAccountAlert.title'),
+      t('deleteAccountAlert.body'),
+      [
+        { text: t('common:cancel'), style: 'cancel' },
+        {
+          text: t('deleteAccountAlert.confirm'),
+          style: 'destructive',
+          onPress: () => {
+            deleteAccount().catch(() => {
+              Alert.alert(t('deleteAccountAlert.title'), t('deleteAccountAlert.error'));
+            });
+          },
+        },
+      ]
+    );
+  }, [deleteAccount, t]);
+
+  const handleReset = useCallback(() => {
+    Alert.alert(
+      t('resetAlert.title'),
+      t('resetAlert.body'),
+      [
+        { text: t('common:cancel'), style: 'cancel' },
+        { text: t('resetAlert.confirm'), style: 'destructive', onPress: resetStore },
+      ]
+    );
+  }, [resetStore, t]);
+
+  if (!isActive) return <View style={styles.screen} />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View key={animKey} style={styles.stack}>
+        <View style={styles.stack}>
 
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Profil</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
           </Animated.View>
 
           {/* Identity card */}
@@ -125,11 +153,13 @@ export default function ProfileScreen() {
             <GlassCard variant="dark" padding={20}>
               <View style={styles.identityCard}>
                 <View style={[styles.avatar, { backgroundColor: colors.onDarkHairline }]}>
-                  <Text style={[styles.avatarText, { color: colors.onDarkPrimary }]}>{initials(user.name)}</Text>
+                  <Text style={[styles.avatarText, { color: colors.onDarkPrimary }]}>{initials(displayName)}</Text>
                 </View>
                 <View>
-                  <Text style={[styles.identityName, { color: colors.onDarkPrimary }]}>{user.name}</Text>
-                  <Text style={[styles.identitySub, { color: colors.onDarkTertiary }]}>Joueur pro · Paris</Text>
+                  <Text style={[styles.identityName, { color: colors.onDarkPrimary }]}>{displayName}</Text>
+                  <Text style={[styles.identitySub, { color: colors.onDarkTertiary }]}>
+                    {authUser?.email ?? t('identityFallback')}
+                  </Text>
                 </View>
               </View>
             </GlassCard>
@@ -140,21 +170,21 @@ export default function ProfileScreen() {
             <GlassCard variant="dark" style={styles.heroCard} padding={24}>
               <GlowBlob />
               <View style={styles.heroHeader}>
-                <SectionLabel tone="dark">Profit total</SectionLabel>
+                <SectionLabel tone="dark">{t('totalProfit')}</SectionLabel>
                 <Text style={[styles.heroCurrency, { color: colors.onDarkTertiary }]}>EUR</Text>
               </View>
               <AnimatedNumber
                 value={stats.totalProfit}
-                formatFn={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(Math.abs(v))}`}
-                style={[styles.heroValue, { color: colors.accentBright }]}
+                formatFn={(v) => `${v >= 0 ? '+' : '-'}${formatAmount(v)}`}
+                style={[styles.heroValue, { color: isProfitPositive ? colors.accentBright : colors.loss }]}
               />
               <View style={styles.heroFooter}>
                 <StatBadge
                   tone="dark"
-                  value={`${isMonthPositive ? '↗ +' : '↘ '}${formatCurrency(Math.abs(stats.thisMonthProfit))}`}
+                  value={`${isMonthPositive ? '↗ +' : '↘ '}${formatAmount(stats.thisMonthProfit)}`}
                   trend={isMonthPositive ? 'up' : 'down'}
                 />
-                <Text style={[styles.heroFooterText, { color: colors.onDarkTertiary }]}>ce mois-ci</Text>
+                <Text style={[styles.heroFooterText, { color: colors.onDarkTertiary }]}>{t('thisMonth')}</Text>
               </View>
               {bankrollHistory.length > 1 && (
                 <View style={styles.heroSparkline}>
@@ -168,7 +198,7 @@ export default function ProfileScreen() {
           <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)} style={styles.gaugesRow}>
             <GlassCard style={styles.halfCard} padding={18}>
               <View style={styles.gaugeCardInner}>
-                <SectionLabel>ROI · 90 j</SectionLabel>
+                <SectionLabel>{t('roiDays', { days: 90 })}</SectionLabel>
                 <View style={styles.gaugeWrap}>
                   <MetricGauge
                     value={roiSweep}
@@ -180,7 +210,7 @@ export default function ProfileScreen() {
             </GlassCard>
             <GlassCard style={styles.halfCard} padding={18}>
               <View style={styles.gaugeCardInner}>
-                <SectionLabel>ITM · 90 j</SectionLabel>
+                <SectionLabel>{t('itmDays', { days: 90 })}</SectionLabel>
                 <View style={styles.gaugeWrap}>
                   <MetricGauge
                     value={windowed90d.itmRate}
@@ -197,10 +227,14 @@ export default function ProfileScreen() {
             <GlassCard padding={20}>
               <View style={styles.cardHeaderRow}>
                 <View>
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Volume · {now.toLocaleDateString('fr-FR', { month: 'long' })}</Text>
-                  <SectionLabel style={styles.cardCaption}>Réparti par semaine</SectionLabel>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                    {t('volumeTitle', {
+                      month: new Intl.DateTimeFormat(i18n.language === 'fr' ? 'fr-FR' : 'en-US', { month: 'long' }).format(now),
+                    })}
+                  </Text>
+                  <SectionLabel style={styles.cardCaption}>{t('byWeek')}</SectionLabel>
                 </View>
-                <Text style={[styles.volumeValue, { color: colors.textPrimary }]}>{monthHours.toFixed(0)}h</Text>
+                <Text style={[styles.volumeValue, { color: colors.textPrimary }]}>{t('hoursShort', { hours: monthHours.toFixed(0) })}</Text>
               </View>
               <View style={styles.chartSpacer}>
                 <BarChart data={weeklyVolume} height={90} />
@@ -213,17 +247,17 @@ export default function ProfileScreen() {
             <GlassCard padding={20}>
               <View style={styles.cardHeaderRow}>
                 <View>
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Évolution</Text>
-                  <SectionLabel style={styles.cardCaption}>30 derniers jours</SectionLabel>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('evolution')}</Text>
+                  <SectionLabel style={styles.cardCaption}>{t('lastDays', { days: 30 })}</SectionLabel>
                 </View>
                 <Text style={[styles.evolutionDelta, { color: evolutionDelta >= 0 ? colors.accent : colors.loss }]}>
-                  {evolutionDelta >= 0 ? '+' : ''}{formatCurrency(evolutionDelta)}
+                  {evolutionDelta >= 0 ? '+' : '-'}{formatAmount(evolutionDelta)}
                 </Text>
               </View>
               {last30d.length > 1 ? (
                 <AreaChart data={last30d} height={110} tone="light" color={evolutionDelta >= 0 ? undefined : colors.loss} />
               ) : (
-                <Text style={[styles.emptyChartText, { color: colors.textTertiary }]}>Pas encore assez de données</Text>
+                <Text style={[styles.emptyChartText, { color: colors.textTertiary }]}>{t('notEnoughData')}</Text>
               )}
             </GlassCard>
           </Animated.View>
@@ -232,18 +266,18 @@ export default function ProfileScreen() {
           <Animated.View entering={FadeInDown.delay(360).springify().damping(18).stiffness(140)}>
             <GlassCard padding={4}>
               <View style={styles.settingsHeader}>
-                <Text style={[styles.settingsTitle, { color: colors.textTertiary }]}>Réglages</Text>
+                <Text style={[styles.settingsTitle, { color: colors.textTertiary }]}>{t('settings.title')}</Text>
               </View>
-              <SettingRow label="Devise" value={`${user.settings.currency} €`} />
+              <SettingRow label={t('settings.currency')} value={`${user.settings.currency} €`} />
               <Divider />
               <SettingRow
-                label="Langue"
-                value={user.settings.language === 'fr' ? 'Français' : 'English'}
+                label={t('settings.language')}
+                value={LANGUAGE_NAMES[user.settings.language === 'fr' ? 'fr' : 'en']}
                 onPress={toggleLanguage}
               />
               <Divider />
               <SettingRow
-                label="Notifications"
+                label={t('settings.notifications')}
                 control={
                   <Switch
                     value={user.settings.notifications}
@@ -255,12 +289,16 @@ export default function ProfileScreen() {
               />
               <Divider />
               <SettingRow
-                label="Thème"
-                value={scheme === 'dark' ? 'Sombre' : 'Clair'}
+                label={t('settings.theme')}
+                value={scheme === 'dark' ? t('settings.themeDark') : t('settings.themeLight')}
                 onPress={toggleScheme}
               />
               <Divider />
-              <SettingRow label="Réinitialiser les données" onPress={handleReset} destructive />
+              <SettingRow label={t('settings.resetData')} onPress={handleReset} destructive />
+              <Divider />
+              <SettingRow label={t('settings.signOut')} onPress={handleSignOut} destructive />
+              <Divider />
+              <SettingRow label={t('settings.deleteAccount')} onPress={handleDeleteAccount} destructive />
             </GlassCard>
           </Animated.View>
 

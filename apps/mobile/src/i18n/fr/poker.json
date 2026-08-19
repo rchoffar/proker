@@ -1,0 +1,45 @@
+{
+  "ranks": {
+    "A": { "singular": "as", "plural": "as" },
+    "K": { "singular": "roi", "plural": "rois" },
+    "Q": { "singular": "dame", "plural": "dames" },
+    "J": { "singular": "valet", "plural": "valets" },
+    "T": { "singular": "dix", "plural": "dix" },
+    "9": { "singular": "neuf", "plural": "neuf" },
+    "8": { "singular": "huit", "plural": "huit" },
+    "7": { "singular": "sept", "plural": "sept" },
+    "6": { "singular": "six", "plural": "six" },
+    "5": { "singular": "cinq", "plural": "cinq" },
+    "4": { "singular": "quatre", "plural": "quatre" },
+    "3": { "singular": "trois", "plural": "trois" },
+    "2": { "singular": "deux", "plural": "deux" }
+  },
+  "handCategories": {
+    "highCard": "Carte haute",
+    "pair": "Paire",
+    "twoPair": "Deux paires",
+    "trips": "Brelan",
+    "straight": "Quinte",
+    "flush": "Couleur",
+    "fullHouse": "Full",
+    "quads": "Carré",
+    "straightFlush": "Quinte flush",
+    "royalFlush": "Quinte flush royale"
+  },
+  "phases": {
+    "preflop": "Preflop",
+    "flop": "Flop",
+    "turn": "Turn",
+    "river": "River",
+    "showdown": "Showdown"
+  },
+  "actions": {
+    "fold": "fold",
+    "check": "check",
+    "call": "suit",
+    "bet": "mise",
+    "raise": "relance",
+    "allin": "all-in",
+    "post": "poste"
+  }
+}

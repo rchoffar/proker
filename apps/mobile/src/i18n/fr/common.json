@@ -1,0 +1,21 @@
+{
+  "cancel": "Annuler",
+  "save": "Enregistrer",
+  "delete": "Supprimer",
+  "back": "Retour",
+  "close": "Fermer",
+  "confirm": "Confirmer",
+  "add": "Ajouter",
+  "edit": "Modifier",
+  "done": "Terminé",
+  "retry": "Réessayer",
+  "next": "Suivant",
+  "continue": "Continuer",
+  "search": "Rechercher",
+  "optional": "Optionnel",
+  "you": "Toi",
+  "me": "Moi",
+  "cardCount_one": "{{count}} carte",
+  "cardCount_other": "{{count}} cartes",
+  "createNamed": "Créer «{{name}}»"
+}

@@ -1,0 +1,17 @@
+{
+  "hub": {
+    "title": "Degen Hub",
+    "subtitle": "Mini-games between players, coming soon"
+  },
+  "games": {
+    "flip": "Flop, turn, river: everyone gets a hand, the best combination takes the pot",
+    "bluff": "Bids and raises… who dares to cry liar?",
+    "roulette": "Bet, spin, tempt fate",
+    "lastLonger": "Last player standing takes it all",
+    "ofc": "Three rows, thirteen cards — don't foul"
+  },
+  "tile": {
+    "comingSoon": "Coming soon",
+    "discover": "Play"
+  }
+}
