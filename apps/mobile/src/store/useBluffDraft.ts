@@ -8,7 +8,14 @@ interface BluffDraftStore {
   players: Player[]; // passPlay only
   pseudo: string; // online modes
   joinCode: string | null; // guest only
-  setDraft: (draft: { mode: BluffMode; players?: Player[]; pseudo?: string; joinCode?: string | null }) => void;
+  jeuMax: boolean; // passPlay + host — guests learn it from the host's state
+  setDraft: (draft: {
+    mode: BluffMode;
+    players?: Player[];
+    pseudo?: string;
+    joinCode?: string | null;
+    jeuMax?: boolean;
+  }) => void;
   clear: () => void;
 }
 
@@ -20,7 +27,8 @@ export const useBluffDraft = create<BluffDraftStore>((set) => ({
   players: [],
   pseudo: '',
   joinCode: null,
-  setDraft: ({ mode, players = [], pseudo = '', joinCode = null }) =>
-    set({ mode, players, pseudo, joinCode }),
-  clear: () => set({ mode: 'passPlay', players: [], pseudo: '', joinCode: null }),
+  jeuMax: false,
+  setDraft: ({ mode, players = [], pseudo = '', joinCode = null, jeuMax = false }) =>
+    set({ mode, players, pseudo, joinCode, jeuMax }),
+  clear: () => set({ mode: 'passPlay', players: [], pseudo: '', joinCode: null, jeuMax: false }),
 }));

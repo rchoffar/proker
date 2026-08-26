@@ -1,28 +1,27 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { createMMKV } from 'react-native-mmkv';
-import * as SecureStore from 'expo-secure-store';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import type { AuthUser } from '../types';
 import { ApiError, deleteMe, getMe, patchMe, postAuthApple, postAuthGoogle } from '../lib/api/client';
-import { GOOGLE_IOS_CLIENT_ID } from '../lib/api/config';
+import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '../lib/api/config';
+import { mmkvStorage } from './mmkvStorage';
+import { clearSessionToken, getSessionToken, setSessionToken } from './sessionToken';
+import { clearHandHistory } from './useHandHistoryStore';
 
-// Le jeton de session ne passe JAMAIS par MMKV (non chiffré) : SecureStore uniquement.
-const SESSION_TOKEN_KEY = 'proker-session-token';
-
-const mmkv = createMMKV({ id: 'proker' });
-
-const mmkvStorage = {
-  setItem: (name: string, value: string) => { mmkv.set(name, value); },
-  getItem: (name: string) => mmkv.getString(name) ?? null,
-  removeItem: (name: string) => { mmkv.remove(name); },
-};
+// iOS s'appuie sur iosClientId ; Android (Credential Manager) exige webClientId.
+const GOOGLE_CLIENT_ID = Platform.OS === 'ios' ? GOOGLE_IOS_CLIENT_ID : GOOGLE_WEB_CLIENT_ID;
+const GOOGLE_CLIENT_ID_ENV =
+  Platform.OS === 'ios' ? 'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID' : 'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID';
 
 // Un iosClientId vide fait crasher nativement GIDSignIn au premier signIn() :
-// on ne configure que si l'ID est présent et on vérifie avant chaque signIn().
-if (GOOGLE_IOS_CLIENT_ID) {
-  GoogleSignin.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID });
+// on ne configure que si l'ID de la plateforme est présent et on vérifie avant chaque signIn().
+if (GOOGLE_CLIENT_ID) {
+  GoogleSignin.configure({
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
+  });
 }
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -40,7 +39,7 @@ interface AuthStore {
 }
 
 async function requireToken(): Promise<string> {
-  const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
+  const token = await getSessionToken();
   if (!token) throw new ApiError(401, 'unauthorized');
   return token;
 }
@@ -56,7 +55,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
 
       hydrate: async () => {
-        const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
+        const token = await getSessionToken();
         if (!token) {
           set({ status: 'signedOut', user: null });
           return;
@@ -75,13 +74,13 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       signInWithGoogle: async () => {
-        if (!GOOGLE_IOS_CLIENT_ID) throw new Error('missing EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID');
+        if (!GOOGLE_CLIENT_ID) throw new Error(`missing ${GOOGLE_CLIENT_ID_ENV}`);
         const response = await GoogleSignin.signIn();
         if (!isSuccessResponse(response)) return; // annulé par l'utilisateur
         const idToken = response.data.idToken;
         if (!idToken) throw new Error('missing idToken');
         const { token, user } = await postAuthGoogle(idToken);
-        await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
+        await setSessionToken(token);
         set({ status: 'signedIn', user });
       },
 
@@ -102,7 +101,7 @@ export const useAuthStore = create<AuthStore>()(
         // Apple ne fournit l'email qu'à la première autorisation : on le transmet
         // pour que le serveur puisse le stocker.
         const { token, user } = await postAuthApple(credential.identityToken, credential.email);
-        await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
+        await setSessionToken(token);
         set({ status: 'signedIn', user });
       },
 
@@ -113,7 +112,10 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       signOut: async () => {
-        await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
+        await clearSessionToken();
+        // Les mains en cache appartiennent au compte qui part — les garder ferait fuiter
+        // (et re-synchroniser) ses mains vers le prochain compte connecté sur cet appareil.
+        clearHandHistory();
         set({ status: 'signedOut', user: null });
       },
 

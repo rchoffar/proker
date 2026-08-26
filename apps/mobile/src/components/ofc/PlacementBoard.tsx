@@ -8,14 +8,14 @@ import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme
 import { useTheme } from '../../design-system/ThemeProvider';
 import { cardKey } from '../../types/hand';
 import type { Card } from '../../types/hand';
-import type { OfcPlacement, RowId } from '../../lib/ofc';
-import { ROW_CAPACITY, ROW_IDS } from '../../lib/ofc';
+import type { HandSortMode, OfcPlacement, RowId } from '../../lib/ofc';
+import { HAND_SORT_MODES, ROW_CAPACITY, ROW_IDS, sortHand } from '../../lib/ofc';
 
-// Interactive editor for the multi-card commits (initial 5, Fantasy Land 13 or 14): tap
+// Interactive editor for the multi-card commits (initial 5, Fantasy Land 13-16): tap
 // a tray card, tap a row to place it, tap a placed card to take it back. Everything stays
 // local (freely rearrangeable) until Commit emits ONE engine action. With `discards` > 0
-// (pineapple Fantasy Land: 14 dealt, 13 placed) the leftover tray card previews as the
-// discard — it is inferred by the engine, never sent.
+// (pineapple Fantasy Land: 14-16 dealt, 13 placed) the leftover tray cards preview as the
+// discards — they are inferred by the engine, never sent.
 
 interface Props {
   hand: Card[];
@@ -25,18 +25,24 @@ interface Props {
 }
 
 const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
+const INITIAL_TRAY_MAX = 5; // above this the tray is a Fantasy Land hand
 
 export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const [layout, setLayout] = useState<Record<RowId, Card[]>>({ top: [], middle: [], bottom: [] });
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Display-only tray order — placements reference the cards, so sorting commits nothing.
+  const [sortMode, setSortMode] = useState<HandSortMode | null>(null);
 
   const placedKeys = useMemo(
     () => new Set(ROW_IDS.flatMap((row) => layout[row].map(cardKey))),
     [layout],
   );
-  const tray = hand.filter((card) => !placedKeys.has(cardKey(card)));
+  const unplaced = hand.filter((card) => !placedKeys.has(cardKey(card)));
+  const tray = sortMode ? sortHand(unplaced, sortMode) : unplaced;
+  // A Fantasy Land tray (14-16 cards) is unreadable unsorted — offer the sort filter there.
+  const sortable = hand.length > INITIAL_TRAY_MAX;
   const done = tray.length === discards;
 
   const placeInto = (row: RowId) => {
@@ -102,6 +108,33 @@ export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Pr
         <Text style={[styles.orderHint, { color: colors.onDarkTertiary }]}>{t('game.orderHint')}</Text>
       </View>
 
+      {sortable && (
+        <View style={styles.sortRow}>
+          <Text style={[styles.sortLabel, { color: colors.onDarkTertiary }]}>{t('game.sort.label')}</Text>
+          {HAND_SORT_MODES.map((mode) => {
+            const active = sortMode === mode;
+            return (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSortMode(active ? null : mode);
+                }}
+                activeOpacity={0.7}
+                style={[
+                  styles.sortChip,
+                  { backgroundColor: DARK_CARD_BG, borderColor: active ? TABLE.gold : colors.onDarkHairline },
+                ]}
+              >
+                <Text style={[styles.sortChipText, { color: active ? TABLE.gold : colors.onDarkSecondary }]}>
+                  {t(`game.sort.${mode}`)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.tray}>
         {tray.map((card) => {
           const key = cardKey(card);
@@ -125,7 +158,7 @@ export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Pr
         })}
         {done && (
           <Text style={[styles.trayHint, { color: colors.onDarkTertiary }]}>
-            {discards > 0 ? t('game.willDiscard') : t('game.allPlaced')}
+            {discards > 0 ? t('game.willDiscard', { count: discards }) : t('game.allPlaced')}
           </Text>
         )}
       </View>
@@ -206,6 +239,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 46,
     alignItems: 'center',
+  },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  sortLabel: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.medium,
+    marginRight: 2,
+  },
+  sortChip: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  sortChipText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.semibold,
   },
   trayHint: {
     fontSize: fontSize.sm,

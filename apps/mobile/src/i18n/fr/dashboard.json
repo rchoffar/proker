@@ -4,7 +4,6 @@
     "ongoing": "En ce moment",
     "liked": "Votre festival liké",
     "viewTournaments": "Voir les tournois",
-    "addResult": "Enregistrer un résultat",
     "featured": "À la une"
   },
   "emptyHero": {
@@ -14,25 +13,23 @@
   "sections": {
     "games": "Jeux",
     "featuredTournament": "Tournoi à la une",
-    "tools": "Outils"
+    "stats": "Stats"
   },
   "games": {
     "replayTitle": "Rejouer une main",
     "replayDesc": "Analysez une main jouée avec vos amis"
   },
-  "sessions": {
-    "title": "Mes sessions",
-    "count_one": "{{count}} session enregistrée",
-    "count_other": "{{count}} sessions enregistrées"
+  "quickStats": {
+    "title": "Stats des jeux",
+    "players_one": "{{count}} joueur suivi",
+    "players_other": "{{count}} joueurs suivis",
+    "empty": "Lancez un mini-jeu pour démarrer les compteurs"
   },
-  "addSession": "Ajouter une session",
   "tournament": {
     "buyIn": "Buy-in {{amount}}",
     "guaranteed": "{{amount}} garantis"
   },
-  "addSessionDesc": "Cash game ou tournoi, en quelques secondes",
   "tilePills": {
-    "add": "Ajouter",
     "open": "Ouvrir"
   }
 }

@@ -1,0 +1,42 @@
+{
+  "title": "Stats",
+  "empty": {
+    "title": "No stats yet",
+    "subtitle": "Play a mini-game from the Games tab — every result lands here automatically."
+  },
+  "games": {
+    "flip": "Flip",
+    "roulette": "Roulette",
+    "bluff": "Bluff",
+    "ofc": "OFC"
+  },
+  "winLoss": "{{wins}} W · {{losses}} L",
+  "flip": {
+    "rounds_one": "{{count}} hand played",
+    "rounds_other": "{{count}} hands played",
+    "winRate": "{{value}}% wins"
+  },
+  "roulette": {
+    "spins_one": "{{count}} spin",
+    "spins_other": "{{count}} spins",
+    "picked_one": "picked {{count}} time",
+    "picked_other": "picked {{count}} times",
+    "survival": "{{value}}% survival"
+  },
+  "bluff": {
+    "games_one": "{{won}} W · {{count}} game",
+    "games_other": "{{won}} W · {{count}} games",
+    "catches": "Bluffs caught: {{success}}/{{attempts}}",
+    "caught": "Caught bluffing: {{caught}}/{{challenged}}",
+    "catchRate": "{{value}}% catch",
+    "survivalRate": "{{value}}% clean"
+  },
+  "ofc": {
+    "games_one": "{{won}} W · {{count}} game",
+    "games_other": "{{won}} W · {{count}} games",
+    "hands_one": "{{count}} hand",
+    "hands_other": "{{count}} hands",
+    "fantasy": "FL {{value}}%",
+    "fouls": "Fouls {{value}}%"
+  }
+}

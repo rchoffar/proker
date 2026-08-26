@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { compareHandScores, evaluateFiveCardHand } from '../../pokerHandEvaluator';
 import {
+  RE_FANTASY_SIZE,
   bottomRoyalty,
   compareRows,
   evaluateGrid,
   evaluateTopHand,
+  fantasyEntrySize,
   isFouled,
   middleRoyalty,
   qualifiesFantasy,
@@ -177,7 +179,7 @@ describe('Fantasy Land', () => {
     expect(qualifiesFantasy(rows)).toBe(false);
   });
 
-  it('staying requires trips top, full house+ middle or quads+ bottom', () => {
+  it('staying requires trips on top or a straight flush+ on the bottom', () => {
     const stayTop = evaluateGrid({
       top: cards('2s 2h 2c'),
       middle: cards('9s 9h 9d 5c 3h'),
@@ -185,20 +187,29 @@ describe('Fantasy Land', () => {
     });
     expect(staysFantasy(stayTop)).toBe(true);
 
-    const stayMiddle = evaluateGrid({
+    const stayBottom = evaluateGrid({
+      top: cards('Qs Qh 2c'),
+      middle: cards('Kh Kc 3d 5s 7h'),
+      bottom: cards('5h 6h 7h 8h 9h'),
+    });
+    expect(isFouled(stayBottom)).toBe(false);
+    expect(staysFantasy(stayBottom)).toBe(true);
+
+    // A middle full house is no longer enough:
+    const fullMiddle = evaluateGrid({
       top: cards('Qs Qh 2c'),
       middle: cards('4s 4d 4h 9s 9h'),
       bottom: cards('Ks Kh Kd Ts Th'),
     });
-    expect(isFouled(stayMiddle)).toBe(false);
-    expect(staysFantasy(stayMiddle)).toBe(true);
+    expect(staysFantasy(fullMiddle)).toBe(false);
 
-    const stayBottom = evaluateGrid({
+    // Neither are bottom quads — the bottom needs a straight flush:
+    const quadsBottom = evaluateGrid({
       top: cards('Qs Qh 2c'),
       middle: cards('Kh Kc 3d 5s 7h'),
       bottom: cards('4s 4d 4h 4c 9h'),
     });
-    expect(staysFantasy(stayBottom)).toBe(true);
+    expect(staysFantasy(quadsBottom)).toBe(false);
 
     // QQ top alone re-qualifies entry but NOT staying:
     const qqOnly = evaluateGrid({
@@ -208,5 +219,21 @@ describe('Fantasy Land', () => {
     });
     expect(staysFantasy(qqOnly)).toBe(false);
     expect(qualifiesFantasy(qqOnly)).toBe(true);
+  });
+
+  it('progressive entry sizes: QQ→14, KK→15, AA→16, trips→16; re-fantasy is always 16', () => {
+    expect(fantasyEntrySize(evaluateGrid(gridWithTop('Qs Qh 2c')))).toBe(14);
+    expect(fantasyEntrySize(evaluateGrid(gridWithTop('Ks Kh 2c')))).toBe(15);
+    expect(
+      fantasyEntrySize(
+        evaluateGrid({
+          top: cards('As Ah 2c'),
+          middle: cards('Ks Kh Kd 6s 8d'),
+          bottom: cards('5h 6h 7h 8h 9h'),
+        }),
+      ),
+    ).toBe(16);
+    expect(fantasyEntrySize(evaluateGrid(gridWithTop('2s 2h 2c')))).toBe(16);
+    expect(RE_FANTASY_SIZE).toBe(16);
   });
 });

@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { GlassCard } from '../src/components/ui/GlassCard';
 import { useAuthStore } from '../src/store/useAuthStore';
-import { useAppStore } from '../src/store/useAppStore';
 import { fontFamily, fontSize, radius, spacing } from '../src/design-system/theme';
 import { useTheme } from '../src/design-system/ThemeProvider';
 
@@ -30,9 +29,6 @@ export default function ChoosePseudoScreen() {
     setError(false);
     try {
       await setPseudo(trimmed);
-      // Réutilise le pseudo du compte comme pseudo Bluff par défaut.
-      const { bluffPseudo, setBluffDefaults } = useAppStore.getState();
-      if (!bluffPseudo) setBluffDefaults({ pseudo: trimmed });
       // La garde du layout racine bascule vers les onglets toute seule.
     } catch {
       setError(true);

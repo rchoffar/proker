@@ -127,8 +127,20 @@ export function qualifiesFantasy(rows: RowScores): boolean {
   return rows.top.categoryId === 'pair' && rows.top.tiebreakers[0] >= FANTASY_MIN_PAIR;
 }
 
-/** Stay in Fantasy Land: trips on top, full house+ in the middle, or quads+ on the bottom. */
+/** Stay in Fantasy Land: trips on top, or a straight flush+ on the bottom. */
 export function staysFantasy(rows: RowScores): boolean {
   if (isFouled(rows)) return false;
-  return rows.top.categoryId === 'trips' || rows.middle.category >= 6 || rows.bottom.category >= 7;
+  return rows.top.categoryId === 'trips' || rows.bottom.category >= 8;
+}
+
+/** A re-fantasy (staying) always deals 16 cards, whatever hand earned it. */
+export const RE_FANTASY_SIZE = 16;
+
+/**
+ * Progressive Fantasy Land deal (pineapple): the qualifying top decides the size —
+ * QQ → 14, KK → 15, AA or trips → 16. Only meaningful when qualifiesFantasy is true.
+ */
+export function fantasyEntrySize(rows: RowScores): number {
+  if (rows.top.categoryId === 'trips') return 16;
+  return 14 + (rows.top.tiebreakers[0] - FANTASY_MIN_PAIR);
 }

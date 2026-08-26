@@ -10,8 +10,6 @@ import enAuth from './en/auth.json';
 import enCommon from './en/common.json';
 import enPoker from './en/poker.json';
 import enDashboard from './en/dashboard.json';
-import enTracker from './en/tracker.json';
-import enPlanning from './en/planning.json';
 import enFinder from './en/finder.json';
 import enDegen from './en/degen.json';
 import enProfile from './en/profile.json';
@@ -19,13 +17,12 @@ import enGames from './en/games.json';
 import enBluff from './en/bluff.json';
 import enOfc from './en/ofc.json';
 import enReplayer from './en/replayer.json';
+import enStats from './en/stats.json';
 
 import frAuth from './fr/auth.json';
 import frCommon from './fr/common.json';
 import frPoker from './fr/poker.json';
 import frDashboard from './fr/dashboard.json';
-import frTracker from './fr/tracker.json';
-import frPlanning from './fr/planning.json';
 import frFinder from './fr/finder.json';
 import frDegen from './fr/degen.json';
 import frProfile from './fr/profile.json';
@@ -33,6 +30,7 @@ import frGames from './fr/games.json';
 import frBluff from './fr/bluff.json';
 import frOfc from './fr/ofc.json';
 import frReplayer from './fr/replayer.json';
+import frStats from './fr/stats.json';
 
 export const resources = {
   en: {
@@ -40,8 +38,6 @@ export const resources = {
     common: enCommon,
     poker: enPoker,
     dashboard: enDashboard,
-    tracker: enTracker,
-    planning: enPlanning,
     finder: enFinder,
     degen: enDegen,
     profile: enProfile,
@@ -49,14 +45,13 @@ export const resources = {
     bluff: enBluff,
     ofc: enOfc,
     replayer: enReplayer,
+    stats: enStats,
   },
   fr: {
     auth: frAuth,
     common: frCommon,
     poker: frPoker,
     dashboard: frDashboard,
-    tracker: frTracker,
-    planning: frPlanning,
     finder: frFinder,
     degen: frDegen,
     profile: frProfile,
@@ -64,6 +59,7 @@ export const resources = {
     bluff: frBluff,
     ofc: frOfc,
     replayer: frReplayer,
+    stats: frStats,
   },
 } as const;
 

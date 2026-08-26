@@ -1,16 +1,6 @@
 {
   "title": "Profil",
   "identityFallback": "Joueur pro · Paris",
-  "totalProfit": "Profit total",
-  "thisMonth": "ce mois-ci",
-  "roiDays": "ROI · {{days}} j",
-  "itmDays": "ITM · {{days}} j",
-  "volumeTitle": "Volume · {{month}}",
-  "byWeek": "Réparti par semaine",
-  "hoursShort": "{{hours}}h",
-  "evolution": "Évolution",
-  "lastDays": "{{days}} derniers jours",
-  "notEnoughData": "Pas encore assez de données",
   "settings": {
     "title": "Réglages",
     "currency": "Devise",
@@ -25,17 +15,17 @@
   },
   "signOutAlert": {
     "title": "Se déconnecter",
-    "body": "Tes données locales (sessions, stakes) restent sur ce téléphone. Continuer ?",
+    "body": "Tes données locales (stats de jeux, favoris) restent sur ce téléphone. Continuer ?",
     "confirm": "Se déconnecter"
   },
   "resetAlert": {
     "title": "Réinitialiser les données",
-    "body": "Cette action efface toutes les sessions et stakes, et restaure les données de démo. Continuer ?",
+    "body": "Cette action efface tes stats de jeux et favoris, et restaure les données de démo. Continuer ?",
     "confirm": "Réinitialiser"
   },
   "deleteAccountAlert": {
     "title": "Supprimer mon compte",
-    "body": "Ton compte (email, pseudo) sera définitivement supprimé de nos serveurs. Tes données locales (sessions, stakes) restent sur ce téléphone. Continuer ?",
+    "body": "Ton compte (email, pseudo) sera définitivement supprimé de nos serveurs. Tes données locales (stats de jeux, favoris) restent sur ce téléphone. Continuer ?",
     "confirm": "Supprimer",
     "error": "Suppression impossible. Vérifie ta connexion et réessaie."
   }

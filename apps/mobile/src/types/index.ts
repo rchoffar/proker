@@ -1,8 +1,6 @@
 export * from './hand';
 
 export type Currency = 'EUR' | 'USD' | 'GBP';
-export type SessionType = 'tournament' | 'cash';
-export type GameType = 'NLH' | 'PLO' | 'other';
 
 export interface UserSettings {
   language: 'fr' | 'en';
@@ -31,21 +29,6 @@ export interface Player {
   id: string;
   name: string;
   notes?: string;
-}
-
-export interface Stake {
-  id: string;
-  date: string;
-  playerId: string;
-  festivalId?: string;
-  tournamentId?: string;
-  buyIn: number;
-  percentage: number;
-  settled: boolean;
-  cashed?: boolean;
-  theirCashout?: number;
-  notes?: string;
-  createdAt: string;
 }
 
 export type Continent = 'Europe' | 'North America' | 'South America' | 'Asia' | 'Africa' | 'Oceania';
@@ -99,59 +82,4 @@ export interface Tournament {
   guaranteed?: number; // guaranteed prize pool
   isMainEvent?: boolean; // flags the festival's main event
   blindStructure?: BlindStructure; // populated for main-event tournaments
-}
-
-export interface Stacking {
-  playerId: string;
-  kind: 'swap' | 'stack';
-  profitShare: number;  // % of cashout they receive
-  buyInAmount: number;  // € they actually contributed toward the buy-in (0 for swap; for stack, may differ from profitShare% of the buy-in)
-}
-
-export interface BaseSession {
-  id: string;
-  type: SessionType;
-  date: string;
-  venue: string;
-  buyIn: number;
-  cashOut: number;
-  durationHours: number;
-  stackings?: Stacking[];
-  notes?: string;
-  createdAt: string;
-}
-
-export interface TournamentSession extends BaseSession {
-  type: 'tournament';
-  tournamentId: string;
-  reEntries: number;
-  cashed: boolean;
-  position?: number;
-}
-
-export interface CashSession extends BaseSession {
-  type: 'cash';
-  gameType: GameType;
-  stakes: string;
-}
-
-export type Session = TournamentSession | CashSession;
-
-export interface BankrollSnapshot {
-  date: string;
-  amount: number;
-}
-
-export interface ComputedStats {
-  totalProfit: number;
-  totalInvested: number;
-  roi: number;
-  hourlyRate: number;
-  totalSessions: number;
-  totalHours: number;
-  biggestWin: number;
-  biggestLoss: number;
-  itmRate: number;
-  thisMonthProfit: number;
-  thisMonthSessions: number;
 }

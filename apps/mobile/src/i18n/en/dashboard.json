@@ -4,7 +4,6 @@
     "ongoing": "Happening now",
     "liked": "Your liked festival",
     "viewTournaments": "View tournaments",
-    "addResult": "Log a result",
     "featured": "Featured"
   },
   "emptyHero": {
@@ -14,25 +13,23 @@
   "sections": {
     "games": "Games",
     "featuredTournament": "Featured tournament",
-    "tools": "Tools"
+    "stats": "Stats"
   },
   "games": {
     "replayTitle": "Replay a hand",
     "replayDesc": "Break down a hand played with friends"
   },
-  "sessions": {
-    "title": "My sessions",
-    "count_one": "{{count}} session recorded",
-    "count_other": "{{count}} sessions recorded"
+  "quickStats": {
+    "title": "Game stats",
+    "players_one": "{{count}} player tracked",
+    "players_other": "{{count}} players tracked",
+    "empty": "Play a mini-game to start the counters"
   },
-  "addSession": "Add a session",
   "tournament": {
     "buyIn": "Buy-in {{amount}}",
     "guaranteed": "{{amount}} GTD"
   },
-  "addSessionDesc": "Cash game or tournament, in seconds",
   "tilePills": {
-    "add": "Add",
     "open": "Open"
   }
 }

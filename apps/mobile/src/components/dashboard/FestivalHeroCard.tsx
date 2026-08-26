@@ -19,11 +19,10 @@ interface Props {
   badge: HeroBadge;
   liked: boolean;
   onPress: () => void;
-  onAddResult: () => void;
   onToggleLike: () => void;
 }
 
-export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, onAddResult, onToggleLike }: Props) {
+export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, onToggleLike }: Props) {
   const { t } = useTranslation('dashboard');
   const { colors } = useTheme();
   const dateRange = formatDateRange(festival.startDate, festival.endDate);
@@ -57,9 +56,6 @@ export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, o
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.accentBright }]} onPress={onPress} activeOpacity={0.85}>
           <Text style={styles.primaryButtonText}>{t('hero.viewTournaments')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.onDarkHairline }]} onPress={onAddResult} activeOpacity={0.85}>
-          <Text style={[styles.secondaryButtonText, { color: colors.onDarkPrimary }]}>{t('hero.addResult')}</Text>
         </TouchableOpacity>
       </View>
     </GlassCard>
@@ -131,15 +127,5 @@ const styles = StyleSheet.create({
     color: '#0A0A0F',
     fontSize: fontSize.base,
     fontFamily: fontFamily.bold,
-  },
-  secondaryButton: {
-    paddingVertical: spacing.sm + 4,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  secondaryButtonText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
   },
 });

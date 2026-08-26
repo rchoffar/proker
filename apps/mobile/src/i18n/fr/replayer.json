@@ -20,8 +20,34 @@
   "chipsUnit": "jetons",
   "bigBlindLabel": "Grosse blinde",
   "heroCardsHint": "Touchez vos deux cartes, puis confirmez.",
+  "anteLabel": "Ante (total)",
+  "anteHint": "Optionnel — total des antes posées par tous les joueurs, ajouté au pot comme argent mort.",
+  "potAmount": "Pot {{amount}}",
   "preflopHint": "Actions preflop, dans l'ordre.",
   "noMoreBetting": "Plus aucune mise possible — la main se termine au tapis.",
+  "recordedAction": {
+    "plain": "{{name}}{{position}} — {{action}}",
+    "withAmount": "{{name}}{{position}} — {{action}} {{amount}}"
+  },
+  "editAction": {
+    "hint": "Touchez une action enregistrée pour la modifier — elle et tout ce qui suit sont effacés."
+  },
+  "list": {
+    "title": "Mains",
+    "newHand": "Nouvelle main",
+    "newHandSubtitle": "Reconstituez une main street par street, puis rejouez-la.",
+    "savedTitle": "Mains enregistrées",
+    "rowMetaWithStakes": "{{date}} · {{stakes}}",
+    "empty": {
+      "title": "Aucune main enregistrée",
+      "subtitle": "Les mains que vous créez sont enregistrées ici automatiquement et synchronisées avec votre compte."
+    },
+    "deleteConfirm": {
+      "title": "Supprimer cette main ?",
+      "message": "Elle sera retirée de votre historique sur tous vos appareils.",
+      "confirm": "Supprimer"
+    }
+  },
   "showdownHint": "Cartes adverses connues et gagnant.",
   "cardsKnown": "Cartes connues",
   "cardsUnknown": "Cartes inconnues",
@@ -29,11 +55,9 @@
   "whoWins": "Qui remporte la main ? (touchez plusieurs joueurs pour un pot partagé)",
   "autoWinnerSingle": "{{name}} gagne avec {{hand}}",
   "autoWinnerSplit": "Pot partagé — {{names}} avec {{hand}}",
-  "descriptionPlaceholder": "Description (ex : Paire d'As)",
   "titlePlaceholder": "Titre (optionnel) — ex : {{example}}",
-  "stakesPlaceholder": "Enjeux (optionnel, ex : 1€/2€)",
-  "replayHand": "Rejouer la main",
-  "exportImage": "Exporter l'image",
+  "replayHand": "Voir la main",
+  "exportReplay": "Exporter en images",
   "restart": "Recommencer",
   "autoTitle": {
     "vsHand": "{{hero}} vs {{villain}} — {{street}}",
@@ -76,20 +100,25 @@
   "noHand": "Aucune main à rejouer.",
   "handStarts": "La main commence",
   "tapHint": "Toucher pour continuer",
-  "share": "Partager",
   "winsHand": "{{name}} remporte la main",
   "winsAmount": "{{name}} remporte {{amount}}",
   "splitWins": "{{names}} se partagent le pot",
   "splitWinsAmount": "{{names}} se partagent {{amount}}",
   "finalPot": "Pot final : {{amount}}",
+  "badBeatOverlay": {
+    "title": "BAD BEAT",
+    "subtitle": "{{name}} n'était qu'à {{percent}}% avant la river"
+  },
   "handOver": "Main terminée",
   "untitledHand": "Une main à raconter",
   "export": {
-    "shareUnavailable": "Le partage n'est pas disponible sur cet appareil.",
-    "shareFailed": "Le partage a échoué. Réessayez.",
     "permissionSettings": "Autorisez les photos dans les réglages pour enregistrer.",
-    "permissionRequired": "Autorisation requise pour enregistrer l'image.",
-    "imageSaved": "Image enregistrée.",
-    "saveFailed": "L'enregistrement a échoué. Réessayez."
+    "permissionRequired": "Autorisation requise pour enregistrer les images.",
+    "saveFailed": "L'enregistrement a échoué. Réessayez.",
+    "progress": "Enregistrement de l'image {{current}} sur {{total}}…",
+    "allSaved_one": "Image enregistrée dans vos photos.",
+    "allSaved_other": "{{count}} images enregistrées dans vos photos.",
+    "partialSaved_one": "Export interrompu — {{count}} image enregistrée.",
+    "partialSaved_other": "Export interrompu — {{count}} images enregistrées."
   }
 }

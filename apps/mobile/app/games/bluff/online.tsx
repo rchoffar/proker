@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw, Users, WifiOff } from 'lucide-react-native';
+import { X, RotateCw, Users, WifiOff, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -17,6 +17,9 @@ import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet
 import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
 import { useBluffGuest, useBluffHost } from '../../../src/hooks/useBluffOnline';
 import type { BluffOnlineCommon } from '../../../src/hooks/useBluffOnline';
 import { MAX_BLUFF_PLAYERS, MAX_BOARD_CARDS, MIN_BLUFF_PLAYERS, claimLabel } from '../../../src/lib/bluff';
@@ -63,8 +66,17 @@ export default function BluffOnlineScreen() {
 }
 
 function HostFlow({ pseudo }: { pseudo: string }) {
+  const jeuMax = useBluffDraft((s) => s.jeuMax);
   const online = useBluffHost(pseudo);
-  return <OnlineView online={online} isHost onStart={online.startGame} onReplay={online.replay} />;
+  return (
+    <OnlineView
+      online={online}
+      isHost
+      hostJeuMax={jeuMax}
+      onStart={() => online.startGame({ jeuMax })}
+      onReplay={online.replay}
+    />
+  );
 }
 
 function GuestFlow({ pseudo, joinCode }: { pseudo: string; joinCode: string }) {
@@ -75,11 +87,14 @@ function GuestFlow({ pseudo, joinCode }: { pseudo: string; joinCode: string }) {
 interface OnlineViewProps {
   online: BluffOnlineCommon;
   isHost: boolean;
+  // Lobby-only display of the host's chosen rules — guests learn them from the first
+  // state broadcast once the game starts.
+  hostJeuMax?: boolean;
   onStart?: () => void;
   onReplay?: () => void;
 }
 
-function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
+function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineViewProps) {
   // Locking the phone suspends the socket — fatal for the host, disruptive for guests.
   useKeepAwake();
   const { t } = useTranslation('bluff');
@@ -87,8 +102,11 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
   const router = useRouter();
   const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
 
+  useConfirmQuitGame(status === 'playing' && view?.phase !== 'gameOver');
+
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [boardCount, setBoardCount] = useState(3);
+  const [faceUpCount, setFaceUpCount] = useState(3);
+  const [faceDownCount, setFaceDownCount] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -105,6 +123,44 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
     const timer = setTimeout(() => setCelebrating(true), 700);
     return () => clearTimeout(timer);
   }, [view?.phase]);
+
+  // Every device (host and guests) records local stats for all pseudos in the game.
+  // Broadcasts repeat states, so both effects dedupe: reveals by round number (reveal is
+  // cleared by the next deal), the game end by a latch reset when the phase moves on.
+  // Jeu Max reveals are a different mechanic and stay out of the catch counters.
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
+  const revealRoundRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!view?.reveal) {
+      revealRoundRef.current = null;
+      return;
+    }
+    if (view.reveal.kind !== 'catch' || revealRoundRef.current === view.round) return;
+    revealRoundRef.current = view.round;
+    const nameOf = (id: string) => view.players.find((p) => p.id === id)?.name ?? '';
+    updateGameStats((s) =>
+      recordBluffReveal(s, {
+        catcher: nameOf(view.reveal!.catcherId),
+        claimer: nameOf(view.reveal!.claimerId),
+        holds: view.reveal!.holds,
+      })
+    );
+  }, [view, updateGameStats]);
+
+  const gameOverRecordedRef = useRef(false);
+  useEffect(() => {
+    if (view?.phase !== 'gameOver') {
+      gameOverRecordedRef.current = false;
+      return;
+    }
+    if (gameOverRecordedRef.current || !view.winnerId) return;
+    gameOverRecordedRef.current = true;
+    const winnerPlayer = view.players.find((p) => p.id === view.winnerId);
+    if (!winnerPlayer) return;
+    updateGameStats((s) =>
+      recordBluffGameEnd(s, { players: view.players.map((p) => p.name), winner: winnerPlayer.name })
+    );
+  }, [view, updateGameStats]);
 
   const quit = () => router.dismissTo('/(tabs)/degen');
 
@@ -160,6 +216,11 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
             <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
               {isHost ? t('online.shareCode') : t('online.waitingHostStart')}
             </Text>
+            {isHost && (
+              <Text style={[styles.mutedText, { color: hostJeuMax ? TABLE.gold : colors.onDarkTertiary }]}>
+                {t(hostJeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby')}
+              </Text>
+            )}
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
@@ -258,6 +319,11 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
     sendAction({ type: 'catch', playerId: myId });
   };
 
+  const handleJeuMax = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    sendAction({ type: 'jeuMax', playerId: myId });
+  };
+
   const handleNextRound = () => {
     sendAction({ type: 'confirmReveal', playerId: myId });
     sendAction({ type: 'nextRound', playerId: myId });
@@ -279,16 +345,50 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
       <View style={styles.tableArea}>
         {reveal ? (
           <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
-            <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
-              {reveal.holds
-                ? t('game.revealHolds', { name: catcher?.name })
-                : t('game.revealBluff', { name: claimer?.name })}
-            </Text>
+            {reveal.kind === 'jeuMax' ? (
+              <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
+                {reveal.jeuMaxSuccess
+                  ? t(reveal.jeuMaxWinsGame ? 'game.jeuMaxWin' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                  : reveal.holds
+                    ? t('game.jeuMaxFailHigher', {
+                        name: catcher?.name,
+                        higher: reveal.higherClaim ? claimLabel(reveal.higherClaim, t) : '',
+                      })
+                    : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
+              </Text>
+            ) : (
+              <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
+                {reveal.holds
+                  ? t('game.revealHolds', { name: catcher?.name })
+                  : t('game.revealBluff', { name: claimer?.name })}
+              </Text>
+            )}
             <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
               {reveal.eliminatesLoser
                 ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
                 : claimLabel(reveal.claim, t)}
             </Text>
+            {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
+              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                {t('game.jeuMaxStatLine', {
+                  name: catcher.name,
+                  successes: catcher.jeuMaxSuccesses,
+                  attempts: catcher.jeuMaxAttempts,
+                })}
+              </Text>
+            )}
+            {phase === 'gameOver' &&
+              view.players
+                .filter((p) => p.jeuMaxAttempts > 0)
+                .map((p) => (
+                  <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                    {t('game.jeuMaxStatLine', {
+                      name: p.name,
+                      successes: p.jeuMaxSuccesses,
+                      attempts: p.jeuMaxAttempts,
+                    })}
+                  </Text>
+                ))}
           </Animated.View>
         ) : (
           <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
@@ -301,6 +401,8 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
           height={TABLE_H}
           players={seats}
           board={view.board}
+          hiddenCount={view.hiddenBoardCount}
+          hiddenBoard={view.hiddenBoard}
           turnId={phase === 'bidding' ? view.turnId : null}
           reveal={reveal}
           roundToken={view.round}
@@ -323,30 +425,53 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
           {phase === 'chooseBoard' && isStarter && (
             <View style={styles.boardChoice}>
               <DarkStepper
-                label={t('game.boardStepper')}
-                value={boardCount}
+                label={t('game.faceUpStepper')}
+                value={faceUpCount}
                 min={0}
-                max={MAX_BOARD_CARDS}
-                onDecrement={() => setBoardCount((v) => Math.max(0, v - 1))}
-                onIncrement={() => setBoardCount((v) => Math.min(MAX_BOARD_CARDS, v + 1))}
+                max={MAX_BOARD_CARDS - faceDownCount}
+                onDecrement={() => setFaceUpCount((v) => Math.max(0, v - 1))}
+                onIncrement={() =>
+                  setFaceUpCount((v) => Math.min(MAX_BOARD_CARDS - faceDownCount, v + 1))
+                }
+              />
+              <DarkStepper
+                label={t('game.faceDownStepper')}
+                value={faceDownCount}
+                min={0}
+                max={MAX_BOARD_CARDS - faceUpCount}
+                onDecrement={() => setFaceDownCount((v) => Math.max(0, v - 1))}
+                onIncrement={() =>
+                  setFaceDownCount((v) => Math.min(MAX_BOARD_CARDS - faceUpCount, v + 1))
+                }
               />
             </View>
           )}
-          <View style={styles.ownFan}>
-            {myHand.map((card, i) => (
-              <View
-                key={`own-${view.round}-${i}`}
-                style={[
-                  // Pin the fan stacking left→right so overlapped cards layer predictably.
-                  { zIndex: i + 1, elevation: i + 1 },
-                  { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
-                  i > 0 && styles.ownFanOverlap,
-                ]}
-              >
-                <PlayingCard card={card} size="md" />
-              </View>
-            ))}
-          </View>
+          {phase === 'chooseBoard' && isStarter ? (
+            // The starter sizes the middle BLIND — their own fan only unlocks once the
+            // board split is validated (rule decision). Other players keep their hand.
+            <View style={styles.blindHint}>
+              <EyeOff size={16} color={colors.onDarkSecondary} strokeWidth={2} />
+              <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>
+                {t('play.peekAfterBoard')}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.ownFan}>
+              {myHand.map((card, i) => (
+                <View
+                  key={`own-${view.round}-${i}`}
+                  style={[
+                    // Pin the fan stacking left→right so overlapped cards layer predictably.
+                    { zIndex: i + 1, elevation: i + 1 },
+                    { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
+                    i > 0 && styles.ownFanOverlap,
+                  ]}
+                >
+                  <PlayingCard card={card} size="md" />
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -361,7 +486,7 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
           (isStarter ? (
             <TouchableOpacity
               style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
-              onPress={() => sendAction({ type: 'chooseBoard', playerId: myId, boardCount })}
+              onPress={() => sendAction({ type: 'chooseBoard', playerId: myId, faceUpCount, faceDownCount })}
               activeOpacity={0.85}
             >
               <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
@@ -377,7 +502,7 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
             <>
               {mustCatch && (
                 <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-                  {t('game.royalFlushHint')}
+                  {t(view.config.jeuMax ? 'game.royalFlushHintJeuMax' : 'game.royalFlushHint')}
                 </Text>
               )}
               <View style={styles.actionRow}>
@@ -389,6 +514,16 @@ function OnlineView({ online, isHost, onStart, onReplay }: OnlineViewProps) {
                 >
                   <Text style={styles.actionBtnText}>{t('game.liar')}</Text>
                 </TouchableOpacity>
+                {view.config.jeuMax && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: TABLE.gold }, !canCatch && styles.disabledBtn]}
+                    onPress={handleJeuMax}
+                    disabled={!canCatch}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.primaryBtnText}>{t('game.jeuMax')}</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: colors.accentBright }, mustCatch && styles.disabledBtn]}
                   onPress={() => setPickerOpen(true)}
@@ -572,11 +707,19 @@ const styles = StyleSheet.create({
   boardChoice: {
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.sm,
+    gap: spacing.sm,
   },
   ownFan: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  blindHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   ownFanOverlap: {
     marginLeft: -18,

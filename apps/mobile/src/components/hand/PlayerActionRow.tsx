@@ -24,6 +24,9 @@ interface Props {
   remainingStack?: number;
   maxTo?: number;
   disabled?: boolean;
+  // Prefill for the raise field (a "raise to" total, e.g. 2 BB on the hand's first raise) —
+  // still fully editable.
+  defaultRaiseTo?: number;
   onAction: (type: ActionType, amount?: number) => void;
 }
 
@@ -41,6 +44,7 @@ export function PlayerActionRow({
   remainingStack,
   maxTo,
   disabled = false,
+  defaultRaiseTo,
   onAction,
 }: Props) {
   const { t } = useTranslation('replayer');
@@ -69,7 +73,13 @@ export function PlayerActionRow({
     }
     if (NEEDS_AMOUNT.includes(type)) {
       setAmountFor(type);
-      setAmount('');
+      if (type === 'raise' && defaultRaiseTo !== undefined && (maxTo === undefined || defaultRaiseTo <= maxTo)) {
+        // A short stack that can't reach the default gets the usual blank field instead of a
+        // prefilled invalid amount.
+        setAmount(String(defaultRaiseTo));
+      } else {
+        setAmount('');
+      }
       return;
     }
     onAction(type);

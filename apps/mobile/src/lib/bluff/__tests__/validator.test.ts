@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Card, Rank, Suit } from '../../../types/hand';
-import { claimHolds, findClaimWitness, straightRanks } from '../validator';
+import { claimHolds, findClaimWitness, findHigherClaim, straightRanks } from '../validator';
 
 function c(rank: Rank, suit: Suit = 'spades'): Card {
   return { rank, suit };
@@ -106,5 +106,44 @@ describe('findClaimWitness', () => {
     expect(witness).toHaveLength(5);
     expect(new Set(witness.map((card) => card.suit)).size).toBe(1);
     expect(witness.some((card) => card.rank === 'Q')).toBe(true);
+  });
+});
+
+describe('findHigherClaim', () => {
+  it('a royal flush is never beaten', () => {
+    const pool = [c('A'), c('K'), c('Q'), c('J'), c('T'), c('A', 'hearts')];
+    expect(findHigherClaim({ category: 'royalFlush' }, pool)).toBeNull();
+  });
+
+  it('finds a higher tiebreak within the same category', () => {
+    const pool = [c('7'), c('7', 'hearts'), c('K'), c('K', 'hearts')];
+    const higher = findHigherClaim({ category: 'pair', rank: '7' }, pool)!;
+    expect(higher.claim).toEqual({ category: 'pair', rank: 'K' });
+    expect(higher.witness.every((card) => card.rank === 'K')).toBe(true);
+  });
+
+  it('returns the SMALLEST higher claim that holds', () => {
+    // No pair above 7 holds; both two pair 7-2 and trips of 7 do — two pair ranks lower.
+    const pool = [c('7'), c('7', 'hearts'), c('7', 'clubs'), c('2'), c('2', 'hearts')];
+    const higher = findHigherClaim({ category: 'pair', rank: '7' }, pool)!;
+    expect(higher.claim).toEqual({ category: 'twoPair', high: '7', low: '2' });
+  });
+
+  it('crosses into a higher category when the current one is exhausted', () => {
+    const pool = [c('A'), c('A', 'hearts'), c('A', 'clubs')];
+    const higher = findHigherClaim({ category: 'pair', rank: 'A' }, pool)!;
+    expect(higher.claim).toEqual({ category: 'trips', rank: 'A' });
+  });
+
+  it('returns null when the claim is the true maximum of the pool', () => {
+    const pool = [c('A'), c('A', 'hearts'), c('K'), c('Q', 'hearts'), c('2'), c('3', 'hearts')];
+    expect(findHigherClaim({ category: 'pair', rank: 'A' }, pool)).toBeNull();
+  });
+
+  it('its witness only uses pool cards', () => {
+    const pool = [c('9'), c('9', 'hearts'), c('9', 'clubs'), c('4', 'diamonds'), c('4', 'hearts')];
+    const higher = findHigherClaim({ category: 'pair', rank: '9' }, pool)!;
+    const keys = new Set(pool.map((card) => `${card.rank}-${card.suit}`));
+    expect(higher.witness.every((card) => keys.has(`${card.rank}-${card.suit}`))).toBe(true);
   });
 });

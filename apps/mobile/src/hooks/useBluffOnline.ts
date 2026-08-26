@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  DEFAULT_BLUFF_CONFIG,
   createRoundDeal,
   initGame,
   reduce,
   validateAction,
 } from '../lib/bluff';
-import type { BluffAction, BluffState } from '../lib/bluff';
+import type { BluffAction, BluffConfig, BluffState } from '../lib/bluff';
 import { redactFor } from '../lib/bluff/protocol';
 import type {
   GuestToHost,
@@ -47,7 +48,9 @@ function withAutoDeal(state: BluffState): BluffState {
 
 // ── Host: runs the authoritative engine, the relay only transports ─────────────
 
-export function useBluffHost(pseudo: string): BluffOnlineCommon & { startGame: () => void; replay: () => void } {
+export function useBluffHost(
+  pseudo: string,
+): BluffOnlineCommon & { startGame: (config: BluffConfig) => void; replay: () => void } {
   const { t } = useTranslation('bluff');
   const [status, setStatus] = useState<OnlineStatus>('connecting');
   const [code, setCode] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export function useBluffHost(pseudo: string): BluffOnlineCommon & { startGame: (
   const [closedReason, setClosedReason] = useState<BluffOnlineCommon['closedReason']>(null);
 
   const gameRef = useRef<BluffState | null>(null);
+  const configRef = useRef<BluffConfig>(DEFAULT_BLUFF_CONFIG);
   const membersRef = useRef<MemberInfo[]>([]);
   const sessionRef = useRef<{ code: string; playerId: string; sessionToken: string } | null>(null);
 
@@ -163,15 +167,21 @@ export function useBluffHost(pseudo: string): BluffOnlineCommon & { startGame: (
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);
 
-  const startGame = useCallback(() => {
-    const players: Player[] = membersRef.current.map((m) => ({ id: m.playerId, name: m.name }));
-    const previousVersion = gameRef.current?.version ?? 0;
-    const fresh = withAutoDeal(initGame(players));
-    // Keep versions monotonic across replays so guests' stale-drop never eats a fresh game.
-    gameRef.current = { ...fresh, version: previousVersion + fresh.version + 1 };
-    setStatus('playing');
-    broadcast();
-  }, [broadcast]);
+  const startGame = useCallback(
+    (config: BluffConfig) => {
+      configRef.current = config;
+      const players: Player[] = membersRef.current.map((m) => ({ id: m.playerId, name: m.name }));
+      const previousVersion = gameRef.current?.version ?? 0;
+      const fresh = withAutoDeal(initGame(players, Math.random, config));
+      // Keep versions monotonic across replays so guests' stale-drop never eats a fresh game.
+      gameRef.current = { ...fresh, version: previousVersion + fresh.version + 1 };
+      setStatus('playing');
+      broadcast();
+    },
+    [broadcast],
+  );
+
+  const replay = useCallback(() => startGame(configRef.current), [startGame]);
 
   const sendAction = useCallback(
     (action: BluffAction) => {
@@ -199,7 +209,7 @@ export function useBluffHost(pseudo: string): BluffOnlineCommon & { startGame: (
     sendAction,
     leave,
     startGame,
-    replay: startGame,
+    replay,
   };
 }
 

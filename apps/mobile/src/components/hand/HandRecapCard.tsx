@@ -1,12 +1,11 @@
 import { View, Text, StyleSheet, Dimensions, LayoutChangeEvent } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { GlassCard } from '../ui/GlassCard';
 import { PlayingCard } from './PlayingCard';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import { formatHandAmount } from '../../lib/format';
-import type { HandHistory, Street } from '../../types';
+import type { HandHistory } from '../../types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Give the card room to breathe on every device instead of a single guessed constant —
@@ -25,20 +24,6 @@ interface Props {
   onReady?: (size: { width: number; height: number }) => void;
 }
 
-function streetSummary(hand: HandHistory, street: Street, t: TFunction<'replayer'>): string {
-  const streetActions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
-  if (streetActions.length === 0) return '';
-  return streetActions
-    .map((a) => {
-      const player = hand.players.find((p) => p.id === a.playerId);
-      const amount = a.amount ? ` ${formatHandAmount(a.amount, hand.unitMode)}` : '';
-      const position = player?.position ? ` (${player.position})` : '';
-      if (a.type === 'post') return `${player?.name ?? '?'}${position}${amount}`;
-      return `${player?.name ?? '?'}${position} ${t(`poker:actions.${a.type}`)}${amount}`;
-    })
-    .join(' · ');
-}
-
 export function HandRecapCard({ hand, onReady }: Props) {
   const { t } = useTranslation('replayer');
   const { colors } = useTheme();
@@ -46,9 +31,6 @@ export function HandRecapCard({ hand, onReady }: Props) {
   const winners = hand.winnerIds?.length ? hand.players.filter((p) => hand.winnerIds!.includes(p.id)) : [];
   const finalPot = hand.pots[hand.pots.length - 1]?.amount;
   const boardCards = [...(hand.board.flop ?? []), hand.board.turn, hand.board.river].filter(Boolean);
-
-  const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
-  const summaries = streets.map((s) => ({ street: s, text: streetSummary(hand, s, t) })).filter((s) => s.text);
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -80,17 +62,6 @@ export function HandRecapCard({ hand, onReady }: Props) {
                 <PlayingCard key={i} card={c!} width={BOARD_CARD_WIDTH} />
               ))}
             </View>
-          </View>
-        )}
-
-        {summaries.length > 0 && (
-          <View style={styles.section}>
-            {summaries.map(({ street, text }) => (
-              <Text key={street} style={[styles.actionLine, { color: colors.onDarkSecondary }]} numberOfLines={2}>
-                <Text style={{ color: colors.onDarkTertiary }}>{t(`poker:phases.${street}`)} — </Text>
-                {text}
-              </Text>
-            ))}
           </View>
         )}
 
@@ -152,11 +123,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.xs,
-  },
-  actionLine: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.regular,
-    lineHeight: 18,
   },
   resultBox: {
     borderTopWidth: 1,

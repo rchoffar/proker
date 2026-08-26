@@ -17,5 +17,10 @@
   "me": "Me",
   "cardCount_one": "{{count}} card",
   "cardCount_other": "{{count}} cards",
-  "createNamed": "Create “{{name}}”"
+  "createNamed": "Create “{{name}}”",
+  "quitGame": {
+    "title": "Leave the game?",
+    "message": "The game isn't finished. Your progress will be lost.",
+    "confirm": "Leave"
+  }
 }

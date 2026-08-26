@@ -9,6 +9,9 @@ import { X, RotateCw } from 'lucide-react-native';
 import { RouletteWheel } from '../../../src/components/degen/RouletteWheel';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordRouletteSpin } from '../../../src/lib/gameStats';
 import { fontFamily, fontSize, radius, shadow, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
@@ -20,11 +23,15 @@ export default function RoulettePlayScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const players = useRouletteDraft((s) => s.players);
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   const [spinToken, setSpinToken] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+
+  // Only a spin in flight is worth guarding — a shown winner or an idle wheel loses nothing.
+  useConfirmQuitGame(spinning);
 
   const spin = () => {
     setWinner(null);
@@ -37,6 +44,12 @@ export default function RoulettePlayScreen() {
     setWinner(result);
     setSpinning(false);
     setCelebrating(true);
+    updateGameStats((s) =>
+      recordRouletteSpin(s, {
+        picked: result.name,
+        survivors: players.filter((p) => p.id !== result.id).map((p) => p.name),
+      })
+    );
   };
 
   const finish = () => router.dismissTo('/(tabs)/degen');
@@ -102,18 +115,19 @@ export default function RoulettePlayScreen() {
           </Animated.View>
         )}
 
-        {celebrating && winner && (
-          <WinCelebration
-            width={SCREEN_WIDTH}
-            height={Math.round(SCREEN_HEIGHT * 0.7)}
-            borderRadius={radius['2xl']}
-            title={t('roulette.payUp').toUpperCase()}
-            subtitle={winner.name}
-            detail={t('roulette.paysTheBill')}
-            onDone={() => setCelebrating(false)}
-          />
-        )}
       </View>
+
+      {celebrating && winner && (
+        <WinCelebration
+          width={SCREEN_WIDTH}
+          height={SCREEN_HEIGHT}
+          borderRadius={0}
+          title={t('roulette.payUp').toUpperCase()}
+          subtitle={winner.name}
+          detail={t('roulette.paysTheBill')}
+          onDone={() => setCelebrating(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }

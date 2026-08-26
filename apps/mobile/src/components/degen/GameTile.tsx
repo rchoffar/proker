@@ -23,7 +23,14 @@ export function GameTile({ name, description, icon, comingSoon = true, onPress, 
     <GlassCard padding={18} style={{ opacity: comingSoon ? 0.6 : 1 }}>
       <View style={styles.content}>
         <View style={[styles.iconWrap, { backgroundColor: colors.neutralTileBg }]}>{icon}</View>
-        <Text style={[styles.name, { color: colors.textPrimary }]}>{name}</Text>
+        <Text
+          style={[styles.name, { color: colors.textPrimary }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
+          {name}
+        </Text>
         <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={2}>{description}</Text>
         {pillLabel ? (
           <Pill label={pillLabel} tone="accent" style={styles.pill} />

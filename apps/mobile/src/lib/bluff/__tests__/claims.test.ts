@@ -5,7 +5,9 @@ import {
   allowedPrimaryRanks,
   allowedSecondaryRanks,
   categoryHasHigherClaim,
+  claimStrength,
   compareClaims,
+  enumerateAllClaims,
   isStrictlyHigher,
 } from '../claims';
 
@@ -172,5 +174,19 @@ describe('allowedSecondaryRanks', () => {
     const allowed = allowedSecondaryRanks('fullHouse', '8', { category: 'fullHouse', trips: '8', pair: 'J' });
     expect(allowed.has('J')).toBe(false);
     expect(allowed.has('Q')).toBe(true);
+  });
+});
+
+describe('enumerateAllClaims', () => {
+  it('covers the full claim space, sorted strictly ascending', () => {
+    const all = enumerateAllClaims();
+    // 13 pairs + 78 two pairs + 10 straights + 13 trips + 9 flushes
+    // + 156 full houses + 13 quads + 9 straight flushes + 1 royal.
+    expect(all).toHaveLength(302);
+    for (let i = 1; i < all.length; i++) {
+      expect(claimStrength(all[i])).toBeGreaterThan(claimStrength(all[i - 1]));
+    }
+    expect(all[0]).toEqual({ category: 'pair', rank: '2' });
+    expect(all[all.length - 1]).toEqual({ category: 'royalFlush' });
   });
 });

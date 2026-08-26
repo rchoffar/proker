@@ -1,6 +1,10 @@
 export type ColorScheme = 'light' | 'dark';
 
 export const lightColors: Record<string, any> = {
+  // Opaque app background — what the root layout paints behind the transparent
+  // navigator, and what view-shot captures need behind them to avoid transparent PNGs.
+  screenBg: '#E9E6DE',
+
   // Accent — the ONLY color. Green = money / primary / positive.
   accent: '#0E9E62', // deep emerald — text/icons/CTA on light surfaces
   accentBright: '#17E58A', // vivid emerald — text/curves/glow on dark/charcoal surfaces
@@ -48,6 +52,9 @@ export const lightColors: Record<string, any> = {
 };
 
 export const darkColors: Record<string, any> = {
+  // Opaque app background — see lightColors.screenBg.
+  screenBg: '#101114',
+
   // Same single accent, tuned for legibility on dark surfaces (both card types are dark now).
   accent: '#17E58A',
   accentBright: '#17E58A',

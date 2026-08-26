@@ -1,4 +1,4 @@
-import type { AuthUser } from '../../types';
+import type { AuthUser, HandHistory } from '../../types';
 import { API_URL } from './config';
 
 export class ApiError extends Error {
@@ -11,7 +11,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string;
 }
@@ -63,4 +63,31 @@ export function patchMe(token: string, patch: { pseudo: string }): Promise<{ use
 
 export function deleteMe(token: string): Promise<{ ok: true }> {
   return apiFetch('/me', { method: 'DELETE', token });
+}
+
+// Ce que le serveur renvoie pour une main sans son payload — les listes ne transportent
+// jamais les mains complètes, seulement de quoi afficher une ligne.
+export interface HandMeta {
+  id: string;
+  title: string | null;
+  stakes: string | null;
+  gameType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getHands(token: string): Promise<{ hands: HandMeta[] }> {
+  return apiFetch('/hands', { token });
+}
+
+export function getHand(token: string, id: string): Promise<{ hand: HandHistory }> {
+  return apiFetch(`/hands/${encodeURIComponent(id)}`, { token });
+}
+
+export function putHand(token: string, hand: HandHistory): Promise<{ hand: HandMeta }> {
+  return apiFetch(`/hands/${encodeURIComponent(hand.id)}`, { method: 'PUT', body: hand, token });
+}
+
+export function deleteHand(token: string, id: string): Promise<{ ok: true }> {
+  return apiFetch(`/hands/${encodeURIComponent(id)}`, { method: 'DELETE', token });
 }

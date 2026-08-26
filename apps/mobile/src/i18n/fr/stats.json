@@ -1,0 +1,42 @@
+{
+  "title": "Stats",
+  "empty": {
+    "title": "Pas encore de stats",
+    "subtitle": "Lance un mini-jeu depuis l'onglet Jeux — chaque résultat arrive ici automatiquement."
+  },
+  "games": {
+    "flip": "Flip",
+    "roulette": "Roulette",
+    "bluff": "Bluff",
+    "ofc": "OFC"
+  },
+  "winLoss": "{{wins}} V · {{losses}} D",
+  "flip": {
+    "rounds_one": "{{count}} main jouée",
+    "rounds_other": "{{count}} mains jouées",
+    "winRate": "{{value}} % de victoires"
+  },
+  "roulette": {
+    "spins_one": "{{count}} spin",
+    "spins_other": "{{count}} spins",
+    "picked_one": "tiré {{count}} fois",
+    "picked_other": "tiré {{count}} fois",
+    "survival": "{{value}} % de survie"
+  },
+  "bluff": {
+    "games_one": "{{won}} V · {{count}} partie",
+    "games_other": "{{won}} V · {{count}} parties",
+    "catches": "Bluffs catchés : {{success}}/{{attempts}}",
+    "caught": "Pris en bluff : {{caught}}/{{challenged}}",
+    "catchRate": "{{value}} % de catch",
+    "survivalRate": "{{value}} % clean"
+  },
+  "ofc": {
+    "games_one": "{{won}} V · {{count}} partie",
+    "games_other": "{{won}} V · {{count}} parties",
+    "hands_one": "{{count}} main",
+    "hands_other": "{{count}} mains",
+    "fantasy": "FL {{value}} %",
+    "fouls": "Fouls {{value}} %"
+  }
+}

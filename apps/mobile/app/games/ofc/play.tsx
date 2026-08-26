@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,10 @@ import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
 import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
-import { createHandDeal, initGame, reduce, validateAction, variantConfig } from '../../../src/lib/ofc';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
+import { GRID_SIZE, createHandDeal, initGame, reduce, validateAction, variantConfig } from '../../../src/lib/ofc';
 import type { OfcAction, OfcState } from '../../../src/lib/ofc';
 import { redactFor } from '../../../src/lib/ofc/protocol';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
@@ -30,9 +33,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // redaction choke point as online, so a Fantasy Land grid stays face-down for the room.
 const TABLE_VIEWER = '@table';
 
-// Modal screens sit on a black sheet in BOTH themes (EnvironmentBackground lives in the
-// root layout and doesn't follow modals) — so use the theme-invariant onDark* text tokens
-// plus these fixed dark surfaces, same convention as the bluff play screen.
+// The game surface is dark by design in BOTH themes — so use the theme-invariant
+// onDark* text tokens plus these fixed dark surfaces, same convention as the bluff
+// play screen.
 const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 const SCREEN_BG = '#101114';
 
@@ -44,6 +47,7 @@ export default function OfcPlayScreen() {
   const players = useOfcDraft((s) => s.players);
   const startingStack = useOfcDraft((s) => s.startingStack);
   const variant = useOfcDraft((s) => s.variant);
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   // The engine leaves dealing to the controller (randomness stays out of reduce):
   // deal immediately whenever a hand enters the 'dealing' phase.
@@ -53,6 +57,8 @@ export default function OfcPlayScreen() {
   const [state, setState] = useState<OfcState | null>(() =>
     players.length >= 2 ? withAutoDeal(initGame(players, startingStack, variant)) : null,
   );
+  useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+
   // Handoff lock: the phone must reach the right player before private cards can show.
   const [locked, setLocked] = useState(true);
   const [celebrating, setCelebrating] = useState(false);
@@ -71,6 +77,46 @@ export default function OfcPlayScreen() {
     const timer = setTimeout(() => setCelebrating(true), 700);
     return () => clearTimeout(timer);
   }, [state?.phase]);
+
+  // Per-hand stats (fouls, Fantasy Land entries): recorded once when the hand reaches
+  // scoring, deduped by hand number. The ref clears while a hand is being played so a
+  // replay whose game also ends at hand 1 still records.
+  const statsHandRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state) return;
+    if (state.phase === 'dealing' || state.phase === 'placing') {
+      statsHandRef.current = null;
+      return;
+    }
+    if (!state.handResult || statsHandRef.current === state.handNumber) return;
+    statsHandRef.current = state.handNumber;
+    updateGameStats((s) =>
+      recordOfcHand(s, {
+        perPlayer: state.players
+          .filter((p) => state.handResult!.perPlayer[p.id])
+          .map((p) => ({
+            name: p.name,
+            fouled: state.handResult!.perPlayer[p.id].fouled,
+            fantasyNext: state.handResult!.perPlayer[p.id].fantasyNext,
+          })),
+      })
+    );
+  }, [state, updateGameStats]);
+
+  const gameOverRecordedRef = useRef(false);
+  useEffect(() => {
+    if (state?.phase !== 'gameOver') {
+      gameOverRecordedRef.current = false;
+      return;
+    }
+    if (gameOverRecordedRef.current || !state.winnerId) return;
+    gameOverRecordedRef.current = true;
+    const winnerPlayer = state.players.find((p) => p.id === state.winnerId);
+    if (!winnerPlayer) return;
+    updateGameStats((s) =>
+      recordOfcGameEnd(s, { players: state.players.map((p) => p.name), winner: winnerPlayer.name })
+    );
+  }, [state, updateGameStats]);
 
   if (!state) {
     return (
@@ -181,7 +227,7 @@ export default function OfcPlayScreen() {
               <PlacementBoard
                 key={`${actor.id}-${state.handNumber}-${actor.inFantasyLand ? 'fl' : 'initial'}`}
                 hand={actor.hand}
-                discards={actor.inFantasyLand && state.variant === 'pineapple' ? 1 : 0}
+                discards={actor.inFantasyLand ? Math.max(0, actor.hand.length - GRID_SIZE) : 0}
                 commitLabel={t('game.commit')}
                 onCommit={(placements) => {
                   dispatch(

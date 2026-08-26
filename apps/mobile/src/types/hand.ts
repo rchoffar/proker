@@ -76,6 +76,9 @@ export interface HandHistory {
   // Blinds posted by SB/BB players who exist at the real table but weren't entered in the
   // hand (they folded pre-entry) — dead money already counted into pots.
   deadBlinds?: number;
+  // Total antes posted before the deal, entered as one global amount (posters may include
+  // players not in the hand) — dead money already counted into pots.
+  ante?: number;
   heroNet?: number;
   // Absent on hands recorded before unit modes existed — treat as 'chips'.
   unitMode?: UnitMode;

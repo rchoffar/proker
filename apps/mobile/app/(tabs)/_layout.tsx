@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { LayoutDashboard, Search, Calendar, Dices, User } from 'lucide-react-native';
+import { LayoutDashboard, BarChart3, Dices, History, User } from 'lucide-react-native';
 import { FloatingTabBar } from '../../src/components/ui/FloatingTabBar';
 
 export default function TabLayout() {
@@ -21,15 +21,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="festivals"
+        name="replayer"
         options={{
-          tabBarIcon: ({ color }) => <Search color={color} size={22} strokeWidth={1.5} />,
+          tabBarIcon: ({ color }) => <History color={color} size={22} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen
-        name="planning"
+        name="stats"
         options={{
-          tabBarIcon: ({ color }) => <Calendar color={color} size={22} strokeWidth={1.5} />,
+          tabBarIcon: ({ color }) => <BarChart3 color={color} size={22} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen

@@ -1,9 +1,11 @@
 import type { OfcGrid, RowId, RowScores } from './evaluator';
 import {
+  RE_FANTASY_SIZE,
   ROW_IDS,
   bottomRoyalty,
   compareRows,
   evaluateGrid,
+  fantasyEntrySize,
   isFouled,
   middleRoyalty,
   qualifiesFantasy,
@@ -30,6 +32,9 @@ export interface OfcPlayerHandResult {
   rows: RowScores;
   royalties: OfcRoyalties; // zeroed when fouled
   fantasyNext: boolean; // qualifies for (or stays in) Fantasy Land next hand
+  // Progressive pineapple deal earned for next hand: entry QQ→14, KK→15, AA/trips→16,
+  // re-fantasy always 16. Zero when fantasyNext is false; ignored by the classic variant.
+  fantasyCards: number;
 }
 
 export interface OfcPairResult {
@@ -68,12 +73,14 @@ function playerResult(player: ScoringInput): OfcPlayerHandResult {
         const bottom = bottomRoyalty(rows.bottom);
         return { top, middle, bottom, total: top + middle + bottom };
       })();
+  const fantasyNext = player.inFantasyLand ? staysFantasy(rows) : qualifiesFantasy(rows);
   return {
     playerId: player.id,
     fouled,
     rows,
     royalties,
-    fantasyNext: player.inFantasyLand ? staysFantasy(rows) : qualifiesFantasy(rows),
+    fantasyNext,
+    fantasyCards: fantasyNext ? (player.inFantasyLand ? RE_FANTASY_SIZE : fantasyEntrySize(rows)) : 0,
   };
 }
 

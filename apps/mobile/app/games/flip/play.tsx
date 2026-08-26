@@ -6,10 +6,13 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
 import { X, RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { PokerTable, TABLE, seatPoint } from '../../../src/components/hand/PokerTable';
 import { TableSeat } from '../../../src/components/hand/TableSeat';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordFlipRound } from '../../../src/lib/gameStats';
 import { shuffleWithRng } from '../../../src/lib/rng';
 import {
   createDeck,
@@ -19,8 +22,11 @@ import {
   findBestHands,
   type HandScore,
 } from '../../../src/lib/pokerHandEvaluator';
+import { strengthColor, winningCardKeys } from '../../../src/lib/handStrength';
+import { estimateEquity } from '../../../src/lib/equity';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
+import { cardKey } from '../../../src/types';
 import type { Card, Player } from '../../../src/types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -28,6 +34,11 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const TABLE_W = SCREEN_WIDTH - 96;
 const TABLE_H = Math.min(470, Math.max(340, Math.round(SCREEN_HEIGHT * 0.48)));
 const POD_W = 84;
+
+// Suspense on the last card: the river hangs face-down for a beat, then flips slower than
+// the other streets (which use 450ms). Same treatment as the hand replayer's river.
+const RIVER_FLIP_DELAY = 400;
+const RIVER_FLIP_DURATION = 1000;
 
 // The river reveal IS the result — no extra tap between seeing the last card and knowing
 // who pays.
@@ -76,11 +87,32 @@ export default function FlipPlayScreen() {
   const router = useRouter();
   const players = useFlipDraft((s) => s.players);
   const gameType = useFlipDraft((s) => s.gameType);
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
   const holeCount = gameType === 'omaha' ? 4 : 2;
 
   const [phase, setPhase] = useState<Phase>('dealt');
   const [handToken, setHandToken] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
+  // Non-winning cards grey out a beat after the river flip lands, together with the
+  // celebration — but sticky, unlike `celebrating` which resets via onDone.
+  const [showdownDim, setShowdownDim] = useState(false);
+  // The outcome (banners, winner ring, 100%/0% stats) stays hidden while the river is
+  // still mid-flip — otherwise the reveal is spoiled before the card lands.
+  const [outcomeShown, setOutcomeShown] = useState(false);
+  // The % badges keep the previous street's numbers while new cards flip: statsPhase
+  // trails `phase`, catching up only after the phase's flip animations are done (hole fans
+  // stagger k*90+i*70 over a 400ms flip, board cards 100ms apart over 450ms), and the
+  // equities are computed from it. Null until the deal's first flips land.
+  const [statsPhase, setStatsPhase] = useState<Phase | null>(null);
+
+  useEffect(() => {
+    if (phase === 'result') return;
+    const delays: Record<Phase, number> = { dealt: 1000, flop: 750, turn: 600, result: 0 };
+    const timer = setTimeout(() => setStatsPhase(phase), delays[phase]);
+    return () => clearTimeout(timer);
+  }, [phase, handToken]);
+
+  useConfirmQuitGame(players.length >= 2 && phase !== 'result');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- handToken is a cache-busting trigger for "Rejouer", not a data input
   const dealt = useMemo(() => dealNewHand(players, holeCount), [handToken, players, holeCount]);
@@ -95,8 +127,24 @@ export default function FlipPlayScreen() {
     const loserIds = new Set(findWorstHands(scored));
     const winnerIds = new Set(findBestHands(scored));
     const sorted = [...players].sort((a, b) => compareHandScores(byId.get(b.id)!, byId.get(a.id)!));
-    return { byId, loserIds, winnerIds, sorted };
+    const winningKeys = winningCardKeys(scored.filter((s) => winnerIds.has(s.playerId)).map((s) => s.score));
+    return { byId, loserIds, winnerIds, sorted, winningKeys };
   }, [phase, dealt, players, gameType]);
+
+  // Live chance of winning the pot, re-estimated on every street as cards are revealed.
+  // Estimated on the lagged statsPhase, so the badges keep the previous street's numbers
+  // while the new cards flip and refresh once they land (statsPhase never reaches result:
+  // during the river's suspense flip the turn-board values stay up, then outcomeShown
+  // swaps in the exact 100 / 0 / split from `results`).
+  const equities = useMemo(() => {
+    if (statsPhase === null || outcomeShown) return null;
+    const board = dealt.board.slice(0, BOARD_VISIBLE_COUNT[statsPhase]);
+    return estimateEquity(
+      players.map((p) => ({ id: p.id, holeCards: dealt.holeCards[p.id] })),
+      board,
+      gameType
+    );
+  }, [statsPhase, outcomeShown, dealt, players, gameType]);
 
   const finish = () => router.dismissTo('/(tabs)/degen');
 
@@ -107,11 +155,13 @@ export default function FlipPlayScreen() {
     turn: t('flip.revealRiver'),
     result: t('flip.playAgain'),
   };
+  // At result the caption reads "River" while the last card is mid-flip, then the
+  // winner/loser banners take its place once the outcome shows.
   const captionLabels: Record<Phase, string> = {
     dealt: t('flip.dealing'),
     flop: t('poker:phases.flop'),
     turn: t('poker:phases.turn'),
-    result: '',
+    result: t('poker:phases.river'),
   };
 
   // Whole-sentence variants so verb agreement works in both languages (n=2 joins the
@@ -134,15 +184,39 @@ export default function FlipPlayScreen() {
       setHandToken((t) => t + 1);
       setPhase('dealt');
       setCelebrating(false);
+      setShowdownDim(false);
+      setOutcomeShown(false);
+      setStatsPhase(null);
     }
   };
 
-  // The celebration bursts a beat after the river flip lands, not on top of it.
+  // Reveal in two steps: the outcome (banners, rings, stats) appears only once the river
+  // flip has fully landed; the celebration and the non-winning-card grey-out burst a beat
+  // after that, not on top of it.
   useEffect(() => {
     if (phase !== 'result') return;
-    const timer = setTimeout(() => setCelebrating(true), 700);
-    return () => clearTimeout(timer);
+    const outcomeTimer = setTimeout(() => setOutcomeShown(true), RIVER_FLIP_DELAY + RIVER_FLIP_DURATION);
+    const celebrationTimer = setTimeout(() => {
+      setCelebrating(true);
+      setShowdownDim(true);
+    }, RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 700);
+    return () => {
+      clearTimeout(outcomeTimer);
+      clearTimeout(celebrationTimer);
+    };
   }, [phase]);
+
+  // `results` is null outside the result phase, so this records exactly once per hand.
+  useEffect(() => {
+    if (!results) return;
+    updateGameStats((s) =>
+      recordFlipRound(s, {
+        players: players.map((p) => p.name),
+        winners: players.filter((p) => results.winnerIds.has(p.id)).map((p) => p.name),
+        losers: players.filter((p) => results.loserIds.has(p.id)).map((p) => p.name),
+      })
+    );
+  }, [results, players, updateGameStats]);
 
   if (players.length < 2) {
     return (
@@ -173,7 +247,7 @@ export default function FlipPlayScreen() {
       </View>
 
       <View style={styles.tableArea}>
-        {results ? (
+        {results && outcomeShown ? (
           <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
             <Text style={[styles.resultBanner, { color: TABLE.gold }]}>
               🏆 {groupMessage(winnerNames, 'wins')}
@@ -193,8 +267,19 @@ export default function FlipPlayScreen() {
             <View style={styles.boardRow}>
               {[0, 1, 2, 3, 4].map((i) =>
                 i < boardVisibleCount ? (
-                  <Animated.View key={`board-${handToken}-${i}`} entering={FlipInEasyY.duration(450).delay((i < 3 ? i : 0) * 100)}>
-                    <PlayingCard card={dealt.board[i]} size="md" />
+                  <Animated.View
+                    key={`board-${handToken}-${i}`}
+                    entering={
+                      i === 4
+                        ? FlipInEasyY.duration(RIVER_FLIP_DURATION).delay(RIVER_FLIP_DELAY)
+                        : FlipInEasyY.duration(450).delay((i < 3 ? i : 0) * 100)
+                    }
+                  >
+                    <PlayingCard
+                      card={dealt.board[i]}
+                      size="md"
+                      dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(dealt.board[i]))}
+                    />
                   </Animated.View>
                 ) : (
                   <PlayingCard key={`board-${handToken}-${i}-hidden`} faceDown size="md" />
@@ -205,9 +290,15 @@ export default function FlipPlayScreen() {
 
           {players.map((p, k) => {
             const { x, y } = seatPoint(k, players.length, TABLE_W, TABLE_H);
-            const isLoser = results?.loserIds.has(p.id) ?? false;
-            const isWinner = results?.winnerIds.has(p.id) ?? false;
-            const categoryId = results?.byId.get(p.id)?.categoryId;
+            const showOutcome = !!results && outcomeShown;
+            const isLoser = showOutcome && results!.loserIds.has(p.id);
+            const isWinner = showOutcome && results!.winnerIds.has(p.id);
+            const categoryId = showOutcome ? results!.byId.get(p.id)?.categoryId : undefined;
+            const equityPct = showOutcome
+              ? isWinner
+                ? Math.round(100 / results!.winnerIds.size)
+                : 0
+              : equities?.get(p.id);
             const borderColor = isWinner ? TABLE.gold : isLoser ? colors.loss : TABLE.neutralBorder;
             // Bottom-half pods fan their cards above the avatar (toward the felt); top-half
             // pods fan them below, so cards never spill off the table.
@@ -222,9 +313,29 @@ export default function FlipPlayScreen() {
                   (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
                 ]}
               >
-                <PlayingCard card={card} size="md" />
+                <PlayingCard
+                  card={card}
+                  size="md"
+                  dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
+                />
               </Animated.View>
             ));
+            // The win-chance % sits to the right of the card fan (the plate's second line
+            // is reserved for the hand result at showdown). Keyed per street so it pops
+            // in again whenever the number changes.
+            if (equityPct !== undefined) {
+              fan.push(
+                <Animated.View
+                  key={`equity-${handToken}-${statsPhase}-${showOutcome ? 'final' : 'live'}`}
+                  entering={ZoomIn.duration(220).delay(k * 90 + 150)}
+                  style={styles.equityBadge}
+                >
+                  <Text style={[styles.equityBadgeText, { color: strengthColor(equityPct) }]}>
+                    {t('poker:strengthPercent', { value: equityPct })}
+                  </Text>
+                </Animated.View>
+              );
+            }
             return (
               <TableSeat
                 key={p.id}
@@ -354,6 +465,24 @@ const styles = StyleSheet.create({
   },
   holeFanOverlap: {
     marginLeft: -16,
+  },
+  // Absolutely positioned off the fan's right edge so the centered cards keep their
+  // exact place — the badge floats beside them without affecting layout.
+  equityBadge: {
+    position: 'absolute',
+    left: '100%',
+    marginLeft: 4,
+    alignSelf: 'center',
+    backgroundColor: TABLE.plateBg,
+    borderWidth: 1,
+    borderColor: TABLE.neutralBorder,
+    borderRadius: radius.full,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  equityBadgeText: {
+    fontSize: 9,
+    fontFamily: fontFamily.bold,
   },
   footer: {
     paddingHorizontal: spacing.base,

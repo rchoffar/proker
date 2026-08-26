@@ -6,7 +6,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 
 The app is fully bilingual (fr/en) via i18next. Non-negotiable rules for any change:
 
-- **Never hardcode a user-facing string** (JSX text, labels, placeholders, Alert/toasts, option arrays). Use `t()` from `useTranslation('<namespace>')` and add the key to BOTH `src/i18n/en/<ns>.json` and `src/i18n/fr/<ns>.json` in the same change. Namespaces are per feature (common, poker, dashboard, tracker, planning, finder, degen, profile, games, bluff, replayer).
+- **Never hardcode a user-facing string** (JSX text, labels, placeholders, Alert/toasts, option arrays). Use `t()` from `useTranslation('<namespace>')` and add the key to BOTH `src/i18n/en/<ns>.json` and `src/i18n/fr/<ns>.json` in the same change. Namespaces are per feature (auth, common, poker, dashboard, finder, degen, profile, games, bluff, ofc, replayer, stats).
 - Plurals use i18next `_one`/`_other` suffixes with `{ count }` — never `` `${n} mot${n > 1 ? 's' : ''}` `` (wrong for English `n=0`).
 - Never concatenate sentence fragments; make one whole-sentence key per variant, with `{{interpolation}}`.
 - Pure logic in `src/lib/**` stays free of react/i18n imports: return stable codes/ids (see `bluff/engine.ts` error codes, `pokerHandEvaluator.ts` `categoryId`) and translate at render, or accept a `t: TFunction` parameter (see `bluff/labels.ts`).

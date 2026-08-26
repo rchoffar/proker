@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Player } from '../../../types';
+import type { Card, Rank, Suit } from '../../../types/hand';
 import { cardKey } from '../../../types/hand';
-import type { BluffState } from '../engine';
+import type { BluffConfig, BluffState } from '../engine';
 import {
   aliveInOrder,
   createRoundDeal,
@@ -18,16 +19,57 @@ const PLAYERS: Player[] = [
   { id: 'c', name: 'Carla' },
 ];
 
-function freshGame(seed = 1): BluffState {
-  return initGame(PLAYERS, mulberry32(seed));
+function freshGame(seed = 1, config?: BluffConfig): BluffState {
+  return initGame(PLAYERS, mulberry32(seed), config);
 }
 
 /** Advance a game into the bidding phase with a seeded deal. */
-function inBidding(seed = 1, boardCount = 2): BluffState {
+function inBidding(seed = 1, faceUpCount = 2, faceDownCount = 0): BluffState {
   let state = freshGame(seed);
   state = reduce(state, createRoundDeal(state, mulberry32(seed + 100)));
-  return reduce(state, { type: 'chooseBoard', playerId: state.starterId, boardCount });
+  return reduce(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount, faceDownCount });
 }
+
+const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
+
+/**
+ * Bidding state from a hand-crafted deal (2 cards per player, 5 stock) — full control
+ * over the resolution pool for deterministic jeu max / hidden-board assertions.
+ */
+function craftedBidding(opts: {
+  hands: Record<string, Card[]>;
+  stock: Card[];
+  faceUpCount?: number;
+  faceDownCount?: number;
+  jeuMax?: boolean;
+}): BluffState {
+  let state = initGame(PLAYERS, mulberry32(1), { jeuMax: opts.jeuMax ?? true });
+  state = reduce(state, {
+    type: 'deal',
+    playerId: state.starterId,
+    deal: { hands: opts.hands, boardStock: opts.stock },
+  });
+  return reduce(state, {
+    type: 'chooseBoard',
+    playerId: state.starterId,
+    faceUpCount: opts.faceUpCount ?? 0,
+    faceDownCount: opts.faceDownCount ?? 0,
+  });
+}
+
+// Pool (with no board): A♠A♥ / K♠Q♥ / 2♠3♥ — pair of aces holds, nothing beats it.
+const MAX_HANDS: Record<string, Card[]> = {
+  a: [card('A', 'spades'), card('A', 'hearts')],
+  b: [card('K', 'spades'), card('Q', 'hearts')],
+  c: [card('2', 'spades'), card('3', 'hearts')],
+};
+const NEUTRAL_STOCK: Card[] = [
+  card('9', 'clubs'),
+  card('7', 'diamonds'),
+  card('5', 'clubs'),
+  card('J', 'diamonds'),
+  card('8', 'clubs'),
+];
 
 describe('initGame', () => {
   it('sets up 2-card hands, a random starter, and the dealing phase', () => {
@@ -67,30 +109,44 @@ describe('deal / chooseBoard', () => {
     expect(dealt.boardStock).toHaveLength(5);
   });
 
-  it('chooseBoard reveals the first N stock cards and discards the rest', () => {
+  it('chooseBoard splits the stock into face-up and face-down and discards the rest', () => {
     let state = freshGame();
     state = reduce(state, createRoundDeal(state, mulberry32(7)));
     const stock = state.boardStock;
-    const next = reduce(state, { type: 'chooseBoard', playerId: state.starterId, boardCount: 3 });
+    const next = reduce(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 2, faceDownCount: 2 });
     expect(next.phase).toBe('bidding');
-    expect(next.board).toEqual(stock.slice(0, 3));
+    expect(next.board).toEqual(stock.slice(0, 2));
+    expect(next.hiddenBoard).toEqual(stock.slice(2, 4));
     expect(next.boardStock).toEqual([]);
   });
 
-  it('only the starter may choose the board, within 0-5 cards', () => {
+  it('only the starter may choose the board, within 0-5 cards in total', () => {
     let state = freshGame();
     state = reduce(state, createRoundDeal(state, mulberry32(7)));
     const notStarter = state.players.find((p) => p.id !== state.starterId)!;
-    expect(validateAction(state, { type: 'chooseBoard', playerId: notStarter.id, boardCount: 2 })).toEqual({
+    expect(
+      validateAction(state, { type: 'chooseBoard', playerId: notStarter.id, faceUpCount: 2, faceDownCount: 0 }),
+    ).toEqual({
       ok: false,
       code: 'onlyStarterChoosesBoard',
     });
-    expect(validateAction(state, { type: 'chooseBoard', playerId: state.starterId, boardCount: 6 })).toEqual({
+    expect(
+      validateAction(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 3, faceDownCount: 3 }),
+    ).toEqual({
       ok: false,
-      code: 'boardCountOutOfRange',
+      code: 'boardSplitOutOfRange',
       params: { max: 5 },
     });
-    expect(validateAction(state, { type: 'chooseBoard', playerId: state.starterId, boardCount: 0 }).ok).toBe(true);
+    expect(
+      validateAction(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 0, faceDownCount: -1 }),
+    ).toEqual({
+      ok: false,
+      code: 'boardSplitOutOfRange',
+      params: { max: 5 },
+    });
+    expect(
+      validateAction(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 0, faceDownCount: 0 }).ok,
+    ).toBe(true);
   });
 });
 
@@ -198,7 +254,7 @@ describe('round transitions and elimination', () => {
     const survivor = state.players.find((p) => p.id !== doomed)!.id;
     for (let round = 0; round < 4; round++) {
       let s = reduce(state, createRoundDeal(state, mulberry32(50 + round)));
-      s = reduce(s, { type: 'chooseBoard', playerId: s.starterId, boardCount: 1 });
+      s = reduce(s, { type: 'chooseBoard', playerId: s.starterId, faceUpCount: 1, faceDownCount: 0 });
       let r = reduce(s, { type: 'claim', playerId: s.turnId, claim: { category: 'royalFlush' } });
       r = reduce(r, { type: 'catch', playerId: r.turnId });
       expect(r.reveal!.holds).toBe(false);
@@ -217,7 +273,7 @@ describe('round transitions and elimination', () => {
     const doomed = state.starterId;
     for (let round = 0; round < 4; round++) {
       let s = reduce(state, createRoundDeal(state, mulberry32(80 + round)));
-      s = reduce(s, { type: 'chooseBoard', playerId: s.starterId, boardCount: 0 });
+      s = reduce(s, { type: 'chooseBoard', playerId: s.starterId, faceUpCount: 0, faceDownCount: 0 });
       let r = reduce(s, { type: 'claim', playerId: s.turnId, claim: { category: 'royalFlush' } });
       r = reduce(r, { type: 'catch', playerId: r.turnId });
       r = reduce(r, { type: 'confirmReveal', playerId: r.turnId });
@@ -235,5 +291,158 @@ describe('round transitions and elimination', () => {
     const state = inBidding();
     const next = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'pair', rank: '5' } });
     expect(next.version).toBe(state.version + 1);
+  });
+});
+
+describe('jeu max', () => {
+  const claimPairAces = (state: BluffState) =>
+    reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'pair', rank: 'A' } });
+
+  it('is rejected when the config disables it', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK, jeuMax: false });
+    state = claimPairAces(state);
+    expect(validateAction(state, { type: 'jeuMax', playerId: state.turnId })).toEqual({
+      ok: false,
+      code: 'jeuMaxDisabled',
+    });
+  });
+
+  it('cannot open the bidding', () => {
+    const state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    expect(validateAction(state, { type: 'jeuMax', playerId: state.turnId })).toEqual({
+      ok: false,
+      code: 'firstPlayerMustClaim',
+    });
+  });
+
+  it('succeeds when the claim holds and nothing higher exists — the caller sheds a card and opens next round', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = claimPairAces(state);
+    const caller = state.turnId;
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    expect(state.phase).toBe('reveal');
+    const reveal = state.reveal!;
+    expect(reveal.kind).toBe('jeuMax');
+    expect(reveal.jeuMaxSuccess).toBe(true);
+    expect(reveal.holds).toBe(true);
+    expect(reveal.loserId).toBeNull();
+    expect(reveal.higherClaim).toBeNull();
+    expect(reveal.jeuMaxWinsGame).toBe(false);
+    const callerAfterReveal = state.players.find((p) => p.id === caller)!;
+    expect(callerAfterReveal.jeuMaxAttempts).toBe(1);
+    expect(callerAfterReveal.jeuMaxSuccesses).toBe(1);
+
+    state = reduce(state, { type: 'confirmReveal', playerId: caller });
+    state = reduce(state, { type: 'nextRound', playerId: caller });
+    expect(state.phase).toBe('dealing');
+    expect(state.players.find((p) => p.id === caller)!.cardCount).toBe(1);
+    expect(state.starterId).toBe(caller);
+    expect(state.hiddenBoard).toEqual([]);
+  });
+
+  it('fails with the smallest higher combination as proof — the caller takes a card', () => {
+    const hands = {
+      a: [card('A', 'spades'), card('A', 'hearts')],
+      b: [card('K', 'spades'), card('K', 'hearts')],
+      c: [card('2', 'spades'), card('3', 'hearts')],
+    };
+    let state = craftedBidding({ hands, stock: NEUTRAL_STOCK });
+    state = claimPairAces(state);
+    const caller = state.turnId;
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    const reveal = state.reveal!;
+    expect(reveal.jeuMaxSuccess).toBe(false);
+    expect(reveal.holds).toBe(true);
+    expect(reveal.loserId).toBe(caller);
+    expect(reveal.higherClaim).toEqual({ category: 'twoPair', high: 'A', low: 'K' });
+    expect(reveal.higherWitness).toHaveLength(4);
+    const callerAfterReveal = state.players.find((p) => p.id === caller)!;
+    expect(callerAfterReveal.jeuMaxAttempts).toBe(1);
+    expect(callerAfterReveal.jeuMaxSuccesses).toBe(0);
+
+    state = reduce(state, { type: 'confirmReveal', playerId: caller });
+    state = reduce(state, { type: 'nextRound', playerId: caller });
+    expect(state.players.find((p) => p.id === caller)!.cardCount).toBe(3);
+    expect(state.starterId).toBe(caller);
+  });
+
+  it('fails when the announced claim was itself a bluff', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'quads', rank: 'A' } });
+    const caller = state.turnId;
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    const reveal = state.reveal!;
+    expect(reveal.jeuMaxSuccess).toBe(false);
+    expect(reveal.holds).toBe(false);
+    expect(reveal.witness).toBeNull();
+    expect(reveal.higherClaim).toBeNull();
+    expect(reveal.loserId).toBe(caller);
+  });
+
+  it('failing at 5 cards eliminates the caller', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'quads', rank: 'A' } });
+    const caller = state.turnId;
+    state = { ...state, players: state.players.map((p) => (p.id === caller ? { ...p, cardCount: 5 } : p)) };
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    expect(state.reveal!.eliminatesLoser).toBe(true);
+  });
+
+  it('succeeding at 1 card wins the game', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = claimPairAces(state);
+    const caller = state.turnId;
+    state = { ...state, players: state.players.map((p) => (p.id === caller ? { ...p, cardCount: 1 } : p)) };
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    expect(state.reveal!.jeuMaxWinsGame).toBe(true);
+    state = reduce(state, { type: 'confirmReveal', playerId: caller });
+    state = reduce(state, { type: 'nextRound', playerId: caller });
+    expect(state.phase).toBe('gameOver');
+    expect(state.winnerId).toBe(caller);
+    expect(state.players.find((p) => p.id === caller)!.cardCount).toBe(0);
+  });
+
+  it('is legal over a royal flush announcement — liar and jeu max both stay open', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'royalFlush' } });
+    expect(validateAction(state, { type: 'jeuMax', playerId: state.turnId }).ok).toBe(true);
+    expect(validateAction(state, { type: 'catch', playerId: state.turnId }).ok).toBe(true);
+  });
+
+  it('classic catch reveals carry kind "catch"', () => {
+    let state = inBidding(3, 0);
+    state = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'royalFlush' } });
+    state = reduce(state, { type: 'catch', playerId: state.turnId });
+    expect(state.reveal!.kind).toBe('catch');
+  });
+});
+
+describe('hidden board', () => {
+  it('face-down middle cards are in the resolution pool for both catch and jeu max', () => {
+    // The second ace lives face-down in the middle: pair of aces holds only through it.
+    const hands = {
+      a: [card('A', 'spades'), card('4', 'hearts')],
+      b: [card('K', 'spades'), card('Q', 'hearts')],
+      c: [card('2', 'spades'), card('3', 'hearts')],
+    };
+    const stock = [
+      card('A', 'clubs'),
+      card('7', 'diamonds'),
+      card('5', 'clubs'),
+      card('J', 'diamonds'),
+      card('8', 'clubs'),
+    ];
+    let state = craftedBidding({ hands, stock, faceUpCount: 0, faceDownCount: 1 });
+    expect(state.board).toEqual([]);
+    expect(state.hiddenBoard).toEqual([card('A', 'clubs')]);
+    state = reduce(state, { type: 'claim', playerId: state.turnId, claim: { category: 'pair', rank: 'A' } });
+
+    const caught = reduce(state, { type: 'catch', playerId: state.turnId });
+    expect(caught.reveal!.holds).toBe(true);
+    expect(caught.reveal!.pool).toHaveLength(7); // 3 × 2 hand cards + 1 hidden middle card
+
+    const jeuMaxed = reduce(state, { type: 'jeuMax', playerId: state.turnId });
+    expect(jeuMaxed.reveal!.holds).toBe(true);
+    expect(jeuMaxed.reveal!.jeuMaxSuccess).toBe(true);
   });
 });

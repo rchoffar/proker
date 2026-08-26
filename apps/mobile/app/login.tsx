@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -54,17 +54,20 @@ export default function LoginScreen() {
       <Animated.View entering={FadeInDown.delay(80).springify().damping(18).stiffness(140)} style={styles.actions}>
         {/* pointerEvents coupe aussi le bouton Apple natif, qui n'a pas de prop disabled. */}
         <View pointerEvents={pending ? 'none' : 'auto'} style={[styles.buttons, pending != null && styles.buttonsPending]}>
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-            buttonStyle={
-              scheme === 'dark'
-                ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-            }
-            cornerRadius={radius.md}
-            style={styles.appleButton}
-            onPress={() => handleSignIn('apple')}
-          />
+          {/* Sign in with Apple est iOS-only : la vue native n'existe pas sur Android. */}
+          {Platform.OS === 'ios' && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={
+                scheme === 'dark'
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={radius.md}
+              style={styles.appleButton}
+              onPress={() => handleSignIn('apple')}
+            />
+          )}
 
           <TouchableOpacity
             style={[styles.googleButton, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}

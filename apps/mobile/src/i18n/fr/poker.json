@@ -26,6 +26,7 @@
     "straightFlush": "Quinte flush",
     "royalFlush": "Quinte flush royale"
   },
+  "strengthPercent": "{{value}} %",
   "phases": {
     "preflop": "Preflop",
     "flop": "Flop",

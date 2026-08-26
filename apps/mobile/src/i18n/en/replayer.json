@@ -20,8 +20,34 @@
   "chipsUnit": "chips",
   "bigBlindLabel": "Big blind",
   "heroCardsHint": "Tap your two cards, then confirm.",
+  "anteLabel": "Ante (total)",
+  "anteHint": "Optional — total antes posted by all players, added to the pot as dead money.",
+  "potAmount": "Pot {{amount}}",
   "preflopHint": "Preflop actions, in order.",
   "noMoreBetting": "No more betting possible — the hand runs out all-in.",
+  "recordedAction": {
+    "plain": "{{name}}{{position}} — {{action}}",
+    "withAmount": "{{name}}{{position}} — {{action}} {{amount}}"
+  },
+  "editAction": {
+    "hint": "Tap a recorded action to change it — it and everything after are cleared."
+  },
+  "list": {
+    "title": "Hands",
+    "newHand": "New hand",
+    "newHandSubtitle": "Rebuild a hand street by street, then replay it.",
+    "savedTitle": "Saved hands",
+    "rowMetaWithStakes": "{{date}} · {{stakes}}",
+    "empty": {
+      "title": "No saved hands yet",
+      "subtitle": "Hands you build are saved here automatically and synced to your account."
+    },
+    "deleteConfirm": {
+      "title": "Delete this hand?",
+      "message": "It will be removed from your history on every device.",
+      "confirm": "Delete"
+    }
+  },
   "showdownHint": "Opponents' known cards and the winner.",
   "cardsKnown": "Cards known",
   "cardsUnknown": "Cards unknown",
@@ -29,11 +55,9 @@
   "whoWins": "Who wins the hand? (tap several players for a split pot)",
   "autoWinnerSingle": "{{name}} wins with {{hand}}",
   "autoWinnerSplit": "Split pot — {{names}} with {{hand}}",
-  "descriptionPlaceholder": "Description (e.g. Pair of Aces)",
   "titlePlaceholder": "Title (optional) — e.g. {{example}}",
-  "stakesPlaceholder": "Stakes (optional, e.g. €1/€2)",
-  "replayHand": "Replay the hand",
-  "exportImage": "Export image",
+  "replayHand": "Show the hand",
+  "exportReplay": "Export as images",
   "restart": "Start over",
   "autoTitle": {
     "vsHand": "{{hero}} vs {{villain}} — {{street}}",
@@ -76,20 +100,25 @@
   "noHand": "No hand to replay.",
   "handStarts": "The hand begins",
   "tapHint": "Tap to continue",
-  "share": "Share",
   "winsHand": "{{name}} wins the hand",
   "winsAmount": "{{name}} wins {{amount}}",
   "splitWins": "{{names}} split the pot",
   "splitWinsAmount": "{{names}} split {{amount}}",
   "finalPot": "Final pot: {{amount}}",
+  "badBeatOverlay": {
+    "title": "BAD BEAT",
+    "subtitle": "{{name}} was down to {{percent}}% before the river"
+  },
   "handOver": "Hand over",
   "untitledHand": "A hand worth telling",
   "export": {
-    "shareUnavailable": "Sharing isn't available on this device.",
-    "shareFailed": "Sharing failed. Try again.",
     "permissionSettings": "Allow photo access in Settings to save.",
-    "permissionRequired": "Permission needed to save the image.",
-    "imageSaved": "Image saved.",
-    "saveFailed": "Saving failed. Try again."
+    "permissionRequired": "Permission needed to save the images.",
+    "saveFailed": "Saving failed. Try again.",
+    "progress": "Saving image {{current}} of {{total}}…",
+    "allSaved_one": "Image saved to your photos.",
+    "allSaved_other": "{{count}} images saved to your photos.",
+    "partialSaved_one": "Export stopped — {{count}} image was saved.",
+    "partialSaved_other": "Export stopped — {{count}} images were saved."
   }
 }

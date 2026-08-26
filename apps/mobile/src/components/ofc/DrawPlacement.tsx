@@ -134,7 +134,7 @@ export function DrawPlacement({ cards, placeCount, grid, discards, onCommit }: P
           );
         })}
         {done && placeCount > 1 && (
-          <Text style={[styles.trayHint, { color: colors.onDarkTertiary }]}>{t('game.willDiscard')}</Text>
+          <Text style={[styles.trayHint, { color: colors.onDarkTertiary }]}>{t('game.willDiscard', { count: 1 })}</Text>
         )}
       </View>
 

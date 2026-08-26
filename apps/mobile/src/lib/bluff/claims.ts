@@ -111,6 +111,35 @@ function maxTiebreak(category: ClaimCategory): number {
   }
 }
 
+function buildAllClaims(): Claim[] {
+  const claims: Claim[] = [];
+  for (const rank of RANKS) claims.push({ category: 'pair', rank });
+  for (const high of RANKS) {
+    for (const low of RANKS) {
+      if (RANK_VALUE[high] > RANK_VALUE[low]) claims.push({ category: 'twoPair', high, low });
+    }
+  }
+  for (const high of STRAIGHT_HIGHS) claims.push({ category: 'straight', high });
+  for (const rank of RANKS) claims.push({ category: 'trips', rank });
+  for (const high of FLUSH_HIGHS) claims.push({ category: 'flush', high });
+  for (const trips of RANKS) {
+    for (const pair of RANKS) {
+      if (trips !== pair) claims.push({ category: 'fullHouse', trips, pair });
+    }
+  }
+  for (const rank of RANKS) claims.push({ category: 'quads', rank });
+  for (const high of SF_HIGHS) claims.push({ category: 'straightFlush', high });
+  claims.push({ category: 'royalFlush' });
+  return claims.sort(compareClaims);
+}
+
+const ALL_CLAIMS: readonly Claim[] = buildAllClaims();
+
+/** The full announceable claim space (302 claims), sorted ascending by strength. */
+export function enumerateAllClaims(): readonly Claim[] {
+  return ALL_CLAIMS;
+}
+
 /** Can any claim of this category outbid the current claim? Drives category-chip enabling. */
 export function categoryHasHigherClaim(category: ClaimCategory, current: Claim | null): boolean {
   if (!current) return true;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,13 +13,11 @@ import { OrganizerLogo } from '../../src/components/ui/OrganizerLogo';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { Pill } from '../../src/components/ui/Pill';
 import { TournamentDetailModal } from '../../src/components/finder/TournamentDetailModal';
-import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
-import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
 import { formatAmount, formatChips, formatDateRange, formatLevelDuration } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-import type { Tournament, TournamentSession } from '../../src/types';
+import type { Tournament } from '../../src/types';
 
 function TournamentRow({
   tournament,
@@ -65,14 +63,11 @@ export default function FestivalDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
-    festivals, tournaments, organizers, sessions, players,
+    festivals, tournaments, organizers,
     likedFestivalIds, likedTournamentIds, toggleLikedFestival, toggleLikedTournament,
-    addSession, addStake, addFestival, addTournament, addPlayer,
   } = useAppStore();
 
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
-  const [addSessionTournament, setAddSessionTournament] = useState<Tournament | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
 
   const festival = festivals.find((f) => f.id === id);
   const organizer = festival?.organizerId ? organizers.find((o) => o.id === festival.organizerId) : undefined;
@@ -89,35 +84,6 @@ export default function FestivalDetailScreen() {
   const biggestTournament = festivalTournaments.find((t) => t.buyIn === maxBuyIn);
   const mainEvent = festivalTournaments.find((t) => t.isMainEvent) ?? null;
   const otherTournaments = festivalTournaments.filter((t) => !t.isMainEvent);
-
-  const tournamentSessions = useMemo(
-    () => sessions.filter((s): s is TournamentSession => s.type === 'tournament'),
-    [sessions]
-  );
-
-  const selectedTournamentSessions = useMemo(
-    () => (selectedTournament ? tournamentSessions.filter((s) => s.tournamentId === selectedTournament.id) : []),
-    [selectedTournament, tournamentSessions]
-  );
-
-  const handleSave = useCallback(
-    (record: SaveRecord) => {
-      for (const p of record.newPlayers ?? []) {
-        if (!players.find((existing) => existing.id === p.id)) addPlayer(p);
-      }
-      if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
-        addFestival(record.newFestival);
-      }
-      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
-        addTournament(record.newTournament);
-      }
-      if (record.session) addSession(record.session);
-      if (record.stake) addStake(record.stake);
-      setShowAddModal(false);
-      setAddSessionTournament(null);
-    },
-    [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
-  );
 
   if (!festival) {
     return (
@@ -257,26 +223,7 @@ export default function FestivalDetailScreen() {
       <TournamentDetailModal
         tournament={selectedTournament}
         festival={festival}
-        sessions={selectedTournamentSessions}
         onClose={() => setSelectedTournament(null)}
-        onAddSession={() => {
-          const tournament = selectedTournament;
-          setSelectedTournament(null);
-          setTimeout(() => {
-            setAddSessionTournament(tournament);
-            setShowAddModal(true);
-          }, 350);
-        }}
-      />
-
-      <AddSessionSheet
-        visible={showAddModal}
-        onClose={() => { setShowAddModal(false); setAddSessionTournament(null); }}
-        onSave={handleSave}
-        festivals={festivals}
-        tournaments={tournaments}
-        players={players}
-        initialTournament={addSessionTournament}
       />
     </SafeAreaView>
   );

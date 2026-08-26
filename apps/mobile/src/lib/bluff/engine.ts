@@ -4,7 +4,7 @@ import type { Player } from '../../types';
 import { createDeck } from '../pokerHandEvaluator';
 import type { Claim } from './claims';
 import { isStrictlyHigher } from './claims';
-import { claimHolds, findClaimWitness } from './validator';
+import { claimHolds, findClaimWitness, findHigherClaim } from './validator';
 import { shuffleWithRng } from '../rng';
 
 // Pure, UI-free game engine: Pass & Play drives it through local state, the online host
@@ -20,20 +20,36 @@ export type BluffPhase = 'dealing' | 'chooseBoard' | 'bidding' | 'reveal' | 'rou
 export interface BluffPlayerState {
   id: string;
   name: string;
-  cardCount: number; // 2..5 — penalty level ("zone rouge" at 5)
+  cardCount: number; // 0..5 — penalty level ("zone rouge" at 5); Jeu Max successes shed cards
   hand: Card[]; // full knowledge — must be redacted before leaving the host device
   eliminated: boolean;
+  jeuMaxAttempts: number;
+  jeuMaxSuccesses: number;
 }
 
+// Game options chosen by the creator, stored inside the state so redactFor syncs them
+// to guests for free (same pattern as OfcState.variant).
+export interface BluffConfig {
+  jeuMax: boolean;
+}
+
+export const DEFAULT_BLUFF_CONFIG: BluffConfig = { jeuMax: false };
+
 export interface RevealResult {
-  catcherId: string;
+  kind: 'catch' | 'jeuMax';
+  catcherId: string; // liar caller, or the Jeu Max caller
   claimerId: string;
   claim: Claim;
   holds: boolean;
-  loserId: string;
-  pool: Card[]; // alive hands + board at resolution time
+  loserId: string | null; // null only on a successful Jeu Max — nobody loses that round
+  pool: Card[]; // alive hands + visible and hidden middle at resolution time
   witness: Card[] | null; // cards proving the claim, when it holds
   eliminatesLoser: boolean; // loser was already at 5 cards
+  // Jeu Max resolution only:
+  jeuMaxSuccess?: boolean;
+  higherClaim?: Claim | null; // smallest strictly-higher claim that holds — the failure proof
+  higherWitness?: Card[] | null;
+  jeuMaxWinsGame?: boolean; // the caller shed their last card
 }
 
 export interface RoundDeal {
@@ -50,7 +66,9 @@ export interface BluffState {
   starterId: string; // sizes the board and opens the bidding
   turnId: string; // whose turn during bidding
   boardStock: Card[]; // pre-dealt middle candidates — hidden from ALL players until chosen
-  board: Card[];
+  board: Card[]; // face-up middle cards
+  hiddenBoard: Card[]; // face-down middle cards — in the pool, hidden from EVERYONE until reveal
+  config: BluffConfig;
   currentClaim: Claim | null;
   claimHistory: { playerId: string; claim: Claim }[];
   reveal: RevealResult | null; // set from 'reveal' until the next deal
@@ -60,9 +78,10 @@ export interface BluffState {
 
 export type BluffAction =
   | { type: 'deal'; playerId: string; deal: RoundDeal }
-  | { type: 'chooseBoard'; playerId: string; boardCount: number }
+  | { type: 'chooseBoard'; playerId: string; faceUpCount: number; faceDownCount: number }
   | { type: 'claim'; playerId: string; claim: Claim }
   | { type: 'catch'; playerId: string }
+  | { type: 'jeuMax'; playerId: string }
   | { type: 'confirmReveal'; playerId: string }
   | { type: 'nextRound'; playerId: string };
 
@@ -75,6 +94,11 @@ export function aliveInOrder(state: BluffState): BluffPlayerState[] {
   return state.players.filter((p) => !p.eliminated);
 }
 
+/** All cards a claim is resolved against: alive hands + the visible and hidden middle. */
+function resolutionPool(state: BluffState): Card[] {
+  return [...aliveInOrder(state).flatMap((p) => p.hand), ...state.board, ...state.hiddenBoard];
+}
+
 export function nextAliveAfter(state: BluffState, id: string): string {
   const idx = state.players.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error(`Unknown player ${id}`);
@@ -85,7 +109,11 @@ export function nextAliveAfter(state: BluffState, id: string): string {
   throw new Error('No alive player found');
 }
 
-export function initGame(players: Player[], rng: () => number = Math.random): BluffState {
+export function initGame(
+  players: Player[],
+  rng: () => number = Math.random,
+  config: BluffConfig = DEFAULT_BLUFF_CONFIG,
+): BluffState {
   if (players.length < MIN_BLUFF_PLAYERS || players.length > MAX_BLUFF_PLAYERS) {
     throw new Error(`Bluff requires ${MIN_BLUFF_PLAYERS}-${MAX_BLUFF_PLAYERS} players`);
   }
@@ -93,11 +121,21 @@ export function initGame(players: Player[], rng: () => number = Math.random): Bl
   return {
     phase: 'dealing',
     round: 1,
-    players: players.map((p) => ({ id: p.id, name: p.name, cardCount: 2, hand: [], eliminated: false })),
+    players: players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      cardCount: 2,
+      hand: [],
+      eliminated: false,
+      jeuMaxAttempts: 0,
+      jeuMaxSuccesses: 0,
+    })),
     starterId: starter.id,
     turnId: starter.id,
     boardStock: [],
     board: [],
+    hiddenBoard: [],
+    config,
     currentClaim: null,
     claimHistory: [],
     reveal: null,
@@ -137,9 +175,10 @@ export type BluffErrorCode =
   | 'dealCardCountMismatch'
   | 'notChooseBoardPhase'
   | 'onlyStarterChoosesBoard'
-  | 'boardCountOutOfRange'
+  | 'boardSplitOutOfRange'
   | 'notBiddingPhase'
   | 'notYourTurn'
+  | 'jeuMaxDisabled'
   | 'royalFlushUnbeatable'
   | 'claimNotHigher'
   | 'firstPlayerMustClaim'
@@ -179,8 +218,12 @@ export function validateAction(state: BluffState, action: BluffAction): BluffVal
     case 'chooseBoard': {
       if (state.phase !== 'chooseBoard') return { ok: false, code: 'notChooseBoardPhase' };
       if (action.playerId !== state.starterId) return { ok: false, code: 'onlyStarterChoosesBoard' };
-      if (action.boardCount < 0 || action.boardCount > MAX_BOARD_CARDS) {
-        return { ok: false, code: 'boardCountOutOfRange', params: { max: MAX_BOARD_CARDS } };
+      if (
+        action.faceUpCount < 0 ||
+        action.faceDownCount < 0 ||
+        action.faceUpCount + action.faceDownCount > MAX_BOARD_CARDS
+      ) {
+        return { ok: false, code: 'boardSplitOutOfRange', params: { max: MAX_BOARD_CARDS } };
       }
       return { ok: true };
     }
@@ -196,6 +239,16 @@ export function validateAction(state: BluffState, action: BluffAction): BluffVal
       return { ok: true };
     }
     case 'catch': {
+      if (state.phase !== 'bidding') return { ok: false, code: 'notBiddingPhase' };
+      if (action.playerId !== state.turnId) return { ok: false, code: 'notYourTurn' };
+      if (state.claimHistory.length === 0) {
+        return { ok: false, code: 'firstPlayerMustClaim' };
+      }
+      return { ok: true };
+    }
+    case 'jeuMax': {
+      // Legal even over a royal flush announcement — it succeeds iff the royal actually holds.
+      if (!state.config.jeuMax) return { ok: false, code: 'jeuMaxDisabled' };
       if (state.phase !== 'bidding') return { ok: false, code: 'notBiddingPhase' };
       if (action.playerId !== state.turnId) return { ok: false, code: 'notYourTurn' };
       if (state.claimHistory.length === 0) {
@@ -227,6 +280,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
         ),
         boardStock: action.deal.boardStock,
         board: [],
+        hiddenBoard: [],
         turnId: state.starterId,
         currentClaim: null,
         claimHistory: [],
@@ -238,7 +292,11 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
       return {
         ...state,
         phase: 'bidding',
-        board: state.boardStock.slice(0, action.boardCount),
+        board: state.boardStock.slice(0, action.faceUpCount),
+        hiddenBoard: state.boardStock.slice(
+          action.faceUpCount,
+          action.faceUpCount + action.faceDownCount,
+        ),
         boardStock: [],
         turnId: state.starterId,
         version: state.version + 1,
@@ -255,7 +313,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
     }
     case 'catch': {
       const lastClaim = state.claimHistory[state.claimHistory.length - 1];
-      const pool = [...aliveInOrder(state).flatMap((p) => p.hand), ...state.board];
+      const pool = resolutionPool(state);
       const holds = claimHolds(lastClaim.claim, pool);
       const loserId = holds ? action.playerId : lastClaim.playerId;
       const loser = state.players.find((p) => p.id === loserId)!;
@@ -263,6 +321,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
         ...state,
         phase: 'reveal',
         reveal: {
+          kind: 'catch',
           catcherId: action.playerId,
           claimerId: lastClaim.playerId,
           claim: lastClaim.claim,
@@ -275,11 +334,86 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
         version: state.version + 1,
       };
     }
+    case 'jeuMax': {
+      const lastClaim = state.claimHistory[state.claimHistory.length - 1];
+      const pool = resolutionPool(state);
+      const holds = claimHolds(lastClaim.claim, pool);
+      // Success = the announcement is real AND nothing strictly higher exists in the pool.
+      const higher = holds ? findHigherClaim(lastClaim.claim, pool) : null;
+      const success = holds && higher === null;
+      const caller = state.players.find((p) => p.id === action.playerId)!;
+      return {
+        ...state,
+        phase: 'reveal',
+        players: state.players.map((p) =>
+          p.id === action.playerId
+            ? {
+                ...p,
+                jeuMaxAttempts: p.jeuMaxAttempts + 1,
+                jeuMaxSuccesses: p.jeuMaxSuccesses + (success ? 1 : 0),
+              }
+            : p,
+        ),
+        reveal: {
+          kind: 'jeuMax',
+          catcherId: action.playerId,
+          claimerId: lastClaim.playerId,
+          claim: lastClaim.claim,
+          holds,
+          loserId: success ? null : action.playerId,
+          pool,
+          witness: holds ? findClaimWitness(lastClaim.claim, pool) : null,
+          eliminatesLoser: !success && caller.cardCount === ELIMINATION_CARD_COUNT,
+          jeuMaxSuccess: success,
+          higherClaim: higher?.claim ?? null,
+          higherWitness: higher?.witness ?? null,
+          jeuMaxWinsGame: success && caller.cardCount === 1,
+        },
+        version: state.version + 1,
+      };
+    }
     case 'confirmReveal': {
       return { ...state, phase: 'roundEnd', version: state.version + 1 };
     }
     case 'nextRound': {
       const reveal = state.reveal!;
+      if (reveal.loserId === null) {
+        // Successful Jeu Max: nobody loses — the caller sheds a card instead, and
+        // shedding the last one wins the game outright.
+        const players = state.players.map((p) =>
+          p.id === reveal.catcherId
+            ? { ...p, hand: [], cardCount: p.cardCount - 1 }
+            : { ...p, hand: [] },
+        );
+        if (players.find((p) => p.id === reveal.catcherId)!.cardCount === 0) {
+          return {
+            ...state,
+            phase: 'gameOver',
+            players,
+            winnerId: reveal.catcherId,
+            boardStock: [],
+            currentClaim: null,
+            claimHistory: [],
+            version: state.version + 1,
+          };
+        }
+        // The successful caller opens the next round (rule decision).
+        return {
+          ...state,
+          phase: 'dealing',
+          round: state.round + 1,
+          players,
+          starterId: reveal.catcherId,
+          turnId: reveal.catcherId,
+          boardStock: [],
+          board: [],
+          hiddenBoard: [],
+          currentClaim: null,
+          claimHistory: [],
+          reveal: null,
+          version: state.version + 1,
+        };
+      }
       const players = state.players.map((p) => {
         if (p.id !== reveal.loserId) return { ...p, hand: [] };
         return reveal.eliminatesLoser
@@ -313,6 +447,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
         turnId: nextStarter,
         boardStock: [],
         board: [],
+        hiddenBoard: [],
         currentClaim: null,
         claimHistory: [],
         reveal: null,

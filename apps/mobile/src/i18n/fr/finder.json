@@ -1,52 +1,4 @@
 {
-  "title": "Festivals",
-  "searchPlaceholder": "Rechercher un festival...",
-  "empty": {
-    "title": "Aucun festival",
-    "subtitle": "Essayez de modifier vos filtres"
-  },
-  "featured": "Coup de cœur",
-  "allFestivals": "Tous les festivals",
-  "tournamentCount_one": "{{count}} tournoi",
-  "tournamentCount_other": "{{count}} tournois",
-  "continents": {
-    "europe": "Europe",
-    "northAmerica": "Amérique du Nord",
-    "southAmerica": "Amérique du Sud",
-    "asia": "Asie",
-    "africa": "Afrique",
-    "oceania": "Océanie"
-  },
-  "countries": {
-    "FR": "France",
-    "ES": "Espagne",
-    "MC": "Monaco",
-    "CZ": "République Tchèque",
-    "MT": "Malte",
-    "GB": "Royaume-Uni",
-    "IT": "Italie",
-    "BE": "Belgique",
-    "US": "États-Unis",
-    "BR": "Brésil"
-  },
-  "filters": {
-    "title": "Filtres",
-    "reset": "Réinitialiser",
-    "all": "Tout",
-    "continent": "Continent",
-    "country": "Pays",
-    "buyIn": "Buy-in",
-    "organizer": "Organisateur",
-    "apply": "Appliquer",
-    "applyWithCount_one": "Appliquer · {{count}} filtre",
-    "applyWithCount_other": "Appliquer · {{count}} filtres",
-    "buyInRanges": {
-      "low": "< 500 €",
-      "mid": "500 – 999 €",
-      "high": "1k – 2 999 €",
-      "vhigh": "≥ 3 000 €"
-    }
-  },
   "festival": {
     "notFound": "Festival introuvable",
     "smallest": "Plus petit",
@@ -58,23 +10,13 @@
     "otherTournaments": "Autres tournois"
   },
   "detail": {
-    "addSession": "Ajouter une session",
     "buyIn": "Buy-in",
     "players_one": "{{count, number}} joueur",
     "players_other": "{{count, number}} joueurs",
     "field": "Champ",
     "festival": "Festival",
     "venue": "Lieu",
-    "blindStructure": "Structure de blindes",
-    "history": "Historique",
-    "participations_one": "{{count}} participation",
-    "participations_other": "{{count}} participations",
-    "itm": "ITM",
-    "itmWithPosition": "ITM · {{position}}e",
-    "busted": "Éliminé",
-    "reEntries_one": "{{count}} re-entry",
-    "reEntries_other": "{{count}} re-entries",
-    "bestResult": "Meilleur résultat : {{position}}e place"
+    "blindStructure": "Structure de blindes"
   },
   "blinds": {
     "startingStack": "Stack de départ",

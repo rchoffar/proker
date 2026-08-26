@@ -14,7 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { TABLE } from './PokerTable';
-import { fontFamily, fontSize } from '../../design-system/theme';
+import { fontFamily, fontSize, radius, shadow } from '../../design-system/theme';
 
 const CONFETTI_COLORS = [TABLE.gold, '#F2EFE8', '#38D39F', '#E4574F'];
 const CONFETTI_COUNT = 22;
@@ -117,9 +117,18 @@ export function WinCelebration({ width, height, title, subtitle, detail, borderR
         <Confetto key={i} i={i} width={width} height={height} />
       ))}
       <Animated.View entering={ZoomIn.springify().damping(9).stiffness(160).delay(60)} style={styles.badge}>
-        <Text style={styles.badgeTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.badgeSubtitle}>{subtitle}</Text> : null}
-        {detail ? <Text style={styles.badgeDetail}>{detail}</Text> : null}
+        <LinearGradient
+          colors={['#20222A', '#101116']}
+          start={{ x: 0.15, y: 0 }}
+          end={{ x: 0.85, y: 1 }}
+          style={styles.badgeCard}
+        >
+          <Text style={styles.badgeTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+            {title}
+          </Text>
+          {subtitle ? <Text style={styles.badgeSubtitle}>{subtitle}</Text> : null}
+          {detail ? <Text style={styles.badgeDetail}>{detail}</Text> : null}
+        </LinearGradient>
       </Animated.View>
     </Animated.View>
   );
@@ -137,7 +146,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(4, 8, 6, 0.55)',
+    backgroundColor: 'rgba(4, 8, 6, 0.72)',
   },
   raysWrap: {
     position: 'absolute',
@@ -162,18 +171,27 @@ const styles = StyleSheet.create({
     marginLeft: -4,
   },
   badge: {
+    maxWidth: '92%',
+    paddingHorizontal: 12,
+  },
+  badgeCard: {
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderRadius: radius['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    ...shadow.dark,
   },
   badgeTitle: {
     fontSize: 34,
     fontFamily: fontFamily.display,
     letterSpacing: 5,
     color: TABLE.gold,
-    textShadowColor: 'rgba(231, 195, 111, 0.75)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   badgeSubtitle: {
     fontSize: fontSize.md,

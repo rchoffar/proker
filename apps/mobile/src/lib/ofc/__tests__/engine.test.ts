@@ -220,12 +220,12 @@ describe('scoring and next hand', () => {
     expect(scored.handResult?.perPlayer.p2.fantasyNext).toBe(false);
   });
 
-  it('rotates the button and carries Fantasy Land into the next hand', () => {
+  it('freezes the button for the Fantasy Land hand and carries Fantasy Land forward', () => {
     const scored = playScriptedHand(100).at(-1)!;
     const nextHand = reduce(scored, { type: 'nextHand', playerId: 'p1' });
     expect(nextHand.phase).toBe('dealing');
     expect(nextHand.handNumber).toBe(2);
-    expect(nextHand.buttonId).toBe('p1'); // rotated left from p2
+    expect(nextHand.buttonId).toBe('p2'); // frozen: a Fantasy Land hand is coming
     expect(nextHand.players.find((p) => p.id === 'p1')?.inFantasyLand).toBe(true);
     expect(nextHand.players.every((p) => gridSize(p.grid) === 0 && p.hand.length === 0)).toBe(true);
 
@@ -235,6 +235,27 @@ describe('scoring and next hand', () => {
     expect(dealt.players.find((p) => p.id === 'p2')?.hand.length).toBe(5);
     expect(placementOrder(dealt).map((p) => p.id)).toEqual(['p2']);
     expect(dealt.turnId).toBe('p2');
+  });
+
+  it('rotates the button normally when no Fantasy Land hand is coming', () => {
+    const scored = playScriptedHand(100).at(-1)!;
+    // Same scored hand with the Fantasy Land qualification stripped — the post-fantasy
+    // (or plain) path: rotation resumes.
+    const noFantasy: OfcState = {
+      ...scored,
+      handResult: {
+        ...scored.handResult!,
+        perPlayer: Object.fromEntries(
+          Object.entries(scored.handResult!.perPlayer).map(([id, r]) => [
+            id,
+            { ...r, fantasyNext: false, fantasyCards: 0 },
+          ]),
+        ),
+      },
+    };
+    const next = reduce(noFantasy, { type: 'nextHand', playerId: 'p1' });
+    expect(next.buttonId).toBe('p1'); // rotated left from p2
+    expect(next.players.every((p) => !p.inFantasyLand && p.fantasyCardCount === 0)).toBe(true);
   });
 
   it('plays a Fantasy Land hand: parallel commit, completion on the last placement', () => {
@@ -394,6 +415,7 @@ describe('pineapple variant', () => {
     expect(scored.handResult?.pairs[0].points).toBe(13);
     expect(scored.players.map((p) => p.chips)).toEqual([113, 87]);
     expect(scored.handResult?.perPlayer.p1.fantasyNext).toBe(true);
+    expect(scored.handResult?.perPlayer.p1.fantasyCards).toBe(14); // QQ entry
     expect(scored.handResult?.perPlayer.p2.fantasyNext).toBe(false);
   });
 
@@ -487,7 +509,7 @@ describe('pineapple variant', () => {
     ).toMatchObject({ ok: false, code: 'rowOverCapacity', params: { cap: 3 } });
   });
 
-  it('deals 14 to Fantasy Land, places 13 and discards the leftover', () => {
+  it('deals 14 to Fantasy Land on a QQ entry, places 13 and discards the leftover', () => {
     const scored = playScriptedPineappleHand(100).at(-1)!;
     let state = reduce(scored, { type: 'nextHand', playerId: 'p1' });
     state = reduce(state, createHandDeal(state, mulberry32(42)));
@@ -513,6 +535,36 @@ describe('pineapple variant', () => {
     const after = state.players.find((p) => p.id === 'p1')!;
     expect(after.fantasyPlaced).toBe(true);
     expect(after.discards).toEqual([p1.hand[13]]);
+  });
+
+  it('deals the progressive Fantasy Land size decided at scoring (KK→15, AA/re-fantasy→16)', () => {
+    const scored = playScriptedPineappleHand(100).at(-1)!;
+    for (const size of [15, 16]) {
+      const tweaked: OfcState = {
+        ...scored,
+        handResult: {
+          ...scored.handResult!,
+          perPlayer: {
+            ...scored.handResult!.perPlayer,
+            p1: { ...scored.handResult!.perPlayer.p1, fantasyCards: size },
+          },
+        },
+      };
+      let state = reduce(tweaked, { type: 'nextHand', playerId: 'p1' });
+      expect(state.players.find((p) => p.id === 'p1')?.fantasyCardCount).toBe(size);
+      state = reduce(state, createHandDeal(state, mulberry32(42)));
+
+      const p1 = state.players.find((p) => p.id === 'p1')!;
+      expect(p1.hand).toHaveLength(size);
+
+      // Still exactly 13 placed — everything beyond becomes the hidden discard:
+      const placements = p1.hand.slice(0, 13).map((card, i) => ({
+        card,
+        row: i < 3 ? ('top' as const) : i < 8 ? ('middle' as const) : ('bottom' as const),
+      }));
+      state = reduce(state, { type: 'placeFantasy', playerId: 'p1', placements });
+      expect(state.players.find((p) => p.id === 'p1')!.discards).toHaveLength(size - 13);
+    }
   });
 
   it('a full 3-player pineapple hand consumes 51 of 52 cards', () => {

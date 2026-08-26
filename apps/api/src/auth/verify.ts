@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { APPLE_BUNDLE_ID, GOOGLE_IOS_CLIENT_ID } from '../config.js';
+import { APPLE_BUNDLE_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '../config.js';
 
 export interface ProviderIdentity {
   sub: string;
@@ -12,7 +12,8 @@ const appleJwks = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/key
 export async function verifyGoogleIdToken(idToken: string): Promise<ProviderIdentity> {
   const { payload } = await jwtVerify(idToken, googleJwks, {
     issuer: ['https://accounts.google.com', 'accounts.google.com'],
-    audience: GOOGLE_IOS_CLIENT_ID,
+    // iOS émet des tokens aud=client iOS ; Android (via webClientId) aud=client Web.
+    audience: [GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID].filter(Boolean),
   });
   if (!payload.sub) throw new Error('missing sub');
   return { sub: payload.sub, email: typeof payload.email === 'string' ? payload.email : undefined };

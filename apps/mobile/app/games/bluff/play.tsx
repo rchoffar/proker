@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { X, RotateCw, Eye, Lock } from 'lucide-react-native';
+import { X, RotateCw, Eye, EyeOff, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -17,6 +17,9 @@ import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
 import {
   MAX_BOARD_CARDS,
   claimLabel,
@@ -42,9 +45,8 @@ const HAND_FAN_ANGLES: Record<number, number[]> = {
   5: [-14, -7, 0, 7, 14],
 };
 
-// Modal screens sit on a black sheet in BOTH themes (EnvironmentBackground lives in the
-// root layout and doesn't follow modals) — so use the theme-invariant onDark* text tokens
-// plus these fixed dark surfaces, same convention as the roulette play modal.
+// The game surface is dark by design in BOTH themes — so use the theme-invariant
+// onDark* text tokens plus these fixed dark surfaces.
 const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
 const LOSS_ON_DARK = '#FF6B70';
@@ -58,6 +60,8 @@ export default function BluffPlayScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const players = useBluffDraft((s) => s.players);
+  const jeuMaxEnabled = useBluffDraft((s) => s.jeuMax);
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   // The engine leaves dealing to the controller (randomness stays out of reduce):
   // deal immediately whenever a round enters the 'dealing' phase.
@@ -65,13 +69,16 @@ export default function BluffPlayScreen() {
     s.phase === 'dealing' ? reduce(s, createRoundDeal(s)) : s;
 
   const [state, setState] = useState<BluffState | null>(() =>
-    players.length >= 2 ? withAutoDeal(initGame(players)) : null,
+    players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled })) : null,
   );
+  useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+
   // Handoff lock: the phone must reach the right player before their cards can be peeked.
   const [locked, setLocked] = useState(true);
   const [peeking, setPeeking] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [boardCount, setBoardCount] = useState(3);
+  const [faceUpCount, setFaceUpCount] = useState(3);
+  const [faceDownCount, setFaceDownCount] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
 
   const dispatch = (action: BluffAction) => {
@@ -99,6 +106,42 @@ export default function BluffPlayScreen() {
     const timer = setTimeout(() => setCelebrating(true), 700);
     return () => clearTimeout(timer);
   }, [state?.phase]);
+
+  // Per-round bluff-catch stats: one reveal max per round, and `reveal` is cleared by the
+  // next deal, so the round-number ref dedupes re-renders and resets across replays.
+  // Jeu Max reveals are a different mechanic and stay out of the catch counters.
+  const revealRoundRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state?.reveal) {
+      revealRoundRef.current = null;
+      return;
+    }
+    if (state.reveal.kind !== 'catch' || revealRoundRef.current === state.round) return;
+    revealRoundRef.current = state.round;
+    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? '';
+    updateGameStats((s) =>
+      recordBluffReveal(s, {
+        catcher: nameOf(state.reveal!.catcherId),
+        claimer: nameOf(state.reveal!.claimerId),
+        holds: state.reveal!.holds,
+      })
+    );
+  }, [state, updateGameStats]);
+
+  const gameOverRecordedRef = useRef(false);
+  useEffect(() => {
+    if (state?.phase !== 'gameOver') {
+      gameOverRecordedRef.current = false;
+      return;
+    }
+    if (gameOverRecordedRef.current || !state.winnerId) return;
+    gameOverRecordedRef.current = true;
+    const winner = state.players.find((p) => p.id === state.winnerId);
+    if (!winner) return;
+    updateGameStats((s) =>
+      recordBluffGameEnd(s, { players: state.players.map((p) => p.name), winner: winner.name })
+    );
+  }, [state, updateGameStats]);
 
 
   if (!state) {
@@ -130,7 +173,7 @@ export default function BluffPlayScreen() {
 
   const handleChooseBoard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    dispatch({ type: 'chooseBoard', playerId: state.starterId, boardCount });
+    dispatch({ type: 'chooseBoard', playerId: state.starterId, faceUpCount, faceDownCount });
   };
 
   const handleClaim = (claim: Claim) => {
@@ -144,19 +187,26 @@ export default function BluffPlayScreen() {
     dispatch({ type: 'catch', playerId: state.turnId });
   };
 
+  const handleJeuMax = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    dispatch({ type: 'jeuMax', playerId: state.turnId });
+  };
+
   const handleNextRound = () => {
     const afterConfirm = reduce(state, { type: 'confirmReveal', playerId: state.turnId });
     setState(withAutoDeal(reduce(afterConfirm, { type: 'nextRound', playerId: afterConfirm.turnId })));
     setPeeking(false);
-    setBoardCount(3);
+    setFaceUpCount(3);
+    setFaceDownCount(0);
     setLocked(true);
   };
 
   const handleReplay = () => {
-    setState(withAutoDeal(initGame(players)));
+    setState(withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled })));
     setCelebrating(false);
     setPeeking(false);
-    setBoardCount(3);
+    setFaceUpCount(3);
+    setFaceDownCount(0);
     setLocked(true);
   };
 
@@ -194,16 +244,50 @@ export default function BluffPlayScreen() {
       <View style={styles.tableArea}>
         {reveal ? (
           <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
-            <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
-              {reveal.holds
-                ? t('game.revealHolds', { name: catcher?.name })
-                : t('game.revealBluff', { name: claimer?.name })}
-            </Text>
+            {reveal.kind === 'jeuMax' ? (
+              <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
+                {reveal.jeuMaxSuccess
+                  ? t(reveal.jeuMaxWinsGame ? 'game.jeuMaxWin' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                  : reveal.holds
+                    ? t('game.jeuMaxFailHigher', {
+                        name: catcher?.name,
+                        higher: reveal.higherClaim ? claimLabel(reveal.higherClaim, t) : '',
+                      })
+                    : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
+              </Text>
+            ) : (
+              <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
+                {reveal.holds
+                  ? t('game.revealHolds', { name: catcher?.name })
+                  : t('game.revealBluff', { name: claimer?.name })}
+              </Text>
+            )}
             <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
               {reveal.eliminatesLoser
                 ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
                 : claimLabel(reveal.claim, t)}
             </Text>
+            {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
+              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                {t('game.jeuMaxStatLine', {
+                  name: catcher.name,
+                  successes: catcher.jeuMaxSuccesses,
+                  attempts: catcher.jeuMaxAttempts,
+                })}
+              </Text>
+            )}
+            {phase === 'gameOver' &&
+              state.players
+                .filter((p) => p.jeuMaxAttempts > 0)
+                .map((p) => (
+                  <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                    {t('game.jeuMaxStatLine', {
+                      name: p.name,
+                      successes: p.jeuMaxSuccesses,
+                      attempts: p.jeuMaxAttempts,
+                    })}
+                  </Text>
+                ))}
           </Animated.View>
         ) : (
           <Animated.Text key={`caption-${state.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
@@ -216,6 +300,8 @@ export default function BluffPlayScreen() {
           height={TABLE_H}
           players={seats}
           board={state.board}
+          hiddenCount={state.hiddenBoard.length}
+          hiddenBoard={showAllHands ? state.hiddenBoard : undefined}
           turnId={phase === 'bidding' ? state.turnId : null}
           reveal={reveal}
           roundToken={state.round}
@@ -238,16 +324,40 @@ export default function BluffPlayScreen() {
           {phase === 'chooseBoard' && (
             <View style={styles.boardChoice}>
               <DarkStepper
-                label={t('game.boardStepper')}
-                value={boardCount}
+                label={t('game.faceUpStepper')}
+                value={faceUpCount}
                 min={0}
-                max={MAX_BOARD_CARDS}
-                onDecrement={() => setBoardCount((v) => Math.max(0, v - 1))}
-                onIncrement={() => setBoardCount((v) => Math.min(MAX_BOARD_CARDS, v + 1))}
+                max={MAX_BOARD_CARDS - faceDownCount}
+                onDecrement={() => setFaceUpCount((v) => Math.max(0, v - 1))}
+                onIncrement={() =>
+                  setFaceUpCount((v) => Math.min(MAX_BOARD_CARDS - faceDownCount, v + 1))
+                }
+              />
+              <DarkStepper
+                label={t('game.faceDownStepper')}
+                value={faceDownCount}
+                min={0}
+                max={MAX_BOARD_CARDS - faceUpCount}
+                onDecrement={() => setFaceDownCount((v) => Math.max(0, v - 1))}
+                onIncrement={() =>
+                  setFaceDownCount((v) => Math.min(MAX_BOARD_CARDS - faceUpCount, v + 1))
+                }
               />
             </View>
           )}
-          <Pressable
+          {phase === 'chooseBoard' ? (
+            // The starter sizes the middle BLIND — their cards only unlock once the
+            // board split is validated (rule decision).
+            <View style={styles.peekZone}>
+              <View style={styles.peekHint}>
+                <EyeOff size={16} color={colors.onDarkSecondary} strokeWidth={2} />
+                <Text style={[styles.peekHintText, { color: colors.onDarkSecondary }]}>
+                  {t('play.peekAfterBoard')}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Pressable
               onPressIn={() => setPeeking(true)}
               onPressOut={() => setPeeking(false)}
               style={styles.peekZone}
@@ -279,6 +389,7 @@ export default function BluffPlayScreen() {
                 </View>
               )}
             </Pressable>
+          )}
         </View>
       )}
 
@@ -293,7 +404,7 @@ export default function BluffPlayScreen() {
           <>
             {mustCatch && (
               <Text style={[styles.mustCatchHint, { color: colors.onDarkTertiary }]}>
-                {t('game.royalFlushHint')}
+                {t(state.config.jeuMax ? 'game.royalFlushHintJeuMax' : 'game.royalFlushHint')}
               </Text>
             )}
             <View style={styles.actionRow}>
@@ -305,6 +416,16 @@ export default function BluffPlayScreen() {
               >
                 <Text style={styles.actionBtnText}>{t('game.liar')}</Text>
               </TouchableOpacity>
+              {state.config.jeuMax && (
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: TABLE.gold }, !canCatch && styles.disabledBtn]}
+                  onPress={handleJeuMax}
+                  disabled={!canCatch}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryBtnText}>{t('game.jeuMax')}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.accentBright }, mustCatch && styles.disabledBtn]}
                 onPress={() => setPickerOpen(true)}
@@ -442,6 +563,7 @@ const styles = StyleSheet.create({
   },
   boardChoice: {
     padding: spacing.sm,
+    gap: spacing.sm,
   },
   peekZone: {
     minHeight: 96,

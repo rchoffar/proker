@@ -25,8 +25,8 @@ export default function OfcSetupScreen() {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const router = useRouter();
-  const { players, addPlayer, ofcLastPlayers, ofcPseudo, ofcStartingStack, ofcVariant, setOfcDefaults } = useAppStore();
-  const accountPseudo = useAuthStore((s) => s.user?.pseudo);
+  const { players, addPlayer, ofcLastPlayers, ofcStartingStack, ofcVariant, setOfcDefaults } = useAppStore();
+  const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
   const setDraft = useOfcDraft((s) => s.setDraft);
 
   const modeOptions = useMemo<{ key: SetupMode; label: string }[]>(
@@ -42,13 +42,11 @@ export default function OfcSetupScreen() {
   const [query, setQuery] = useState('');
   const [startingStack, setStartingStack] = useState(ofcStartingStack);
   const [variant, setVariant] = useState<OfcVariant>(ofcVariant);
-  const [pseudo, setPseudo] = useState(ofcPseudo || accountPseudo || '');
   const [joinCode, setJoinCode] = useState('');
 
   const canDeal = selected.length >= MIN_OFC_PLAYERS && selected.length <= MAX_OFC_PLAYERS;
   const atMax = selected.length >= MAX_OFC_PLAYERS;
-  const pseudoOk = pseudo.trim().length > 0;
-  const canJoin = pseudoOk && joinCode.length === 4;
+  const canJoin = joinCode.length === 4;
 
   const addToSelection = (player: Player) => {
     if (atMax) return;
@@ -73,14 +71,13 @@ export default function OfcSetupScreen() {
   };
 
   const handleHost = () => {
-    setOfcDefaults({ pseudo: pseudo.trim(), startingStack, variant });
-    setDraft({ mode: 'host', pseudo: pseudo.trim(), startingStack, variant });
+    setOfcDefaults({ startingStack, variant });
+    setDraft({ mode: 'host', pseudo, startingStack, variant });
     router.push('/games/ofc/online');
   };
 
   const handleJoin = () => {
-    setOfcDefaults({ pseudo: pseudo.trim() });
-    setDraft({ mode: 'guest', pseudo: pseudo.trim(), joinCode });
+    setDraft({ mode: 'guest', pseudo, joinCode });
     router.push('/games/ofc/online');
   };
 
@@ -218,28 +215,14 @@ export default function OfcSetupScreen() {
           ) : (
             <>
               <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
-                <GlassCard padding={16}>
-                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.yourPseudo')}</Text>
-                  <TextInput
-                    value={pseudo}
-                    onChangeText={setPseudo}
-                    placeholder={t('setup.pseudoPlaceholder')}
-                    placeholderTextColor={colors.textTertiary}
-                    maxLength={20}
-                    style={[styles.input, { color: colors.textPrimary, borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}
-                  />
-                </GlassCard>
-              </Animated.View>
-
-              <Animated.View entering={FadeInDown.delay(100).springify().damping(18).stiffness(140)}>
                 {variantPicker}
               </Animated.View>
 
-              <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
+              <Animated.View entering={FadeInDown.delay(100).springify().damping(18).stiffness(140)}>
                 {stackPicker}
               </Animated.View>
 
-              <Animated.View entering={FadeInDown.delay(140).springify().damping(18).stiffness(140)}>
+              <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
                 <GlassCard padding={16}>
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.joinTable')}</Text>
                   <View style={styles.joinRow}>
@@ -286,9 +269,8 @@ export default function OfcSetupScreen() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.primaryBtn, !pseudoOk && styles.disabledBtn, { backgroundColor: colors.accentBright }]}
+            style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
             onPress={handleHost}
-            disabled={!pseudoOk}
             activeOpacity={0.85}
           >
             <Text style={styles.primaryBtnText}>{t('setup.createTable')}</Text>

@@ -6,40 +6,35 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { TrendingUp, ChevronRight, Heart, History, Coins, Drama, Disc3, Hourglass, Layers, Plus, Trophy } from 'lucide-react-native';
+import { BarChart3, ChevronRight, Heart, History, Coins, Drama, Disc3, Layers, Trophy } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { Pill } from '../../src/components/ui/Pill';
 import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
 import { GameTile } from '../../src/components/degen/GameTile';
-import { AddSessionSheet } from '../../src/components/tracker/AddSessionSheet';
-import type { SaveRecord } from '../../src/components/tracker/AddSessionSheet';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
+import { hasAnyStats, totals } from '../../src/lib/gameStats';
 import { formatAmount, formatDateShort, isFestivalOngoing, initials } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
-import type { Festival } from '../../src/types';
 
 export default function DashboardScreen() {
   const { t } = useTranslation(['dashboard', 'degen']);
   const { colors } = useTheme();
   const router = useRouter();
   const {
-    user, stats, festivals, tournaments, organizers, players,
-    likedFestivalIds, toggleLikedFestival,
-    addSession, addStake, addFestival, addTournament, addPlayer,
+    user, festivals, tournaments, organizers,
+    likedFestivalIds, toggleLikedFestival, gameStats,
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
   const isActive = useIsActiveTab();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addSessionFestival, setAddSessionFestival] = useState<Festival | null>(null);
 
   const organizerById = useMemo(() => {
     const map: Record<string, (typeof organizers)[number]> = {};
@@ -88,24 +83,7 @@ export default function DashboardScreen() {
     [featuredTournament, festivals]
   );
 
-  const handleSave = useCallback(
-    (record: SaveRecord) => {
-      for (const p of record.newPlayers ?? []) {
-        if (!players.find((existing) => existing.id === p.id)) addPlayer(p);
-      }
-      if (record.newFestival && !festivals.find((f) => f.id === record.newFestival!.id)) {
-        addFestival(record.newFestival);
-      }
-      if (record.newTournament && !tournaments.find((t) => t.id === record.newTournament!.id)) {
-        addTournament(record.newTournament);
-      }
-      if (record.session) addSession(record.session);
-      if (record.stake) addStake(record.stake);
-      setShowAddModal(false);
-      setAddSessionFestival(null);
-    },
-    [players, festivals, tournaments, addPlayer, addFestival, addTournament, addSession, addStake]
-  );
+  const statsTotals = useMemo(() => totals(gameStats), [gameStats]);
 
   if (!isActive) return <View style={styles.screen} />;
 
@@ -135,25 +113,19 @@ export default function DashboardScreen() {
                 badge={heroBadge}
                 liked={likedFestivalIds.includes(currentFestival.id)}
                 onPress={() => router.push(`/festival/${currentFestival.id}`)}
-                onAddResult={() => {
-                  setAddSessionFestival(currentFestival);
-                  setShowAddModal(true);
-                }}
                 onToggleLike={() => toggleLikedFestival(currentFestival.id)}
               />
             ) : (
-              <TouchableOpacity onPress={() => router.push('/festivals')} activeOpacity={0.85}>
-                <GlassCard variant="dark" padding={24} style={styles.emptyHero}>
-                  <View style={styles.emptyHeroIconWrap}>
-                    <PokerChip size={90} style={styles.emptyHeroChip} color={colors.onDarkHairline} />
-                    <Heart size={22} color={colors.onDarkTertiary} strokeWidth={1.5} />
-                  </View>
-                  <Text style={[styles.emptyHeroTitle, { color: colors.onDarkPrimary }]}>{t('emptyHero.title')}</Text>
-                  <Text style={[styles.emptyHeroSubtitle, { color: colors.onDarkTertiary }]}>
-                    {t('emptyHero.subtitle')}
-                  </Text>
-                </GlassCard>
-              </TouchableOpacity>
+              <GlassCard variant="dark" padding={24} style={styles.emptyHero}>
+                <View style={styles.emptyHeroIconWrap}>
+                  <PokerChip size={90} style={styles.emptyHeroChip} color={colors.onDarkHairline} />
+                  <Heart size={22} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                </View>
+                <Text style={[styles.emptyHeroTitle, { color: colors.onDarkPrimary }]}>{t('emptyHero.title')}</Text>
+                <Text style={[styles.emptyHeroSubtitle, { color: colors.onDarkTertiary }]}>
+                  {t('emptyHero.subtitle')}
+                </Text>
+              </GlassCard>
             )}
           </Animated.View>
 
@@ -188,6 +160,14 @@ export default function DashboardScreen() {
                 icon={<Layers size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/ofc')}
+              />
+              <GameTile
+                name={t('games.replayTitle')}
+                description={t('games.replayDesc')}
+                icon={<History size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+                comingSoon={false}
+                pillLabel={t('tilePills.open')}
+                onPress={() => router.push('/hand-replayer')}
               />
             </View>
           </Animated.View>
@@ -229,55 +209,32 @@ export default function DashboardScreen() {
             </Animated.View>
           )}
 
-          {/* Outils : replayer + tracker, en tuiles façon jeux */}
+          {/* Stats rapides des mini-jeux — le détail par pseudo vit dans l'onglet Stats */}
           <Animated.View entering={FadeInDown.delay(200).springify().damping(18).stiffness(140)} style={styles.section}>
-            <SectionLabel style={styles.sectionLabel}>{t('sections.tools')}</SectionLabel>
-            <View style={styles.grid}>
-              <GameTile
-                name={t('games.replayTitle')}
-                description={t('games.replayDesc')}
-                icon={<History size={20} color={colors.textSecondary} strokeWidth={1.5} />}
-                comingSoon={false}
-                pillLabel={t('tilePills.open')}
-                onPress={() => router.push('/hand-replayer')}
-              />
-              <GameTile
-                name={t('addSession')}
-                description={t('addSessionDesc')}
-                icon={<Plus size={20} color={colors.textSecondary} strokeWidth={1.8} />}
-                comingSoon={false}
-                pillLabel={t('tilePills.add')}
-                onPress={() => setShowAddModal(true)}
-              />
-              <GameTile
-                name={t('sessions.title')}
-                description={t('sessions.count', { count: stats.totalSessions })}
-                icon={<TrendingUp size={20} color={colors.textSecondary} strokeWidth={1.5} />}
-                comingSoon={false}
-                pillLabel={t('tilePills.open')}
-                onPress={() => router.push('/tracker')}
-              />
-              <GameTile
-                name="The Last Longer"
-                description={t('degen:games.lastLonger')}
-                icon={<Hourglass size={20} color={colors.textSecondary} strokeWidth={1.5} />}
-              />
-            </View>
+            <SectionLabel style={styles.sectionLabel}>{t('sections.stats')}</SectionLabel>
+            <TouchableOpacity onPress={() => router.push('/stats')} activeOpacity={0.8}>
+              <GlassCard padding={16}>
+                <View style={styles.tournamentRow}>
+                  <View style={[styles.tournamentIcon, { backgroundColor: colors.accentTint }]}>
+                    <BarChart3 size={18} color={colors.accent} strokeWidth={1.8} />
+                  </View>
+                  <View style={styles.tournamentInfo}>
+                    <Text style={[styles.tournamentName, { color: colors.textPrimary }]}>{t('quickStats.title')}</Text>
+                    <Text style={[styles.tournamentSub, { color: colors.textTertiary }]} numberOfLines={1}>
+                      {hasAnyStats(gameStats)
+                        ? t('quickStats.players', { count: statsTotals.pseudos })
+                        : t('quickStats.empty')}
+                    </Text>
+                  </View>
+                  <ChevronRight size={18} color={colors.textTertiary} strokeWidth={1.8} />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
           </Animated.View>
 
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
-
-      <AddSessionSheet
-        visible={showAddModal}
-        onClose={() => { setShowAddModal(false); setAddSessionFestival(null); }}
-        onSave={handleSave}
-        festivals={festivals}
-        tournaments={tournaments}
-        players={players}
-        initialFestival={addSessionFestival}
-      />
     </SafeAreaView>
   );
 }

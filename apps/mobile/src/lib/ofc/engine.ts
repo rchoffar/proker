@@ -16,10 +16,11 @@ import { scoreHand } from './scoring';
 // Two variants, chosen by the game creator at initGame:
 //   classic   — 8 draw rounds, 1 public card per turn, placed immediately, no discard.
 //   pineapple — 4 draw rounds, 3 PRIVATE cards per turn: place 2, discard 1 (hidden,
-//               out of play). Fantasy Land deals 14, place 13 + discard 1.
+//               out of play). Fantasy Land is progressive: 14-16 dealt (QQ→14, KK→15,
+//               AA/trips→16, re-fantasy 16), place 13 + discard the rest.
 //
 // Hand lifecycle: 'dealing' (controller auto-dispatches `deal`: 5 cards per player,
-// fantasyHandSize to Fantasy Land players) → 'placing' (round 0 = sequential initial-5
+// fantasyCardCount to Fantasy Land players) → 'placing' (round 0 = sequential initial-5
 // commits in button order; rounds 1..drawRounds = dealSize cards to the actor, placeCount
 // placed, the rest discarded; Fantasy Land players commit their full grid in parallel,
 // outside the rotation) → 'scoring' (frozen OfcHandResult + chip settlement) → back to
@@ -33,7 +34,9 @@ export interface OfcVariantConfig {
   drawRounds: number;
   dealSize: number; // cards dealt to the actor each draw turn
   placeCount: number; // cards the actor must place; dealSize - placeCount are discarded
-  fantasyHandSize: number; // cards dealt to a Fantasy Land player (13 placed either way)
+  // Fallback Fantasy Land deal (13 placed either way). Classic always uses it; pineapple
+  // normally deals the per-player progressive fantasyCardCount instead.
+  fantasyHandSize: number;
 }
 
 export const VARIANT_CONFIG: Record<OfcVariant, OfcVariantConfig> = {
@@ -53,6 +56,9 @@ export interface OfcPlayerState {
   discards: Card[]; // PRIVATE cards thrown this hand — visible to their owner only
   inFantasyLand: boolean;
   fantasyPlaced: boolean;
+  // Cards to deal this player's Fantasy Land hand (pineapple progressive: 14-16, decided
+  // by the qualifying hand at scoring time). 0 when not in Fantasy Land.
+  fantasyCardCount: number;
 }
 
 export interface OfcPlacement {
@@ -166,6 +172,7 @@ export function initGame(
       discards: [],
       inFantasyLand: false,
       fantasyPlaced: false,
+      fantasyCardCount: 0,
     })),
     buttonId: button.id,
     turnId: null,
@@ -181,7 +188,8 @@ export function initGame(
 /**
  * Shuffles a fresh 52-card deck for the hand. The `deal` reducer distributes it
  * deterministically. Never exhausts: classic worst case is 3 Fantasy Land players
- * (39 cards); pineapple worst cases are 3 non-FL players (51) or 3 FL players (42).
+ * (39 cards); pineapple worst cases are 3 non-FL players (51), 3 FL players at the
+ * 16-card maximum (48), or 2 FL at 16 plus 1 normal (32 + 5 + 4×3 = 49).
  */
 export function createHandDeal(
   state: OfcState,
@@ -393,7 +401,7 @@ export function reduce(state: OfcState, action: OfcAction): OfcState {
       let cursor = 0;
       const players = state.players.map((p) => {
         if (p.eliminated) return p;
-        const take = p.inFantasyLand ? cfg.fantasyHandSize : INITIAL_SET_SIZE;
+        const take = p.inFantasyLand ? p.fantasyCardCount || cfg.fantasyHandSize : INITIAL_SET_SIZE;
         const hand = action.deck.slice(cursor, cursor + take);
         cursor += take;
         return { ...p, hand, grid: emptyGrid(), discards: [], fantasyPlaced: false };
@@ -477,11 +485,16 @@ export function reduce(state: OfcState, action: OfcAction): OfcState {
         };
       }
       const fantasyNext = state.handResult!.perPlayer;
+      const cfg = variantConfig(state);
+      const enters = (p: OfcPlayerState) => !p.eliminated && (fantasyNext[p.id]?.fantasyNext ?? false);
+      // Standard Fantasy Land rule: the button freezes for the whole fantasy hand and
+      // rotates again on the first normal hand after it.
+      const fantasyHandComing = state.players.some(enters);
       return {
         ...state,
         phase: 'dealing',
         handNumber: state.handNumber + 1,
-        buttonId: nextAliveAfter(state, state.buttonId),
+        buttonId: fantasyHandComing ? state.buttonId : nextAliveAfter(state, state.buttonId),
         turnId: null,
         placeRound: 0,
         deck: [],
@@ -492,8 +505,13 @@ export function reduce(state: OfcState, action: OfcAction): OfcState {
           grid: emptyGrid(),
           hand: [],
           discards: [],
-          inFantasyLand: !p.eliminated && (fantasyNext[p.id]?.fantasyNext ?? false),
+          inFantasyLand: enters(p),
           fantasyPlaced: false,
+          fantasyCardCount: enters(p)
+            ? state.variant === 'pineapple'
+              ? (fantasyNext[p.id]?.fantasyCards ?? cfg.fantasyHandSize)
+              : cfg.fantasyHandSize
+            : 0,
         })),
         version: state.version + 1,
       };

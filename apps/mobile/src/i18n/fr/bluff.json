@@ -25,9 +25,10 @@
     "dealCardCountMismatch": "Donne incohérente avec le nombre de cartes des joueurs",
     "notChooseBoardPhase": "Pas la phase de choix du milieu",
     "onlyStarterChoosesBoard": "Seul le premier joueur choisit le milieu",
-    "boardCountOutOfRange": "Le milieu doit compter 0 à {{max}} cartes",
+    "boardSplitOutOfRange": "Cartes visibles et cachées : 0 à {{max}} au total",
     "notBiddingPhase": "Pas la phase d’enchères",
     "notYourTurn": "Ce n’est pas ton tour",
+    "jeuMaxDisabled": "Le Jeu Max est désactivé pour cette partie",
     "royalFlushUnbeatable": "La quinte flush royale ne peut pas être surenchérie",
     "claimNotHigher": "L’annonce doit être strictement supérieure",
     "firstPlayerMustClaim": "Le premier joueur doit faire une annonce",
@@ -53,12 +54,14 @@
     "noPlayersYet": "Aucun joueur pour l’instant",
     "maxPlayersReached": "Maximum de joueurs atteint",
     "searchOrCreatePlayer": "Chercher ou créer un joueur…",
-    "yourPseudo": "Ton pseudo",
-    "pseudoPlaceholder": "Pseudo affiché à la table",
     "joinTable": "Rejoindre une table",
     "join": "Rejoindre",
     "dealCards": "Distribuer les cartes",
-    "createTable": "Créer une table"
+    "createTable": "Créer une table",
+    "jeuMaxLabel": "Règles de la partie",
+    "jeuMaxClassic": "Classique",
+    "jeuMaxOption": "Jeu Max",
+    "jeuMaxHint": "À ton tour tu peux dire « Jeu Max » : si la dernière annonce est vraiment le jeu maximum possible, tu te débarrasses d’une carte — à 0 carte tu gagnes. Sinon tu en prends une."
   },
   "game": {
     "roundBadge": "M{{round}}",
@@ -71,10 +74,18 @@
     "revealSubEliminated": "{{claim}} · {{name}} est éliminé !",
     "victory": "VICTOIRE",
     "winnerSub": "{{name}} remporte la partie",
-    "boardStepper": "Cartes au centre",
+    "faceUpStepper": "Cartes visibles au centre",
+    "faceDownStepper": "Cartes cachées au centre",
     "revealBoard": "Révéler le milieu",
     "royalFlushHint": "La quinte flush royale ne peut pas être surenchérie",
+    "royalFlushHintJeuMax": "La quinte flush royale ne peut pas être surenchérie — Menteur ou Jeu Max",
     "liar": "Menteur !",
+    "jeuMax": "Jeu Max",
+    "jeuMaxSuccess": "Jeu Max ! {{name}} se débarrasse d’une carte",
+    "jeuMaxWin": "Jeu Max ! {{name}} se débarrasse de sa dernière carte",
+    "jeuMaxFailNotHeld": "Raté — l’annonce était du bluff, {{name}} prend une carte",
+    "jeuMaxFailHigher": "Raté — il y avait {{higher}}, {{name}} prend une carte",
+    "jeuMaxStatLine": "{{name}} : {{successes}}/{{attempts}} Jeu Max",
     "announce": "Annoncer",
     "nextRound": "Manche suivante",
     "replay": "Rejouer"
@@ -82,6 +93,7 @@
   "play": {
     "noPlayers": "Aucun joueur pour cette partie.",
     "peekHint": "Cartes de {{name}} — maintenir pour voir",
+    "peekAfterBoard": "Valide le milieu avant de regarder tes cartes",
     "passPhoneTo": "Passe le téléphone à",
     "itsMe": "C’est moi, voir mon tour",
     "finish": "Terminer"
@@ -100,7 +112,9 @@
     "waitingBoard": "{{name}} choisit le milieu…",
     "waitingTurn": "Au tour de {{name}}…",
     "waitingNextRound": "L’hôte lance la manche suivante…",
-    "quit": "Quitter"
+    "quit": "Quitter",
+    "jeuMaxEnabled": "Règle Jeu Max activée",
+    "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max"
   },
   "picker": {
     "title": "Annoncer",
@@ -124,6 +138,7 @@
   "table": {
     "eliminated": "Éliminé",
     "eliminatedNow": "Éliminé !",
-    "plusOneCard": "+1 carte"
+    "plusOneCard": "+1 carte",
+    "minusOneCard": "−1 carte"
   }
 }

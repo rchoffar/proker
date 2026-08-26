@@ -28,6 +28,10 @@ interface Props {
   height: number;
   players: BluffSeatVM[];
   board: Card[];
+  // Face-down middle cards: backs while `hiddenBoard` is undefined, flipped up once the
+  // caller passes the revealed cards (reveal/roundEnd/gameOver phases only).
+  hiddenCount: number;
+  hiddenBoard?: Card[];
   turnId: string | null;
   reveal: RevealResult | null;
   // Re-fires entering animations when a new round deals (same trick as flip's handToken).
@@ -45,12 +49,16 @@ const FAN_ANGLES: Record<number, number[]> = {
   5: [-14, -7, 0, 7, 14],
 };
 
-export function BluffTable({ width, height, players, board, turnId, reveal, roundToken, children }: Props) {
+export function BluffTable({ width, height, players, board, hiddenCount, hiddenBoard, turnId, reveal, roundToken, children }: Props) {
   const { t } = useTranslation('bluff');
   const witnessKeys = new Set((reveal?.witness ?? []).map(cardKey));
+  // A failed Jeu Max's counter-example: the smallest higher combination that exists.
+  const higherWitnessKeys = new Set((reveal?.higherWitness ?? []).map(cardKey));
 
   const highlight = (card: Card, node: ReactNode) =>
-    witnessKeys.has(cardKey(card)) ? (
+    higherWitnessKeys.has(cardKey(card)) ? (
+      <View style={[styles.witness, { borderColor: LOSS_ON_FELT }]}>{node}</View>
+    ) : witnessKeys.has(cardKey(card)) ? (
       <View style={[styles.witness, { borderColor: TABLE.gold }]}>{node}</View>
     ) : (
       node
@@ -65,12 +73,33 @@ export function BluffTable({ width, height, players, board, turnId, reveal, roun
               {highlight(card, <PlayingCard card={card} size="md" />)}
             </Animated.View>
           ))}
+          {hiddenBoard
+            ? hiddenBoard.map((card, i) => (
+                <Animated.View
+                  key={`hidden-up-${roundToken}-${cardKey(card)}`}
+                  entering={FlipInEasyY.duration(450).delay((board.length + i) * 100)}
+                >
+                  {highlight(card, <PlayingCard card={card} size="md" />)}
+                </Animated.View>
+              ))
+            : Array.from({ length: hiddenCount }, (_, i) => (
+                <Animated.View
+                  key={`hidden-down-${roundToken}-${i}`}
+                  entering={FlipInEasyY.duration(450).delay((board.length + i) * 100)}
+                >
+                  <PlayingCard faceDown size="md" />
+                </Animated.View>
+              ))}
         </View>
       </View>
 
       {players.map((p, k) => {
         const { x, y } = seatPoint(k, players.length, width, height);
-        const cardsOnTop = y >= height / 2;
+        // Fans hang down toward the felt only when the seat is near the top edge; a seat
+        // lower than ~0.18·height (3- and 6-player side seats land at 0.25·height) would
+        // drop its fan onto the board row, so it fans upward instead, like the 4-player
+        // side seats. 5-player top seats (0.0955·height) must stay below the threshold.
+        const cardsOnTop = y >= height * 0.18;
         const isTurn = !reveal && !p.eliminated && p.id === turnId;
         const isLoser = reveal?.loserId === p.id;
         const ringColor = isLoser ? LOSS_ON_FELT : isTurn ? TABLE.gold : TABLE.neutralBorder;
@@ -103,15 +132,23 @@ export function BluffTable({ width, height, players, board, turnId, reveal, roun
               );
             });
 
+        const shedsCard =
+          reveal?.kind === 'jeuMax' && reveal.jeuMaxSuccess === true && p.id === reveal.catcherId;
         const secondLine = p.eliminated
           ? { text: t('table.eliminated'), color: LOSS_ON_FELT }
-          : isLoser
+          : shedsCard
             ? {
-                text: reveal!.eliminatesLoser ? t('table.eliminatedNow') : t('table.plusOneCard'),
-                color: LOSS_ON_FELT,
+                text: t('table.minusOneCard'),
+                color: TABLE.gold,
                 entering: ZoomIn.duration(250).delay(400),
               }
-            : { text: t('common:cardCount', { count: p.cardCount }), color: TABLE.plateText };
+            : isLoser
+              ? {
+                  text: reveal!.eliminatesLoser ? t('table.eliminatedNow') : t('table.plusOneCard'),
+                  color: LOSS_ON_FELT,
+                  entering: ZoomIn.duration(250).delay(400),
+                }
+              : { text: t('common:cardCount', { count: p.cardCount }), color: TABLE.plateText };
 
         return (
           <TableSeat

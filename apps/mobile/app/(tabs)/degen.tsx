@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Coins, Drama, Disc3, Hourglass, Layers } from 'lucide-react-native';
+import { Coins, Drama, Disc3, Layers } from 'lucide-react-native';
 import { GameTile } from '../../src/components/degen/GameTile';
 import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
@@ -22,7 +22,6 @@ export default function DegenHubScreen() {
       { name: 'Flip', description: t('games.flip'), Icon: Coins, route: '/games/flip' },
       { name: 'Bluff', description: t('games.bluff'), Icon: Drama, route: '/games/bluff' },
       { name: 'Roulette', description: t('games.roulette'), Icon: Disc3, route: '/games/roulette' },
-      { name: 'The Last Longer', description: t('games.lastLonger'), Icon: Hourglass },
       { name: 'Open-Face Chinese Poker', description: t('games.ofc'), Icon: Layers, route: '/games/ofc' },
     ],
     [t]

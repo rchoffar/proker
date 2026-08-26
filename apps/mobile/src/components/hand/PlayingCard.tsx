@@ -8,6 +8,11 @@ import type { Card, Suit } from '../../types';
 interface Props {
   card?: Card;
   faceDown?: boolean;
+  // Dashed empty slot at card dimensions — "your pick goes here", as opposed to
+  // faceDown which means a hidden card.
+  placeholder?: boolean;
+  // Greyed-out state for showdowns — cards that are not part of the winning hand.
+  dimmed?: boolean;
   size?: 'sm' | 'md' | 'lg';
   // Exact width in points; overrides `size`, with all other dimensions derived
   // proportionally from the lg tier. For rows that must fit N cards on any screen.
@@ -37,9 +42,23 @@ const SUIT_ICONS: Record<Suit, typeof Club> = {
   diamonds: Diamond,
 };
 
-export function PlayingCard({ card, faceDown = false, size = 'md', width, style }: Props) {
+export function PlayingCard({ card, faceDown = false, placeholder = false, dimmed = false, size = 'md', width, style }: Props) {
   const { colors } = useTheme();
   const dims = width !== undefined ? dimsForWidth(width) : SIZES[size];
+
+  if (placeholder) {
+    return (
+      <View
+        style={[
+          styles.base,
+          styles.placeholder,
+          { width: dims.width, height: dims.height, backgroundColor: colors.neutralTileBg, borderColor: colors.hairline },
+          dimmed && styles.dimmed,
+          style,
+        ]}
+      />
+    );
+  }
 
   if (faceDown || !card) {
     return (
@@ -48,6 +67,7 @@ export function PlayingCard({ card, faceDown = false, size = 'md', width, style 
           styles.base,
           { width: dims.width, height: dims.height, backgroundColor: '#1B1D24', borderColor: 'rgba(255,255,255,0.14)' },
           styles.backCenter,
+          dimmed && styles.dimmed,
           style,
         ]}
       >
@@ -65,6 +85,7 @@ export function PlayingCard({ card, faceDown = false, size = 'md', width, style 
       style={[
         styles.base,
         { width: dims.width, height: dims.height, backgroundColor: colors.cardFaceBg, borderColor: colors.cardFaceBorder },
+        dimmed && styles.dimmed,
         style,
       ]}
     >
@@ -90,6 +111,12 @@ const styles = StyleSheet.create({
   backCenter: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  placeholder: {
+    borderStyle: 'dashed',
+  },
+  dimmed: {
+    opacity: 0.35,
   },
   corner: {
     position: 'absolute',

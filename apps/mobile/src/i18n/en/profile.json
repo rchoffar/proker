@@ -1,16 +1,6 @@
 {
   "title": "Profile",
   "identityFallback": "Pro player · Paris",
-  "totalProfit": "Total profit",
-  "thisMonth": "this month",
-  "roiDays": "ROI · {{days}}d",
-  "itmDays": "ITM · {{days}}d",
-  "volumeTitle": "Volume · {{month}}",
-  "byWeek": "Split by week",
-  "hoursShort": "{{hours}}h",
-  "evolution": "Trend",
-  "lastDays": "Last {{days}} days",
-  "notEnoughData": "Not enough data yet",
   "settings": {
     "title": "Settings",
     "currency": "Currency",
@@ -25,17 +15,17 @@
   },
   "signOutAlert": {
     "title": "Sign out",
-    "body": "Your local data (sessions, stakes) stays on this phone. Continue?",
+    "body": "Your local data (game stats, favorites) stays on this phone. Continue?",
     "confirm": "Sign out"
   },
   "resetAlert": {
     "title": "Reset data",
-    "body": "This wipes all sessions and stakes and restores the demo data. Continue?",
+    "body": "This wipes your game stats and favorites and restores the demo data. Continue?",
     "confirm": "Reset"
   },
   "deleteAccountAlert": {
     "title": "Delete my account",
-    "body": "Your account (email, username) will be permanently deleted from our servers. Your local data (sessions, stakes) stays on this phone. Continue?",
+    "body": "Your account (email, username) will be permanently deleted from our servers. Your local data (game stats, favorites) stays on this phone. Continue?",
     "confirm": "Delete",
     "error": "Couldn't delete the account. Check your connection and try again."
   }

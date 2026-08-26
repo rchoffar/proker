@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,9 +18,12 @@ import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
 import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
+import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useAppStore } from '../../../src/store/useAppStore';
+import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
 import { useOfcGuest, useOfcHost } from '../../../src/hooks/useOfcOnline';
 import type { OfcOnlineCommon } from '../../../src/hooks/useOfcOnline';
-import { MAX_OFC_PLAYERS, MIN_OFC_PLAYERS, VARIANT_CONFIG } from '../../../src/lib/ofc';
+import { GRID_SIZE, MAX_OFC_PLAYERS, MIN_OFC_PLAYERS, VARIANT_CONFIG } from '../../../src/lib/ofc';
 import type { OfcVariant } from '../../../src/lib/ofc';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
@@ -85,6 +88,8 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   const router = useRouter();
   const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
 
+  useConfirmQuitGame(status === 'playing' && view?.phase !== 'gameOver');
+
   const [celebrating, setCelebrating] = useState(false);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -101,6 +106,48 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     const timer = setTimeout(() => setCelebrating(true), 700);
     return () => clearTimeout(timer);
   }, [view?.phase]);
+
+  // Every device (host and guests) records local stats for all pseudos in the game.
+  // Broadcasts repeat states, so both effects dedupe: hands by hand number (the ref
+  // clears while a hand is being played), the game end by a latch reset when the phase
+  // moves on. The scoring/gameOver condition also covers a guest reconnecting late.
+  const updateGameStats = useAppStore((s) => s.updateGameStats);
+  const statsHandRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!view) return;
+    if (view.phase === 'dealing' || view.phase === 'placing') {
+      statsHandRef.current = null;
+      return;
+    }
+    if (!view.handResult || statsHandRef.current === view.handNumber) return;
+    statsHandRef.current = view.handNumber;
+    updateGameStats((s) =>
+      recordOfcHand(s, {
+        perPlayer: view.players
+          .filter((p) => view.handResult!.perPlayer[p.id])
+          .map((p) => ({
+            name: p.name,
+            fouled: view.handResult!.perPlayer[p.id].fouled,
+            fantasyNext: view.handResult!.perPlayer[p.id].fantasyNext,
+          })),
+      })
+    );
+  }, [view, updateGameStats]);
+
+  const gameOverRecordedRef = useRef(false);
+  useEffect(() => {
+    if (view?.phase !== 'gameOver') {
+      gameOverRecordedRef.current = false;
+      return;
+    }
+    if (gameOverRecordedRef.current || !view.winnerId) return;
+    gameOverRecordedRef.current = true;
+    const winnerPlayer = view.players.find((p) => p.id === view.winnerId);
+    if (!winnerPlayer) return;
+    updateGameStats((s) =>
+      recordOfcGameEnd(s, { players: view.players.map((p) => p.name), winner: winnerPlayer.name })
+    );
+  }, [view, updateGameStats]);
 
   const quit = () => router.dismissTo('/(tabs)/degen');
 
@@ -251,7 +298,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
       return phase === 'scoring' ? t('game.handScored', { hand: view.handNumber }) : '';
     }
     const pineapple = view.variant === 'pineapple';
-    if (myFantasyTurn) return t(pineapple ? 'game.fantasyYouPineapple' : 'game.fantasyYou');
+    if (myFantasyTurn) {
+      return pineapple
+        ? t('game.fantasyYouPineapple', { count: me?.hand?.length ?? 14 })
+        : t('game.fantasyYou');
+    }
     if (myInitialTurn) return t('game.initialYou');
     if (myDraw) return t(pineapple ? 'game.drawYouPineapple' : 'game.drawYou');
     if (turnPlayer) {
@@ -296,7 +347,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               <PlacementBoard
                 key={`${myId}-${view.handNumber}-${myFantasyTurn ? 'fl' : 'initial'}`}
                 hand={me.hand}
-                discards={myFantasyTurn && view.variant === 'pineapple' ? 1 : 0}
+                discards={myFantasyTurn ? Math.max(0, me.hand.length - GRID_SIZE) : 0}
                 commitLabel={t('game.commit')}
                 onCommit={(placements) => {
                   sendAction(

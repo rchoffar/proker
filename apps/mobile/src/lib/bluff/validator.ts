@@ -1,7 +1,7 @@
 import type { Card, Rank, Suit } from '../../types/hand';
 import { RANKS, SUITS } from '../../types/hand';
 import type { Claim, StraightHigh } from './claims';
-import { RANK_VALUE } from './claims';
+import { RANK_VALUE, enumerateAllClaims, isStrictlyHigher } from './claims';
 
 const VALUE_TO_RANK: Record<number, Rank> = Object.fromEntries(
   RANKS.map((r) => [RANK_VALUE[r], r]),
@@ -40,6 +40,23 @@ function takeOfRank(pool: Card[], rank: Rank, n: number): Card[] {
  */
 export function claimHolds(claim: Claim, pool: Card[]): boolean {
   return findClaimWitness(claim, pool) !== null;
+}
+
+/**
+ * The smallest claim strictly higher than `current` that actually holds in the pool —
+ * the minimal counter-example disproving a "Jeu Max" call — or null when `current`
+ * really is the maximum. Exact by construction: the whole finite claim space is scanned.
+ */
+export function findHigherClaim(
+  current: Claim,
+  pool: Card[],
+): { claim: Claim; witness: Card[] } | null {
+  for (const candidate of enumerateAllClaims()) {
+    if (!isStrictlyHigher(candidate, current)) continue;
+    const witness = findClaimWitness(candidate, pool);
+    if (witness) return { claim: candidate, witness };
+  }
+  return null;
 }
 
 /**

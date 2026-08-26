@@ -25,9 +25,10 @@
     "dealCardCountMismatch": "Deal doesn't match players' card counts",
     "notChooseBoardPhase": "Not the board-choice phase",
     "onlyStarterChoosesBoard": "Only the first player chooses the middle",
-    "boardCountOutOfRange": "The middle must have 0 to {{max}} cards",
+    "boardSplitOutOfRange": "Face-up and face-down cards must total 0 to {{max}}",
     "notBiddingPhase": "Not the bidding phase",
     "notYourTurn": "It's not your turn",
+    "jeuMaxDisabled": "Jeu Max is disabled for this game",
     "royalFlushUnbeatable": "A royal flush cannot be outbid",
     "claimNotHigher": "The call must be strictly higher",
     "firstPlayerMustClaim": "The first player must make a call",
@@ -53,12 +54,14 @@
     "noPlayersYet": "No players yet",
     "maxPlayersReached": "Player limit reached",
     "searchOrCreatePlayer": "Search or create a player…",
-    "yourPseudo": "Your nickname",
-    "pseudoPlaceholder": "Name shown at the table",
     "joinTable": "Join a table",
     "join": "Join",
     "dealCards": "Deal the cards",
-    "createTable": "Create a table"
+    "createTable": "Create a table",
+    "jeuMaxLabel": "Game rules",
+    "jeuMaxClassic": "Classic",
+    "jeuMaxOption": "Jeu Max",
+    "jeuMaxHint": "On your turn you can call \"Jeu Max\": if the last call really is the highest possible hand, you shed a card — reach 0 cards and you win. If not, you take one."
   },
   "game": {
     "roundBadge": "R{{round}}",
@@ -71,10 +74,18 @@
     "revealSubEliminated": "{{claim}} · {{name}} is eliminated!",
     "victory": "VICTORY",
     "winnerSub": "{{name}} wins the game",
-    "boardStepper": "Cards in the middle",
+    "faceUpStepper": "Face-up cards in the middle",
+    "faceDownStepper": "Face-down cards in the middle",
     "revealBoard": "Reveal the middle",
     "royalFlushHint": "A royal flush cannot be outbid",
+    "royalFlushHintJeuMax": "A royal flush cannot be outbid — Liar or Jeu Max",
     "liar": "Liar!",
+    "jeuMax": "Jeu Max",
+    "jeuMaxSuccess": "Jeu Max! {{name}} sheds a card",
+    "jeuMaxWin": "Jeu Max! {{name}} sheds their last card",
+    "jeuMaxFailNotHeld": "Missed — the call was a bluff, {{name}} takes a card",
+    "jeuMaxFailHigher": "Missed — {{higher}} was out there, {{name}} takes a card",
+    "jeuMaxStatLine": "{{name}}: {{successes}}/{{attempts}} Jeu Max",
     "announce": "Announce",
     "nextRound": "Next round",
     "replay": "Play again"
@@ -82,6 +93,7 @@
   "play": {
     "noPlayers": "No players for this game.",
     "peekHint": "{{name}}'s cards — hold to peek",
+    "peekAfterBoard": "Validate the middle before looking at your cards",
     "passPhoneTo": "Pass the phone to",
     "itsMe": "It's me, show my turn",
     "finish": "Finish"
@@ -100,7 +112,9 @@
     "waitingBoard": "{{name}} is choosing the middle…",
     "waitingTurn": "{{name}}'s turn…",
     "waitingNextRound": "The host starts the next round…",
-    "quit": "Leave"
+    "quit": "Leave",
+    "jeuMaxEnabled": "Jeu Max rule enabled",
+    "jeuMaxDisabledLobby": "Classic rules — no Jeu Max"
   },
   "picker": {
     "title": "Announce",
@@ -124,6 +138,7 @@
   "table": {
     "eliminated": "Eliminated",
     "eliminatedNow": "Eliminated!",
-    "plusOneCard": "+1 card"
+    "plusOneCard": "+1 card",
+    "minusOneCard": "−1 card"
   }
 }

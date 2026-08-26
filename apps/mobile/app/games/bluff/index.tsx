@@ -22,8 +22,8 @@ export default function BluffSetupScreen() {
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const router = useRouter();
-  const { players, addPlayer, bluffLastPlayers, bluffPseudo, setBluffDefaults } = useAppStore();
-  const accountPseudo = useAuthStore((s) => s.user?.pseudo);
+  const { players, addPlayer, bluffLastPlayers, bluffJeuMax, setBluffDefaults } = useAppStore();
+  const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
   const setDraft = useBluffDraft((s) => s.setDraft);
 
   const modeOptions = useMemo<{ key: SetupMode; label: string }[]>(
@@ -37,13 +37,12 @@ export default function BluffSetupScreen() {
   const [mode, setMode] = useState<SetupMode>('passPlay');
   const [selected, setSelected] = useState<Player[]>(bluffLastPlayers);
   const [query, setQuery] = useState('');
-  const [pseudo, setPseudo] = useState(bluffPseudo || accountPseudo || '');
   const [joinCode, setJoinCode] = useState('');
+  const [jeuMax, setJeuMax] = useState(bluffJeuMax);
 
   const canDeal = selected.length >= MIN_BLUFF_PLAYERS && selected.length <= MAX_BLUFF_PLAYERS;
   const atMax = selected.length >= MAX_BLUFF_PLAYERS;
-  const pseudoOk = pseudo.trim().length > 0;
-  const canJoin = pseudoOk && joinCode.length === 4;
+  const canJoin = joinCode.length === 4;
 
   const addToSelection = (player: Player) => {
     if (atMax) return;
@@ -62,22 +61,54 @@ export default function BluffSetupScreen() {
   const handleStartPassPlay = () => {
     const newPlayers = selected.filter((p) => !players.some((existing) => existing.id === p.id));
     for (const p of newPlayers) addPlayer(p);
-    setBluffDefaults({ players: selected });
-    setDraft({ mode: 'passPlay', players: selected });
+    setBluffDefaults({ players: selected, jeuMax });
+    setDraft({ mode: 'passPlay', players: selected, jeuMax });
     router.push('/games/bluff/play');
   };
 
   const handleHost = () => {
-    setBluffDefaults({ pseudo: pseudo.trim() });
-    setDraft({ mode: 'host', pseudo: pseudo.trim() });
+    setBluffDefaults({ jeuMax });
+    setDraft({ mode: 'host', pseudo, jeuMax });
     router.push('/games/bluff/online');
   };
 
   const handleJoin = () => {
-    setBluffDefaults({ pseudo: pseudo.trim() });
-    setDraft({ mode: 'guest', pseudo: pseudo.trim(), joinCode });
+    setDraft({ mode: 'guest', pseudo, joinCode });
     router.push('/games/bluff/online');
   };
+
+  // Same rule picker in both modes — for online it only applies when hosting (guests
+  // inherit the host's rules through the first state broadcast).
+  const rulePicker = (
+    <GlassCard padding={16}>
+      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.jeuMaxLabel')}</Text>
+      <View style={styles.ruleRow}>
+        {([false, true] as const).map((value) => {
+          const active = jeuMax === value;
+          return (
+            <TouchableOpacity
+              key={value ? 'jeuMax' : 'classic'}
+              style={[
+                styles.ruleChip,
+                active
+                  ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
+                  : { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
+              ]}
+              onPress={() => setJeuMax(value)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.ruleChipText, { color: active ? colors.accent : colors.textSecondary }]}>
+                {t(value ? 'setup.jeuMaxOption' : 'setup.jeuMaxClassic')}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {jeuMax ? (
+        <Text style={[styles.ruleHint, { color: colors.textTertiary }]}>{t('setup.jeuMaxHint')}</Text>
+      ) : null}
+    </GlassCard>
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -142,24 +173,14 @@ export default function BluffSetupScreen() {
                   />
                 )}
               </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(180).springify().damping(18).stiffness(140)}>
+                {rulePicker}
+              </Animated.View>
             </>
           ) : (
             <>
               <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
-                <GlassCard padding={16}>
-                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.yourPseudo')}</Text>
-                  <TextInput
-                    value={pseudo}
-                    onChangeText={setPseudo}
-                    placeholder={t('setup.pseudoPlaceholder')}
-                    placeholderTextColor={colors.textTertiary}
-                    maxLength={20}
-                    style={[styles.input, { color: colors.textPrimary, borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}
-                  />
-                </GlassCard>
-              </Animated.View>
-
-              <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
                 <GlassCard padding={16}>
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.joinTable')}</Text>
                   <View style={styles.joinRow}>
@@ -187,6 +208,10 @@ export default function BluffSetupScreen() {
                   </View>
                 </GlassCard>
               </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
+                {rulePicker}
+              </Animated.View>
             </>
           )}
 
@@ -206,9 +231,8 @@ export default function BluffSetupScreen() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.primaryBtn, !pseudoOk && styles.disabledBtn, { backgroundColor: colors.accentBright }]}
+            style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
             onPress={handleHost}
-            disabled={!pseudoOk}
             activeOpacity={0.85}
           >
             <Text style={styles.primaryBtnText}>{t('setup.createTable')}</Text>
@@ -299,6 +323,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center',
+  },
+  ruleRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  ruleChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  ruleChipText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.semibold,
+  },
+  ruleHint: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.regular,
+    lineHeight: 16,
+    marginTop: spacing.sm,
   },
   codeInput: {
     flex: 1,

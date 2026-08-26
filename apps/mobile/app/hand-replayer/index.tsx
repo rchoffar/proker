@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff, X } from 'lucide-react-native';
 import { Stepper } from '../../src/components/ui/Stepper';
 import { AmountInput } from '../../src/components/ui/AmountInput';
 import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
@@ -12,13 +12,26 @@ import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { CardGrid } from '../../src/components/hand/CardGrid';
 import { PlayerActionRow } from '../../src/components/hand/PlayerActionRow';
 import { QueuedPlayerRow } from '../../src/components/hand/QueuedPlayerRow';
+import { RecordedActionPill } from '../../src/components/hand/RecordedActionPill';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
+import { randomUUID } from 'expo-crypto';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
+import { useHandHistoryStore } from '../../src/store/useHandHistoryStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import { formatHandAmount, roundAmount } from '../../src/lib/format';
-import { DEFAULT_ASSIGN_ORDER, computeBlindPosting, nextFreePosition, orderForStreet, sortByPreflopOrder } from '../../src/lib/handPositions';
+import { DEFAULT_ASSIGN_ORDER, computeBlindPosting, nextFreePosition, sortByPreflopOrder } from '../../src/lib/handPositions';
+import {
+  actionsBefore,
+  availableActions as engineAvailableActions,
+  computeBlindPosts,
+  maxToFor as engineMaxTo,
+  remainingStackFor as engineRemainingStack,
+  replayActions,
+  resolveActionInput,
+} from '../../src/lib/handEngine';
+import type { EngineConfig } from '../../src/lib/handEngine';
 import { evaluateBestHandHoldem, findBestHands } from '../../src/lib/pokerHandEvaluator';
 import type { HandScore } from '../../src/lib/pokerHandEvaluator';
 import { POSITIONS_PREFLOP_ORDER, cardKey } from '../../src/types';
@@ -32,23 +45,10 @@ const BOARD_CARD_WIDTH = Math.min(64, Math.floor((Dimensions.get('window').width
 
 type CardGroupKind = 'hero' | 'flop' | 'turn' | 'river' | 'opponent';
 
-interface BettingRoundState {
-  street: Street;
-  toAct: string[];
-  lastAggressorId?: string;
-  // The total amount ("bet to") a caller must match this street — 0 while nobody has
-  // bet yet. Without this, "Call" had no amount to attach to its action at all.
-  currentBet: number;
-  // Each player's total contribution this street so far — drives per-player check-vs-call
-  // legality (owed = currentBet - contribution), which is what lets the Big Blind "check"
-  // when unraised while everyone else who owes money still has to call/raise/fold.
-  contributions: Record<string, number>;
-}
-
 // Invariant everywhere in this builder: the players array is sorted in preflop action order
 // (UTG first … blinds last) with `seat` re-stamped to the array index after every position
-// change or resize — array order IS action order, which is what keeps the circular rotation
-// logic (seatOrderFrom/reopenQueueFrom) street-agnostic.
+// change or resize — array order IS action order, which is what keeps the engine's circular
+// rotation logic (handEngine's seat ordering / reopen queue) street-agnostic.
 function sortAndSeat(players: HandPlayer[]): HandPlayer[] {
   return sortByPreflopOrder(players).map((p, i) => ({ ...p, seat: i }));
 }
@@ -127,27 +127,6 @@ function cardsEqual(a: Card, b: Card): boolean {
   return a.rank === b.rank && a.suit === b.suit;
 }
 
-// Rotates a full seat list so `anchorId` ends up last — i.e. the seat right after the
-// anchor acts first. Shared by the mid-street reopen-on-raise logic (anchor = aggressor)
-// and by round-start ordering (anchor = Big Blind preflop, Button postflop). The anchor
-// doesn't need to still be in the list by the time it's filtered down to eligible players —
-// it's found in the full roster first, so a folded button/aggressor still works as a pivot.
-function seatOrderFrom<T extends { id: string }>(players: T[], anchorId: string): T[] {
-  const idx = players.findIndex((p) => p.id === anchorId);
-  if (idx === -1) return players;
-  return [...players.slice(idx + 1), ...players.slice(0, idx + 1)];
-}
-
-// After a bet/raise/allin, action must resume with the player immediately after the
-// aggressor's seat (wrapping around), not just "seat order minus the aggressor" — otherwise
-// an earlier seat gets asked to act again before a later seat has responded to the raise.
-function reopenQueueFrom(players: HandPlayer[], aggressorId: string, allInIds: Set<string>): string[] {
-  const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
-  return seatOrderFrom(eligible, aggressorId)
-    .filter((p) => p.id !== aggressorId)
-    .map((p) => p.id);
-}
-
 // Lenient comma-aware positive-number parse for user-typed amounts ("12,5" → 12.5, junk → 0).
 function parsePositiveAmount(raw: string): number {
   const value = parseFloat(raw.replace(',', '.'));
@@ -161,6 +140,16 @@ export default function HandReplayerBuilderScreen() {
   const setDraft = useHandReplayerDraft((s) => s.setHand);
   const heroName = useAuthStore((s) => s.user?.pseudo) ?? t('common:me');
   const actionCounter = useRef(0);
+  const saveLocal = useHandHistoryStore((s) => s.saveLocal);
+
+  // One stable identity per builder session: rewinding and re-finishing the hand updates the
+  // SAME saved record (and keeps its list position) instead of duplicating it. "Start over"
+  // replaces it, so the next hand gets a fresh record. State (not a ref) because
+  // buildHandHistory reads it during render for the step-4 preview.
+  const [sessionIdentity, setSessionIdentity] = useState(() => ({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+  }));
 
   const defaultPlayerName = useCallback((seatNumber: number) => t('defaultPlayerName', { index: seatNumber }), [t]);
 
@@ -181,22 +170,19 @@ export default function HandReplayerBuilderScreen() {
   // Manual winner pick, used only when the showdown can't be evaluated automatically.
   // Multiple ids = manually declared split pot.
   const [winnerIds, setWinnerIds] = useState<string[]>([]);
-  const [winningHandDescription, setWinningHandDescription] = useState('');
   const [customTitle, setCustomTitle] = useState('');
-  const [customStakes, setCustomStakes] = useState('');
-  const [allInIds, setAllInIds] = useState<Set<string>>(new Set());
   const [boardPhase, setBoardPhase] = useState<'flop' | 'turn' | 'river'>('flop');
-  const [round, setRound] = useState<BettingRoundState | null>(null);
   // Which player's position picker is open in step 0 (null = none).
   const [positionPickerFor, setPositionPickerFor] = useState<string | null>(null);
   const [bigBlindAmount, setBigBlindAmount] = useState('2');
+  // Optional global ante total — one amount for the whole table (posters may include players
+  // not entered in the hand), pure dead money: added to the pot, never run through the engine.
+  const [anteInput, setAnteInput] = useState('');
   const [unitMode, setUnitMode] = useState<UnitMode>('bb');
   // Per-player stack strings; absent/empty = the mode's default (100 BB / 200 chips).
   const [stackOverrides, setStackOverrides] = useState<Record<string, string>>({});
   const [editingBoard, setEditingBoard] = useState(false);
   const [editingOpponentId, setEditingOpponentId] = useState<string | null>(null);
-
-  const activePlayers = useMemo(() => players.filter((p) => !p.isFolded), [players]);
 
   // In BB mode the blinds are the unit itself: SB = 0.5, BB = 1, nothing to type.
   const bigBlindValue = useMemo(() => {
@@ -217,43 +203,39 @@ export default function HandReplayerBuilderScreen() {
     [stackOverrides, defaultStackValue]
   );
 
-  // Total already committed across all streets, latest-amount-per-street like computePots
-  // ("raise to" convention: a player's later action on a street supersedes their earlier one).
-  const committedByPlayer = useMemo(() => {
-    const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
-    const totals: Record<string, number> = {};
-    streets.forEach((street) => {
-      const latest: Record<string, number> = {};
-      actions
-        .filter((a) => a.street === street)
-        .sort((a, b) => a.order - b.order)
-        .forEach((a) => {
-          if (a.amount !== undefined) latest[a.playerId] = a.amount;
-        });
-      Object.entries(latest).forEach(([id, v]) => {
-        totals[id] = roundAmount((totals[id] ?? 0) + v);
-      });
-    });
-    return totals;
-  }, [actions]);
-
-  const remainingStackFor = useCallback(
-    (playerId: string): number => Math.max(0, roundAmount(stackFor(playerId) - (committedByPlayer[playerId] ?? 0))),
-    [stackFor, committedByPlayer]
+  const engineConfig = useMemo<EngineConfig>(
+    () => ({
+      smallBlind: smallBlindValue,
+      bigBlind: bigBlindValue,
+      stacks: Object.fromEntries(players.map((p) => [p.id, stackFor(p.id)])),
+    }),
+    [players, smallBlindValue, bigBlindValue, stackFor]
   );
 
-  // Largest legal "bet/raise to" this street: what's already in front of the player plus
-  // everything left behind. Committing exactly this amount IS an all-in.
-  const maxToFor = useCallback(
-    (playerId: string): number => roundAmount((round?.contributions[playerId] ?? 0) + remainingStackFor(playerId)),
-    [round, remainingStackFor]
+  // The actions array is the single source of truth: the whole betting state — round queue,
+  // folds, all-ins, closed streets, fold-out — is re-derived from it on every change. That's
+  // what lets any past action be edited: truncate the array, append the replacement, replay.
+  const derived = useMemo(() => replayActions(players, engineConfig, actions), [players, engineConfig, actions]);
+  const round = derived.round;
+  const allInIds = derived.allInIds;
+
+  const playersWithStatus = useMemo(
+    () =>
+      players.map((p) => ({
+        ...p,
+        isFolded: p.id in derived.foldedOnStreet,
+        foldedOnStreet: derived.foldedOnStreet[p.id],
+      })),
+    [players, derived]
   );
+  const activePlayers = useMemo(() => playersWithStatus.filter((p) => !p.isFolded), [playersWithStatus]);
 
   const handleUnitModeChange = (mode: UnitMode) => {
     if (mode === unitMode) return;
     setUnitMode(mode);
-    // Stacks are expressed in the unit — carrying values across a unit switch would corrupt them.
+    // Stacks and ante are expressed in the unit — carrying values across a unit switch would corrupt them.
     setStackOverrides({});
+    setAnteInput('');
   };
 
   const blindPosting = useMemo(
@@ -261,6 +243,36 @@ export default function HandReplayerBuilderScreen() {
     [players, smallBlindValue, bigBlindValue]
   );
   const deadBlinds = blindPosting.deadBlinds;
+  const anteValue = useMemo(() => parsePositiveAmount(anteInput), [anteInput]);
+
+  // The live pot: everything committed by entered players (blind posts included — they live
+  // in the preflop contributions, so never add blinds on top) plus the two dead-money sources.
+  const livePot = roundAmount(
+    Object.values(derived.committed).reduce((sum, v) => sum + v, 0) + deadBlinds + anteValue
+  );
+
+  // Pot carried INTO a street: dead money plus every street strictly before it, using the
+  // same latest-amount-per-player-per-street convention as computePots — but never skipping
+  // empty streets, so all-in run-out phases still show the pot they were dealt with.
+  const potCarriedInto = useCallback(
+    (street: Street): number => {
+      const order: Street[] = ['preflop', 'flop', 'turn', 'river'];
+      let total = deadBlinds + anteValue;
+      for (const s of order) {
+        if (s === street) break;
+        const contribution: Record<string, number> = {};
+        actions
+          .filter((a) => a.street === s)
+          .sort((a, b) => a.order - b.order)
+          .forEach((a) => {
+            if (a.amount !== undefined) contribution[a.playerId] = a.amount;
+          });
+        total += Object.values(contribution).reduce((sum, v) => sum + v, 0);
+      }
+      return roundAmount(total);
+    },
+    [actions, deadBlinds, anteValue]
+  );
 
   // Swap-aware: picking a position another player holds trades positions with them, so the
   // roster can never hold duplicates or lose an assignment.
@@ -321,12 +333,12 @@ export default function HandReplayerBuilderScreen() {
       // All-in run-out: no betting round will happen on this phase, so jump to the next one
       // in the same commit. Leaving it to the effects paints the phase's full-size card row
       // for a frame before it collapses into the small completed row — a visible flash.
-      const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
+      const eligible = playersWithStatus.filter((p) => !p.isFolded && !allInIds.has(p.id));
       if (eligible.length <= 1 && boardPhase !== 'river') {
         setBoardPhase(boardPhase === 'flop' ? 'turn' : 'river');
       }
     },
-    [boardPhase, players, allInIds]
+    [boardPhase, playersWithStatus, allInIds]
   );
 
   const handleOpponentCardsChange = useCallback((playerId: string, next: (Card | undefined)[]) => {
@@ -334,148 +346,65 @@ export default function HandReplayerBuilderScreen() {
     if (next.every(Boolean)) setEditingOpponentId(null);
   }, []);
 
-  const startRound = useCallback(
-    (street: Street) => {
-      const eligible = players.filter((p) => !p.isFolded && !allInIds.has(p.id));
-
-      // Betting needs at least two players who can still act on each other. Once everyone
-      // else is all-in, the lone remaining player (who may have only just called, not gone
-      // all-in themselves) has no one left to respond to a bet — don't prompt them again on
-      // later streets, just run the board out. Preflop always starts with 2+ such players
-      // (nobody's folded or shoved yet), so this never blocks the very first action.
-      if (eligible.length <= 1) {
-        setRound({ street, toAct: [], lastAggressorId: undefined, currentBet: 0, contributions: {} });
-        return;
-      }
-
-      if (street === 'preflop') {
-        // Only players actually entered in the hand post; absent SB/BB are dead blinds
-        // already accounted into pots via computePots. Posts are capped at the poster's
-        // stack — the step-0 gate (every stack >= BB) makes a short post unreachable in
-        // practice, but the cap keeps pot math honest regardless.
-        const { sbPosterId, bbPosterId } = blindPosting;
-        const baseOrder = actions.filter((a) => a.street === 'preflop').length;
-        const posts: HandAction[] = [];
-        const contributions: Record<string, number> = {};
-        if (sbPosterId) {
-          const amount = roundAmount(Math.min(smallBlindValue, stackFor(sbPosterId)));
-          actionCounter.current += 1;
-          posts.push({ id: `a${actionCounter.current}`, street, playerId: sbPosterId, type: 'post', amount, order: baseOrder + posts.length });
-          contributions[sbPosterId] = amount;
-        }
-        let bbPostAmount: number | undefined;
-        if (bbPosterId) {
-          bbPostAmount = roundAmount(Math.min(bigBlindValue, stackFor(bbPosterId)));
-          actionCounter.current += 1;
-          posts.push({ id: `a${actionCounter.current}`, street, playerId: bbPosterId, type: 'post', amount: bbPostAmount, order: baseOrder + posts.length });
-          contributions[bbPosterId] = bbPostAmount;
-        }
-        if (posts.length > 0) setActions((prev) => [...prev, ...posts]);
-        setRound({
-          street,
-          // The players array is already in preflop action order (UTG first, blinds last).
-          toAct: eligible.map((p) => p.id),
-          lastAggressorId: undefined,
-          // Entering the pot always costs the big blind, even when the BB player was left
-          // out of the hand (their post is dead money, not a discount).
-          currentBet: bbPostAmount ?? bigBlindValue,
-          contributions,
-        });
-        return;
-      }
-
-      // Postflop the SB (or the earliest remaining position) opens and the BTN closes; the
-      // button itself may be absent, so sort by position instead of anchoring on a player.
-      const ordered = orderForStreet(eligible, street);
-      setRound({ street, toAct: ordered.map((p) => p.id), lastAggressorId: undefined, currentBet: 0, contributions: {} });
-    },
-    [players, allInIds, blindPosting, bigBlindValue, smallBlindValue, actions, stackFor]
-  );
+  // Blind posts are appended once, when the builder reaches the Preflop step. They're stored
+  // as regular actions (the engine consumes them on replay, never regenerates them), so the
+  // guard is simply "no preflop post exists yet" — truncate-on-edit never removes posts,
+  // which hold the lowest preflop orders. Only players actually entered in the hand post;
+  // absent SB/BB are dead blinds already accounted into pots via computePots.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (actions.some((a) => a.street === 'preflop' && a.type === 'post')) return;
+    const posts = computeBlindPosts(players, engineConfig);
+    if (posts.length === 0) return;
+    const postActions: HandAction[] = posts.map((p, i) => {
+      actionCounter.current += 1;
+      return { id: `a${actionCounter.current}`, street: 'preflop', playerId: p.playerId, type: 'post', amount: p.amount, order: i };
+    });
+    setActions((prev) => (prev.some((a) => a.street === 'preflop' && a.type === 'post') ? prev : [...postActions, ...prev]));
+  }, [step, actions, players, engineConfig]);
 
   const recordAction = useCallback(
     (street: Street, playerId: string, type: ActionType, amount?: number) => {
-      // A call always matches the street's outstanding bet — the caller never types this
-      // amount themselves, so pull it from the round instead of trusting an undefined arg.
-      const maxTo = maxToFor(playerId);
-      let resolvedType = type;
-      let finalAmount = type === 'call' ? round?.currentBet : amount;
-      if (finalAmount !== undefined && (type === 'call' || type === 'bet' || type === 'raise' || type === 'allin')) {
-        // Nobody can put in more than they have; committing everything IS an all-in, whatever
-        // button produced it (short-stack "call" of a bigger bet included).
-        finalAmount = roundAmount(Math.min(finalAmount, maxTo));
-        if (finalAmount >= maxTo) resolvedType = 'allin';
-      }
+      const resolved = resolveActionInput(derived, engineConfig, playerId, type, amount);
       actionCounter.current += 1;
-      const order = actions.filter((a) => a.street === street).length;
-      const newAction: HandAction = { id: `a${actionCounter.current}`, street, playerId, type: resolvedType, amount: finalAmount, order };
-      setActions((prev) => [...prev, newAction]);
-
-      let updatedPlayers = players;
-      let updatedAllIn = allInIds;
-
-      if (type === 'fold') {
-        updatedPlayers = players.map((p) => (p.id === playerId ? { ...p, isFolded: true, foldedOnStreet: street } : p));
-        setPlayers(updatedPlayers);
-        const stillActive = updatedPlayers.filter((p) => !p.isFolded);
-        if (stillActive.length <= 1) {
-          setWinnerIds(stillActive[0] ? [stillActive[0].id] : []);
-          setRound(null);
-          setStep(4);
-          return;
-        }
-      }
-
-      if (resolvedType === 'allin') {
-        updatedAllIn = new Set(allInIds).add(playerId);
-        setAllInIds(updatedAllIn);
-      }
-
-      setRound((prev) => {
-        if (!prev || prev.street !== street) return prev;
-        const contributions =
-          finalAmount !== undefined ? { ...prev.contributions, [playerId]: finalAmount } : prev.contributions;
-        // Only an amount that actually raises the outstanding bet reopens the action — a
-        // short-stack all-in below (or matching) the current bet is a call, and forcing
-        // players who already matched to act again would be wrong.
-        const aggressionBet =
-          (resolvedType === 'bet' || resolvedType === 'raise' || resolvedType === 'allin') &&
-          finalAmount !== undefined &&
-          finalAmount > prev.currentBet
-            ? finalAmount
-            : undefined;
-        if (aggressionBet !== undefined) {
-          const reopened = reopenQueueFrom(updatedPlayers, playerId, updatedAllIn);
-          return {
-            street,
-            toAct: reopened,
-            lastAggressorId: playerId,
-            currentBet: aggressionBet,
-            contributions,
-          };
-        }
-        return { ...prev, toAct: prev.toAct.filter((id) => id !== playerId), contributions };
-      });
+      const newAction: HandAction = {
+        id: `a${actionCounter.current}`,
+        street,
+        playerId,
+        type: resolved.type,
+        amount: resolved.amount,
+        order: actions.filter((a) => a.street === street).length,
+      };
+      const next = [...actions, newAction];
+      setActions(next);
+      // Fold-out is an event, never an effect on derived state — otherwise stepping back
+      // from the showdown to edit an action would instantly bounce forward again.
+      if (replayActions(players, engineConfig, next).handOver) setStep(4);
     },
-    [actions, players, allInIds, round, maxToFor]
+    [actions, players, derived, engineConfig]
   );
 
-  const availableActionsFor = useCallback(
-    (playerId: string): ActionType[] => {
-      const owed = (round?.currentBet ?? 0) - (round?.contributions[playerId] ?? 0);
-      if (owed > 0) {
-        // Too short to raise above the current bet → calling already means all-in.
-        if (maxToFor(playerId) <= (round?.currentBet ?? 0)) return ['fold', 'call', 'allin'];
-        return ['fold', 'call', 'raise', 'allin'];
+  // Tapping a recorded action rewinds the hand to just before it: that action and everything
+  // after are removed in one go, the wizard rolls back to that street, and its player is back
+  // to act with the normal action buttons. Board and opponent cards are kept.
+  const rewindTo = useCallback(
+    (target: HandAction) => {
+      setActions(actionsBefore(actions, target.id));
+      // Any showdown conclusion drawn from the discarded line is moot — the auto-evaluated
+      // winner re-derives itself from what remains.
+      setWinnerIds([]);
+      // The rewound street is live again by construction (its player has to act).
+      if (target.street === 'preflop') {
+        setStep(2);
+        setBoardPhase('flop');
+      } else {
+        setStep(3);
+        setBoardPhase(target.street);
       }
-      return ['fold', 'check', 'bet', 'allin'];
+      setEditingBoard(false);
     },
-    [round, maxToFor]
+    [actions]
   );
-
-  // Preflop's round starts as soon as the builder reaches the Preflop step.
-  useEffect(() => {
-    if (step === 2 && (!round || round.street !== 'preflop')) startRound('preflop');
-  }, [step, round, startRound]);
 
   const boardPhaseCardsReady = useCallback(
     (phase: 'flop' | 'turn' | 'river') => {
@@ -486,28 +415,24 @@ export default function HandReplayerBuilderScreen() {
     [flopCards, turnCard, riverCard]
   );
 
-  // A board phase's round only starts once that phase's cards are all placed.
+  // Once a phase's cards are placed and its betting round is closed, auto-advance to the
+  // next phase — no "Continuer" tap needed between them. The betting rounds themselves are
+  // derived, so there's nothing to start: this only moves the card-picking cursor.
   useEffect(() => {
     if (step !== 3) return;
-    if (boardPhaseCardsReady(boardPhase) && (!round || round.street !== boardPhase)) {
-      startRound(boardPhase);
-    }
-  }, [step, boardPhase, boardPhaseCardsReady, round, startRound]);
-
-  // Once a phase's betting round closes, auto-advance to the next phase — no "Continuer" tap needed between them.
-  useEffect(() => {
-    if (step !== 3 || !round || round.street !== boardPhase) return;
-    if (round.toAct.length !== 0) return;
+    if (!boardPhaseCardsReady(boardPhase)) return;
+    if (!derived.completedStreets.includes(boardPhase)) return;
     if (boardPhase === 'flop') setBoardPhase('turn');
     else if (boardPhase === 'turn') setBoardPhase('river');
     else return;
     setEditingBoard(false);
-  }, [step, round, boardPhase]);
+  }, [step, boardPhase, boardPhaseCardsReady, derived]);
 
   const goNext = () => setStep((s) => s + 1);
   const goBack = () => (step > 0 ? setStep((s) => s - 1) : router.back());
 
   const reset = () => {
+    setSessionIdentity({ id: randomUUID(), createdAt: new Date().toISOString() });
     setStep(0);
     setPlayers(makePlayers(3, heroName, defaultPlayerName));
     setActions([]);
@@ -518,14 +443,11 @@ export default function HandReplayerBuilderScreen() {
     setOpponentReveal({});
     setOpponentCards({});
     setWinnerIds([]);
-    setWinningHandDescription('');
     setCustomTitle('');
-    setCustomStakes('');
-    setAllInIds(new Set());
     setBoardPhase('flop');
-    setRound(null);
     setPositionPickerFor(null);
     setBigBlindAmount('2');
+    setAnteInput('');
     setUnitMode('bb');
     setStackOverrides({});
     setEditingBoard(false);
@@ -557,7 +479,7 @@ export default function HandReplayerBuilderScreen() {
   const boardComplete = flopCards.every(Boolean) && !!turnCard && !!riverCard;
   const showdownEval = useMemo(() => {
     if (!boardComplete) return null; // hand ended before the river — nothing to evaluate
-    if (activePlayers.length < 2) return null; // fold-out path already set the winner
+    if (activePlayers.length < 2) return null; // fold-out: the winner is derived, not evaluated
     const board = [...(flopCards as Card[]), turnCard!, riverCard!];
     const scored: { playerId: string; score: HandScore }[] = [];
     for (const p of activePlayers) {
@@ -570,13 +492,15 @@ export default function HandReplayerBuilderScreen() {
     return winning ? { winnerIds: ids, categoryId: winning.score.categoryId } : null;
   }, [boardComplete, activePlayers, heroCards, opponentReveal, opponentCards, flopCards, turnCard, riverCard]);
 
-  const effectiveWinnerIds = showdownEval?.winnerIds ?? winnerIds;
-  const effectiveWinningDescription = showdownEval
-    ? t(`poker:handCategories.${showdownEval.categoryId}`)
-    : winningHandDescription.trim() || undefined;
+  // Winner precedence: evaluated showdown > fold-out survivor (a fact, not a pick) > manual.
+  const effectiveWinnerIds = useMemo(
+    () => showdownEval?.winnerIds ?? (derived.handOver && derived.foldWinnerId ? [derived.foldWinnerId] : winnerIds),
+    [showdownEval, derived, winnerIds]
+  );
+  const effectiveWinningDescription = showdownEval ? t(`poker:handCategories.${showdownEval.categoryId}`) : undefined;
 
   const buildHandHistory = useCallback((): HandHistory => {
-    const finalPlayers: HandPlayer[] = players.map((p) => {
+    const finalPlayers: HandPlayer[] = playersWithStatus.map((p) => {
       let holeCards: [Card, Card] | undefined;
       let cardsKnown = false;
       if (p.isHero) {
@@ -599,11 +523,10 @@ export default function HandReplayerBuilderScreen() {
     });
 
     return {
-      id: `hand-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      id: sessionIdentity.id,
+      createdAt: sessionIdentity.createdAt,
       title: customTitle.trim() || computeAutoTitle(),
       gameType: 'NLH',
-      stakes: customStakes.trim() || undefined,
       players: finalPlayers,
       board: {
         flop: flopCards[0] && flopCards[1] && flopCards[2] ? [flopCards[0], flopCards[1], flopCards[2]] : undefined,
@@ -611,22 +534,33 @@ export default function HandReplayerBuilderScreen() {
         river: riverCard,
       },
       actions,
-      pots: computePots(actions, deadBlinds),
+      pots: computePots(actions, roundAmount(deadBlinds + anteValue)),
       winnerIds: effectiveWinnerIds.length > 0 ? effectiveWinnerIds : undefined,
       winningHandDescription: effectiveWinningDescription,
       deadBlinds: deadBlinds > 0 ? deadBlinds : undefined,
+      ante: anteValue > 0 ? anteValue : undefined,
       unitMode,
     };
-  }, [players, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, computeAutoTitle, customStakes, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, stackFor, unitMode]);
+  }, [playersWithStatus, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, computeAutoTitle, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, anteValue, stackFor, unitMode, sessionIdentity]);
+
+  // Auto-save: the hand lands in the history (and pushes to the server) as soon as the
+  // builder reaches the showdown step — including the fold-out jump. buildHandHistory's
+  // identity changes with every relevant edit on step 4 (winner, title, stakes, rewinds),
+  // so the effect re-fires and re-saves the same record; the debounce absorbs typing.
+  useEffect(() => {
+    if (step !== 4) return;
+    const timer = setTimeout(() => saveLocal(buildHandHistory()), 600);
+    return () => clearTimeout(timer);
+  }, [step, buildHandHistory, saveLocal]);
 
   const handleReplay = () => {
     setDraft(buildHandHistory());
     router.push('/hand-replayer/play');
   };
 
-  const handleExport = () => {
+  const handleExportImages = () => {
     setDraft(buildHandHistory());
-    router.push({ pathname: '/hand-replayer/play', params: { skip: '1' } });
+    router.push({ pathname: '/hand-replayer/play', params: { export: '1' } });
   };
 
   const canContinue = () => {
@@ -640,123 +574,133 @@ export default function HandReplayerBuilderScreen() {
         players.every((p) => stackFor(p.id) >= bigBlindValue)
       );
     if (step === 1) return !!heroCards[0] && !!heroCards[1];
-    if (step === 2) return !!round && round.street === 'preflop' && round.toAct.length === 0;
-    if (step === 3) return boardPhase === 'river' && !!riverCard && !!round && round.street === 'river' && round.toAct.length === 0;
+    if (step === 2) return derived.completedStreets.includes('preflop');
+    if (step === 3) return boardPhase === 'river' && !!riverCard && derived.completedStreets.includes('river');
     return true;
   };
 
-  const renderBettingRound = (street: Street) => {
-    if (!round || round.street !== street) return null;
-    const doneActions = actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
+  // The hand's first raise defaults to a 2 BB open (blind posts are 'post', so they don't
+  // count as aggression) — one tap confirms the common min-open, and the field stays editable.
+  const firstRaiseDefault = (list: HandAction[]) =>
+    list.some((a) => a.type === 'bet' || a.type === 'raise' || a.type === 'allin') ? undefined : 2 * bigBlindValue;
 
-    if (round.toAct.length === 0 && doneActions.length === 0) {
+  // A street's betting block: recorded actions as tappable selected-style pills (tapping one
+  // rewinds the hand to that point, on any street), the live action row at the head of the
+  // queue, then the waiting players. Renders for the live street and every already-closed one.
+  const renderBettingRound = (street: Street) => {
+    const isLive = round?.street === street;
+    const isCompleted = derived.completedStreets.includes(street);
+    if (!isLive && !isCompleted) return null;
+    const streetActions = actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
+
+    if (streetActions.length === 0 && !isLive) {
       return <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('noMoreBetting')}</Text>;
     }
 
-    const currentId = round.toAct[0];
-    const currentPlayer = currentId ? players.find((p) => p.id === currentId) : undefined;
-    const queuedIds = round.toAct.slice(1);
+    const currentId = isLive ? round!.toAct[0] : undefined;
+    const currentPlayer = currentId ? playersWithStatus.find((p) => p.id === currentId) : undefined;
+    const queuedIds = isLive ? round!.toAct.slice(1) : [];
 
     return (
       <View style={styles.actionsList}>
-        {doneActions.map((a) => {
-          const p = players.find((pp) => pp.id === a.playerId);
-          const position = p?.position;
-          return (
-            <View key={a.id} style={styles.actedRow}>
-              <Text style={[styles.actedText, { color: colors.textSecondary }]}>
-                {a.type === 'post' ? (
-                  <>
-                    {p?.name}
-                    {position ? ` (${position})` : ''}
-                    {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
-                  </>
-                ) : (
-                  <>
-                    {p?.name}
-                    {position ? ` (${position})` : ''} — {t(`poker:actions.${a.type}`)}
-                    {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
-                  </>
-                )}
-              </Text>
-            </View>
-          );
+        {streetActions.map((a) => {
+          const p = playersWithStatus.find((pp) => pp.id === a.playerId);
+          if (a.type === 'post') {
+            // Posts are automatic, not choices — they stay muted text and can't be edited.
+            return (
+              <View key={a.id} style={styles.actedRow}>
+                <Text style={[styles.actedText, { color: colors.textSecondary }]}>
+                  {p?.name}
+                  {p?.position ? ` (${p.position})` : ''}
+                  {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
+                </Text>
+              </View>
+            );
+          }
+          return <RecordedActionPill key={a.id} action={a} player={p} unitMode={unitMode} onPress={() => rewindTo(a)} />;
         })}
         {currentPlayer && (
           <PlayerActionRow
             player={currentPlayer}
-            availableActions={availableActionsFor(currentPlayer.id)}
+            availableActions={engineAvailableActions(derived, engineConfig, currentPlayer.id)}
             position={currentPlayer.position}
-            currentBet={round.currentBet}
+            currentBet={round!.currentBet}
             unitMode={unitMode}
-            remainingStack={remainingStackFor(currentPlayer.id)}
-            maxTo={maxToFor(currentPlayer.id)}
+            remainingStack={engineRemainingStack(derived, engineConfig, currentPlayer.id)}
+            maxTo={engineMaxTo(derived, engineConfig, currentPlayer.id)}
+            defaultRaiseTo={firstRaiseDefault(actions)}
             onAction={(type, amount) => recordAction(street, currentPlayer.id, type, amount)}
           />
         )}
         {queuedIds.map((id) => {
-          const p = players.find((pp) => pp.id === id);
+          const p = playersWithStatus.find((pp) => pp.id === id);
           return p ? (
-            <QueuedPlayerRow key={id} player={p} position={p.position} stackLabel={formatHandAmount(remainingStackFor(id), unitMode)} />
+            <QueuedPlayerRow key={id} player={p} position={p.position} stackLabel={formatHandAmount(engineRemainingStack(derived, engineConfig, id), unitMode)} />
           ) : null;
         })}
       </View>
     );
   };
 
-  const actionsSummaryFor = (street: Street): string => {
-    const streetActions = actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
-    if (!streetActions.length) return '';
-    return streetActions
-      .map((a) => {
-        const p = players.find((pp) => pp.id === a.playerId);
-        return `${p?.name ?? '?'} ${t(`poker:actions.${a.type}`)}${a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}`;
-      })
-      .join(' · ');
-  };
-
   const renderBoardStep = () => {
     const phaseIndex = BOARD_PHASES.indexOf(boardPhase);
     // Every picked board card lives in one row at one uniform size — earlier streets never
-    // shrink when the picker advances from flop to turn to river.
-    const boardSoFar = [...flopCards, turnCard, riverCard].filter(Boolean) as Card[];
+    // shrink when the picker advances from flop to turn to river. Unpicked slots of the
+    // current phase render as placeholders so picking a card never shifts the grid below.
+    const boardSlots: (Card | undefined)[] = [
+      ...flopCards,
+      ...(phaseIndex >= 1 ? [turnCard] : []),
+      ...(phaseIndex >= 2 ? [riverCard] : []),
+    ];
     return (
       <View style={styles.stepBody}>
-        {boardSoFar.length > 0 && (
-          <View style={styles.boardCardsRow}>
-            {boardSoFar.map((c) => (
+        <View style={styles.boardCardsRow}>
+          {boardSlots.map((c, i) =>
+            c ? (
               <Animated.View key={cardKey(c)} entering={FadeInDown.springify().damping(18).stiffness(140)}>
                 <PlayingCard card={c} width={BOARD_CARD_WIDTH} />
               </Animated.View>
-            ))}
-            {boardPhaseCardsReady(boardPhase) && !editingBoard && (
-              <TouchableOpacity onPress={() => setEditingBoard(true)} activeOpacity={0.7} style={styles.editCardsBtn}>
-                <Text style={[styles.editCardsText, { color: colors.textTertiary }]}>{t('common:edit')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+            ) : (
+              <PlayingCard key={`slot-${i}`} placeholder width={BOARD_CARD_WIDTH} />
+            )
+          )}
+          {boardPhaseCardsReady(boardPhase) && !editingBoard && (
+            <TouchableOpacity onPress={() => setEditingBoard(true)} activeOpacity={0.7} style={styles.editCardsBtn}>
+              <Text style={[styles.editCardsText, { color: colors.textTertiary }]}>{t('common:edit')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {BOARD_PHASES.slice(0, phaseIndex).map((phase) =>
-          actionsSummaryFor(phase) ? (
+        {/* Earlier streets stay fully editable in place — preflop first, then closed phases. */}
+        {(['preflop', ...BOARD_PHASES.slice(0, phaseIndex)] as Street[]).map((phase) =>
+          actions.some((a) => a.street === phase) ? (
             <View key={phase} style={styles.completedPhase}>
-              <Text style={[styles.actedText, { color: colors.textSecondary }]}>
-                {t(`poker:phases.${phase as 'flop' | 'turn' | 'river'}`)} — {actionsSummaryFor(phase)}
-              </Text>
+              <View style={styles.phaseHeader}>
+                <Text style={[styles.phaseLabel, { color: colors.textTertiary }]}>{t(`poker:phases.${phase}`)}</Text>
+                {phase !== 'preflop' && (
+                  <Text style={[styles.phasePot, { color: colors.textTertiary }]}>
+                    {t('potAmount', { amount: formatHandAmount(potCarriedInto(phase), unitMode) })}
+                  </Text>
+                )}
+              </View>
+              {renderBettingRound(phase)}
             </View>
           ) : null
         )}
 
         <Animated.View key={boardPhase} entering={FadeInDown.springify().damping(18).stiffness(140)} style={styles.stepBody}>
-          {!boardPhaseCardsReady(boardPhase) || editingBoard ? (
+          <View style={styles.phaseHeader}>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>{t(`poker:phases.${boardPhase}`)}</Text>
+            <Text style={[styles.phasePot, { color: colors.textTertiary }]}>
+              {t('potAmount', { amount: formatHandAmount(potCarriedInto(boardPhase), unitMode) })}
+            </Text>
+          </View>
+          {(!boardPhaseCardsReady(boardPhase) || editingBoard) && (
             <CardGrid
               value={boardPhase === 'flop' ? flopCards : boardPhase === 'turn' ? [turnCard] : [riverCard]}
               onChange={handleBoardCardsChange}
               disabledCards={disabledCardsFor(boardPhase)}
-              label={t(`poker:phases.${boardPhase}`)}
             />
-          ) : (
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>{t(`poker:phases.${boardPhase}`)}</Text>
           )}
           {boardPhaseCardsReady(boardPhase) && renderBettingRound(boardPhase)}
         </Animated.View>
@@ -833,7 +777,7 @@ export default function HandReplayerBuilderScreen() {
             <Text style={[styles.hint, { color: colors.textSecondary, marginTop: spacing.md }]}>{t('whoWins')}</Text>
             <View style={styles.winnerRow}>
               {activePlayers.map((p) => {
-                const selected = winnerIds.includes(p.id);
+                const selected = effectiveWinnerIds.includes(p.id);
                 return (
                   <TouchableOpacity
                     key={p.id}
@@ -853,13 +797,6 @@ export default function HandReplayerBuilderScreen() {
               })}
             </View>
 
-            <TextInput
-              value={winningHandDescription}
-              onChangeText={setWinningHandDescription}
-              placeholder={t('descriptionPlaceholder')}
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
-            />
           </>
         )}
 
@@ -870,14 +807,6 @@ export default function HandReplayerBuilderScreen() {
           placeholderTextColor={colors.textTertiary}
           style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
         />
-        <TextInput
-          value={customStakes}
-          onChangeText={setCustomStakes}
-          placeholder={t('stakesPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
-        />
-
         <View style={styles.previewWrap}>
           <HandRecapCard hand={previewHand} />
         </View>
@@ -887,10 +816,10 @@ export default function HandReplayerBuilderScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.secondaryBtn, { backgroundColor: colors.neutralTileBg }]}
-          onPress={handleExport}
+          onPress={handleExportImages}
           activeOpacity={0.85}
         >
-          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('exportImage')}</Text>
+          <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('exportReplay')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.neutralTileBg }]} onPress={reset} activeOpacity={0.85}>
           <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('restart')}</Text>
@@ -1010,6 +939,15 @@ export default function HandReplayerBuilderScreen() {
             {unitMode === 'chips' && (
               <AmountInput label={t('bigBlindLabel')} value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
             )}
+            <AmountInput
+              label={t('anteLabel')}
+              value={anteInput}
+              onChange={setAnteInput}
+              unit={unitMode === 'bb' ? 'BB' : t('chipsUnit')}
+              allowDecimal
+              placeholder="0"
+            />
+            <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('anteHint')}</Text>
           </View>
         );
 
@@ -1017,13 +955,11 @@ export default function HandReplayerBuilderScreen() {
         return (
           <View style={styles.stepBody}>
             <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('heroCardsHint')}</Text>
-            {heroCards.some(Boolean) && (
-              <View style={styles.cardsRow}>
-                {heroCards.filter(Boolean).map((c, i) => (
-                  <PlayingCard key={i} card={c!} size="md" />
-                ))}
-              </View>
-            )}
+            <View style={styles.cardsRow}>
+              {heroCards.map((c, i) =>
+                c ? <PlayingCard key={i} card={c} size="md" /> : <PlayingCard key={i} placeholder size="md" />
+              )}
+            </View>
             <CardGrid value={heroCards} onChange={setHeroCards} disabledCards={disabledCardsFor('hero')} />
           </View>
         );
@@ -1032,6 +968,7 @@ export default function HandReplayerBuilderScreen() {
         return (
           <View style={styles.stepBody}>
             <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('preflopHint')}</Text>
+            <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('editAction.hint')}</Text>
             {renderBettingRound('preflop')}
           </View>
         );
@@ -1057,6 +994,15 @@ export default function HandReplayerBuilderScreen() {
           <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.textPrimary }]}>{stepTitles[step]}</Text>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.neutralTileBg }]}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel={t('common:close')}
+        >
+          <X size={18} color={colors.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.dots}>
@@ -1072,8 +1018,14 @@ export default function HandReplayerBuilderScreen() {
 
       {step < 4 && (step !== 1 || canContinue()) && (
         <View style={[styles.footer, { borderTopColor: colors.hairline }]}>
+          {(step === 2 || step === 3) && livePot > 0 && (
+            <View style={[styles.footerPot, { backgroundColor: colors.neutralTileBg }]}>
+              <Text style={[styles.footerPotLabel, { color: colors.textTertiary }]}>{t('pot')}</Text>
+              <Text style={[styles.footerPotValue, { color: colors.textPrimary }]}>{formatHandAmount(livePot, unitMode)}</Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={[styles.primaryBtn, !canContinue() && styles.disabledBtn, { backgroundColor: colors.accentBright }]}
+            style={[styles.primaryBtn, styles.footerBtn, !canContinue() && styles.disabledBtn, { backgroundColor: colors.accentBright }]}
             onPress={goNext}
             disabled={!canContinue()}
             activeOpacity={0.85}
@@ -1103,6 +1055,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
+    flex: 1,
     fontSize: fontSize['2xl'],
     fontFamily: fontFamily.display,
   },
@@ -1166,6 +1119,8 @@ const styles = StyleSheet.create({
   boardCardsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    // 5 river cards fill the row exactly — the edit button must wrap under them, not overflow.
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   autoWinnerBox: {
@@ -1219,7 +1174,21 @@ const styles = StyleSheet.create({
   },
   completedPhase: {
     gap: spacing.sm,
-    opacity: 0.6,
+  },
+  phaseLabel: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  phaseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  phasePot: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.semibold,
   },
   opponentBlock: {
     gap: spacing.sm,
@@ -1278,6 +1247,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  footerBtn: {
+    flex: 1,
+  },
+  footerPot: {
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  footerPotLabel: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  footerPotValue: {
+    fontSize: fontSize.md,
+    fontFamily: fontFamily.bold,
   },
   primaryBtn: {
     borderRadius: radius.md,

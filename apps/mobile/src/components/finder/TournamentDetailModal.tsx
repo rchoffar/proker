@@ -1,32 +1,25 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Users, History } from 'lucide-react-native';
+import { MapPin, Users } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
-import { formatAmount, formatDateRange } from '../../lib/format';
+import { formatAmount } from '../../lib/format';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
 import { SectionLabel } from '../ui/SectionLabel';
 import { BlindStructureTable } from '../tournaments/BlindStructureTable';
 import { fontFamily, fontSize, spacing, radius, shadow } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import type { Tournament, Festival, TournamentSession } from '../../types';
+import type { Tournament, Festival } from '../../types';
 
 interface Props {
   tournament: Tournament | null;
   festival?: Festival;
-  sessions: TournamentSession[];
   onClose: () => void;
-  onAddSession: () => void;
 }
 
 interface DisplayData {
   tournament: Tournament;
   festival?: Festival;
-  sessions: TournamentSession[];
-}
-
-function formatSignedAmount(val: number): string {
-  return `${val >= 0 ? '+' : '−'}${formatAmount(val)}`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -44,38 +37,23 @@ function Divider() {
   return <View style={{ height: 1, backgroundColor: colors.hairline, marginVertical: spacing.sm }} />;
 }
 
-export function TournamentDetailModal({ tournament, festival, sessions, onClose, onAddSession }: Props) {
+export function TournamentDetailModal({ tournament, festival, onClose }: Props) {
   const { colors } = useTheme();
   const { t: tr } = useTranslation('finder');
   const [cache, setCache] = useState<DisplayData | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- retain last content while the sheet animates closed
-    if (tournament) setCache({ tournament, festival, sessions });
-  }, [tournament, festival, sessions]);
+    if (tournament) setCache({ tournament, festival });
+  }, [tournament, festival]);
 
-  const display = tournament ? { tournament, festival, sessions } : cache;
+  const display = tournament ? { tournament, festival } : cache;
   if (!display) return null;
 
-  const { tournament: t, festival: f, sessions: s } = display;
-
-  const bestCash = s
-    .filter((session) => session.cashed && session.position != null)
-    .reduce<TournamentSession | null>((best, session) => {
-      if (!best) return session;
-      return (session.position ?? Infinity) < (best.position ?? Infinity) ? session : best;
-    }, null);
+  const { tournament: t, festival: f } = display;
 
   return (
-    <BottomSheet
-      visible={tournament !== null}
-      onClose={onClose}
-      footer={
-        <TouchableOpacity style={[styles.ctaButton, { backgroundColor: colors.accent }]} onPress={onAddSession} activeOpacity={0.85}>
-          <Text style={styles.ctaText}>{tr('detail.addSession')}</Text>
-        </TouchableOpacity>
-      }
-    >
+    <BottomSheet visible={tournament !== null} onClose={onClose}>
       <View style={styles.identity}>
         <Text style={[styles.titleText, { color: colors.textPrimary }]}>{t.name}</Text>
         {f && (
@@ -137,58 +115,6 @@ export function TournamentDetailModal({ tournament, festival, sessions, onClose,
           <BlindStructureTable structure={t.blindStructure} />
         </View>
       ) : null}
-
-      {/* History section */}
-      {s.length > 0 && (
-        <View style={[styles.section, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
-          <View style={styles.sectionHeader}>
-            <History size={13} color={colors.textTertiary} strokeWidth={1.5} />
-            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{tr('detail.history')}</Text>
-            <Text style={[styles.sectionCount, { color: colors.textTertiary }]}>
-              {tr('detail.participations', { count: s.length })}
-            </Text>
-          </View>
-          {s.map((session, idx) => {
-            const profit = session.cashOut - (session.reEntries + 1) * session.buyIn;
-            const isPositive = profit >= 0;
-            return (
-              <View key={session.id}>
-                {idx > 0 && <Divider />}
-                <View style={styles.historyRow}>
-                  <View style={styles.historyLeft}>
-                    <Text style={[styles.historyDate, { color: colors.textPrimary }]}>{formatDateRange(session.date)}</Text>
-                    <Text style={[styles.historyMeta, { color: colors.textTertiary }]}>
-                      {[
-                        session.cashed
-                          ? session.position
-                            ? tr('detail.itmWithPosition', { position: session.position })
-                            : tr('detail.itm')
-                          : tr('detail.busted'),
-                        session.reEntries > 0 ? tr('detail.reEntries', { count: session.reEntries }) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </View>
-                  <Text style={[styles.historyProfit, { color: isPositive ? colors.accent : colors.loss }]}>
-                    {formatSignedAmount(profit)}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-          {bestCash?.position != null && (
-            <>
-              <Divider />
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-                  {tr('detail.bestResult', { position: bestCash.position })}
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
-      )}
 
       <View style={{ height: 8 }} />
     </BottomSheet>
@@ -273,65 +199,5 @@ const styles = StyleSheet.create({
   },
   blindLabel: {
     marginBottom: spacing.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: spacing.sm + 2,
-  },
-  sectionTitle: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    flex: 1,
-  },
-  sectionCount: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.medium,
-  },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm + 2,
-    gap: spacing.sm,
-  },
-  historyLeft: {
-    flex: 1,
-    gap: 3,
-  },
-  historyDate: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.semibold,
-  },
-  historyMeta: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.regular,
-  },
-  historyProfit: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.bold,
-    fontVariant: ['tabular-nums'],
-  },
-  summaryRow: {
-    paddingVertical: spacing.sm + 2,
-    alignItems: 'center',
-  },
-  summaryText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.medium,
-  },
-  ctaButton: {
-    paddingVertical: spacing.base,
-    borderRadius: radius.md,
-    alignItems: 'center',
-  },
-  ctaText: {
-    color: '#FFFFFF',
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.bold,
-    letterSpacing: 0.2,
   },
 });

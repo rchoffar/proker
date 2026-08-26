@@ -17,5 +17,10 @@
   "me": "Moi",
   "cardCount_one": "{{count}} carte",
   "cardCount_other": "{{count}} cartes",
-  "createNamed": "Créer «{{name}}»"
+  "createNamed": "Créer «{{name}}»",
+  "quitGame": {
+    "title": "Quitter la partie ?",
+    "message": "La partie n'est pas terminée. Votre progression sera perdue.",
+    "confirm": "Quitter"
+  }
 }
