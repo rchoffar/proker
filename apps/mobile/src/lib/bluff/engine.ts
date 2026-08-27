@@ -4,7 +4,7 @@ import type { Player } from '../../types';
 import { createDeck } from '../pokerHandEvaluator';
 import type { Claim } from './claims';
 import { isStrictlyHigher } from './claims';
-import { claimHolds, findClaimWitness, findHigherClaim } from './validator';
+import { claimHolds, findBestClaim, findClaimWitness, findHigherClaim } from './validator';
 import { shuffleWithRng } from '../rng';
 
 // Pure, UI-free game engine: Pass & Play drives it through local state, the online host
@@ -49,6 +49,7 @@ export interface RevealResult {
   jeuMaxSuccess?: boolean;
   higherClaim?: Claim | null; // smallest strictly-higher claim that holds — the failure proof
   higherWitness?: Card[] | null;
+  bestClaim?: Claim | null; // the actual jeu max in the pool — what should have been called
   jeuMaxWinsGame?: boolean; // the caller shed their last card
 }
 
@@ -341,6 +342,8 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
       // Success = the announcement is real AND nothing strictly higher exists in the pool.
       const higher = holds ? findHigherClaim(lastClaim.claim, pool) : null;
       const success = holds && higher === null;
+      // On failure, name the ACTUAL jeu max (not the minimal counter-example) in the message.
+      const best = success ? null : findBestClaim(pool);
       const caller = state.players.find((p) => p.id === action.playerId)!;
       return {
         ...state,
@@ -367,6 +370,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
           jeuMaxSuccess: success,
           higherClaim: higher?.claim ?? null,
           higherWitness: higher?.witness ?? null,
+          bestClaim: best?.claim ?? null,
           jeuMaxWinsGame: success && caller.cardCount === 1,
         },
         version: state.version + 1,

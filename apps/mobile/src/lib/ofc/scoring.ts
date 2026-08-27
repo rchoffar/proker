@@ -107,9 +107,12 @@ function pairPoints(a: OfcPlayerHandResult, b: OfcPlayerHandResult): Omit<OfcPai
  * Scores a completed hand between 2-3 players and settles chips.
  *
  * Settlement is sequential in seat order — (0,1), (0,2), (1,2) — and each transfer is
- * capped at the payer's chips at that moment, so wins collected earlier can fund later
- * losses, no stack goes negative, and the total chip count is conserved. Earlier pairs
- * are favored when a stack busts mid-settlement; deterministic on every device.
+ * capped at BOTH sides' chips at that moment: the payer can't pay more than they have,
+ * and — table-stakes, like a poker all-in — a short stack can't win more per opponent
+ * than it can match (4 chips behind = 4 chips won max, even on an 18-point hand).
+ * Wins collected earlier can fund later losses, no stack goes negative, and the total
+ * chip count is conserved. Earlier pairs are favored when a stack busts mid-settlement;
+ * deterministic on every device.
  */
 export function scoreHand(players: ScoringInput[]): OfcHandResult {
   const perPlayer: Record<string, OfcPlayerHandResult> = {};
@@ -121,7 +124,8 @@ export function scoreHand(players: ScoringInput[]): OfcHandResult {
     for (let j = i + 1; j < players.length; j++) {
       const pair = pairPoints(perPlayer[players[i].id], perPlayer[players[j].id]);
       const payerId = pair.points >= 0 ? pair.bId : pair.aId;
-      const transfer = Math.min(Math.abs(pair.points), balances.get(payerId)!);
+      const winnerId = pair.points >= 0 ? pair.aId : pair.bId;
+      const transfer = Math.min(Math.abs(pair.points), balances.get(payerId)!, balances.get(winnerId)!);
       const chips = pair.points >= 0 ? transfer : -transfer;
       balances.set(pair.aId, balances.get(pair.aId)! + chips);
       balances.set(pair.bId, balances.get(pair.bId)! - chips);

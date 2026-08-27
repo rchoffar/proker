@@ -84,7 +84,7 @@
     "jeuMaxSuccess": "Jeu Max ! {{name}} se débarrasse d’une carte",
     "jeuMaxWin": "Jeu Max ! {{name}} se débarrasse de sa dernière carte",
     "jeuMaxFailNotHeld": "Raté — l’annonce était du bluff, {{name}} prend une carte",
-    "jeuMaxFailHigher": "Raté — il y avait {{higher}}, {{name}} prend une carte",
+    "jeuMaxFailHigher": "Raté — le jeu max était {{best}}, {{name}} prend une carte",
     "jeuMaxStatLine": "{{name}} : {{successes}}/{{attempts}} Jeu Max",
     "announce": "Annoncer",
     "nextRound": "Manche suivante",
@@ -93,7 +93,6 @@
   "play": {
     "noPlayers": "Aucun joueur pour cette partie.",
     "peekHint": "Cartes de {{name}} — maintenir pour voir",
-    "peekAfterBoard": "Valide le milieu avant de regarder tes cartes",
     "passPhoneTo": "Passe le téléphone à",
     "itsMe": "C’est moi, voir mon tour",
     "finish": "Terminer"
@@ -122,11 +121,11 @@
     "toBeat": "À battre",
     "noClaim": "Aucune annonce — ouvre les enchères",
     "wheelHint": "A-2-3-4-5 = quinte hauteur 5",
-    "lowPair": "Paire basse",
+    "highPair": "Paire haute",
     "pairOf": "Paire de",
     "primary": {
       "pair": "Rang de la paire",
-      "twoPair": "Paire haute",
+      "twoPair": "Paire basse",
       "straight": "Hauteur de la quinte",
       "trips": "Rang du brelan",
       "flush": "Hauteur de la couleur",

@@ -7,7 +7,9 @@
     "flip": "Flop, turn, river: everyone gets a hand, the best combination takes the pot",
     "bluff": "Bids and raises… who dares to cry liar?",
     "roulette": "Bet, spin, tempt fate",
-    "ofc": "Three rows, thirteen cards — don't foul"
+    "ofc": "Three rows, thirteen cards — don't foul",
+    "poker": "The real thing — tables, blinds, showdowns",
+    "blackjack": "Beat the dealer to 21"
   },
   "tile": {
     "comingSoon": "Coming soon",

@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { X, RotateCw, Eye, EyeOff, Lock } from 'lucide-react-native';
+import { X, RotateCw, Eye, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -235,8 +235,10 @@ export default function BluffPlayScreen() {
         <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={finish} activeOpacity={0.7}>
           <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('title')}</Text>
-        <View style={styles.iconBtn}>
+        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]} numberOfLines={1}>
+          {t('title')}
+        </Text>
+        <View style={styles.headerRight}>
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: state.round })}</Text>
         </View>
       </View>
@@ -251,7 +253,7 @@ export default function BluffPlayScreen() {
                   : reveal.holds
                     ? t('game.jeuMaxFailHigher', {
                         name: catcher?.name,
-                        higher: reveal.higherClaim ? claimLabel(reveal.higherClaim, t) : '',
+                        best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
                       })
                     : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
               </Text>
@@ -346,16 +348,16 @@ export default function BluffPlayScreen() {
             </View>
           )}
           {phase === 'chooseBoard' ? (
-            // The starter sizes the middle BLIND — their cards only unlock once the
-            // board split is validated (rule decision).
-            <View style={styles.peekZone}>
-              <View style={styles.peekHint}>
-                <EyeOff size={16} color={colors.onDarkSecondary} strokeWidth={2} />
-                <Text style={[styles.peekHintText, { color: colors.onDarkSecondary }]}>
-                  {t('play.peekAfterBoard')}
-                </Text>
-              </View>
-            </View>
+            // The starter sizes the middle BLIND — their cards only unlock once the board
+            // split is validated (rule decision; the gating needs no explanatory sentence,
+            // and the reveal button lives right here next to the steppers).
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
+              onPress={handleChooseBoard}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
+            </TouchableOpacity>
           ) : (
             <Pressable
               onPressIn={() => setPeeking(true)}
@@ -394,12 +396,6 @@ export default function BluffPlayScreen() {
       )}
 
       <View style={styles.footer}>
-        {phase === 'chooseBoard' && (
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={handleChooseBoard} activeOpacity={0.85}>
-            <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
-          </TouchableOpacity>
-        )}
-
         {phase === 'bidding' && (
           <>
             {mustCatch && (
@@ -519,6 +515,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.bold,
+    // Constrained + centered: the title used to be free-width in a space-between row and
+    // collided with the round badge (whose 32px icon slot couldn't hold its text either).
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRight: {
+    minWidth: 32,
+    alignItems: 'flex-end',
   },
   roundBadge: {
     fontSize: fontSize.xs,

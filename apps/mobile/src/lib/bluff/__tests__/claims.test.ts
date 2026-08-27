@@ -118,16 +118,21 @@ describe('allowedPrimaryRanks', () => {
     expect(allowed.has('J')).toBe(false);
   });
 
-  it('keeps the same twoPair high only when a higher low still fits', () => {
-    const roomLeft = allowedPrimaryRanks('twoPair', { category: 'twoPair', high: 'T', low: '6' });
-    expect(roomLeft.has('T')).toBe(true); // low 7/8/9 still available
-    const noRoom = allowedPrimaryRanks('twoPair', { category: 'twoPair', high: 'T', low: '9' });
-    expect(noRoom.has('T')).toBe(false); // no low between 9 and T
-    expect(noRoom.has('J')).toBe(true);
+  it('allows any twoPair low while a higher high pair remains available', () => {
+    // Current high is T (< A): every low works, a high above T can always be picked.
+    const anyLow = allowedPrimaryRanks('twoPair', { category: 'twoPair', high: 'T', low: '6' });
+    expect(anyLow.has('2')).toBe(true);
+    expect(anyLow.has('6')).toBe(true);
+    expect(anyLow.has('K')).toBe(true);
+    // Current high is already A: only lows strictly above the current low survive.
+    const aceHigh = allowedPrimaryRanks('twoPair', { category: 'twoPair', high: 'A', low: '9' });
+    expect(aceHigh.has('9')).toBe(false);
+    expect(aceHigh.has('T')).toBe(true);
+    expect(aceHigh.has('K')).toBe(true);
   });
 
-  it('excludes 2 as a twoPair high (no possible low)', () => {
-    expect(allowedPrimaryRanks('twoPair', null).has('2')).toBe(false);
+  it('excludes A as a twoPair low (no possible high)', () => {
+    expect(allowedPrimaryRanks('twoPair', null).has('A')).toBe(false);
   });
 
   it('restricts straight highs to the legal domain above the current one', () => {
@@ -150,17 +155,21 @@ describe('allowedPrimaryRanks', () => {
 });
 
 describe('allowedSecondaryRanks', () => {
-  it('twoPair lows sit strictly below the chosen high', () => {
-    const allowed = allowedSecondaryRanks('twoPair', '5', null);
-    expect([...allowed].sort()).toEqual(['2', '3', '4']);
+  it('twoPair highs sit strictly above the chosen low', () => {
+    const allowed = allowedSecondaryRanks('twoPair', 'Q', null);
+    expect([...allowed].sort()).toEqual(['A', 'K']);
   });
 
-  it('twoPair with the same high must raise the low', () => {
-    const allowed = allowedSecondaryRanks('twoPair', 'T', { category: 'twoPair', high: 'T', low: '6' });
-    expect(allowed.has('6')).toBe(false);
-    expect(allowed.has('7')).toBe(true);
-    expect(allowed.has('9')).toBe(true);
-    expect(allowed.has('J')).toBe(false); // still must stay below the high
+  it('twoPair high must beat the current high, or match it with a raised low', () => {
+    // Low 7 beats the current low 6, so matching the T high is enough.
+    const raisedLow = allowedSecondaryRanks('twoPair', '7', { category: 'twoPair', high: 'T', low: '6' });
+    expect(raisedLow.has('T')).toBe(true);
+    expect(raisedLow.has('J')).toBe(true);
+    expect(raisedLow.has('9')).toBe(false);
+    // Low 5 does not beat 6: the high must strictly beat T.
+    const lowerLow = allowedSecondaryRanks('twoPair', '5', { category: 'twoPair', high: 'T', low: '6' });
+    expect(lowerLow.has('T')).toBe(false);
+    expect(lowerLow.has('J')).toBe(true);
   });
 
   it('fullHouse pair excludes the trips rank', () => {

@@ -73,8 +73,7 @@
     "raise": "Relancer",
     "allin": "All-in",
     "post": "Poste",
-    "callAmount": "Call {{amount}}",
-    "allinAmount": "All-in {{amount}}"
+    "callAmount": "Call {{amount}}"
   },
   "actionBadges": {
     "fold": "Se couche",

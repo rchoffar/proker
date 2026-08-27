@@ -99,10 +99,23 @@ describe('scoreHand — chip settlement', () => {
     expect(result.eliminatedIds).toEqual(['b']);
   });
 
+  it("caps a win at the winner's own stack — a 4-chip stack can't win 18 (table stakes)", () => {
+    // ROYAL_16 scoops PLAIN_B for 22 points, but only has 4 chips behind: like a poker
+    // all-in, it can only win what it can match per opponent.
+    const result = scoreHand([input('r', ROYAL_16, 4), input('b', PLAIN_B, 100)]);
+    const pair = result.pairs[0];
+    expect(pair.points).toBe(22);
+    expect(pair.chips).toBe(4);
+    expect(pair.capped).toBe(true);
+    expect(result.chipDelta).toEqual({ r: 4, b: -4 });
+    expect(result.eliminatedIds).toEqual([]);
+  });
+
   it('settles sequentially — a win collected earlier funds a later loss', () => {
     // p0 fouled (10 chips), p1 = PLAIN_B (5 chips), p2 = ROYAL_16 (100 chips).
-    // (p0,p1): p0 pays 6 → p1 has 11. (p0,p2): p0 pays min(22, 4) = 4, busts.
-    // (p1,p2): p1 owes 22, pays min(22, 11) = 11 with chips won from p0, busts.
+    // (p0,p1): p0 owes 6, but p1 can only match its 5-chip stack → p1 has 10, p0 has 5.
+    // (p0,p2): p0 owes 22, pays its remaining min(22, 5) = 5, busts.
+    // (p1,p2): p1 owes 22, pays min(22, 10) = 10 with chips won from p0, busts.
     const result = scoreHand([
       input('p0', FOULED, 10),
       input('p1', PLAIN_B, 5),
@@ -113,10 +126,11 @@ describe('scoreHand — chip settlement', () => {
       ['p0', 'p2'],
       ['p1', 'p2'],
     ]);
-    expect(result.pairs[0].chips).toBe(-6);
-    expect(result.pairs[1].chips).toBe(-4);
+    expect(result.pairs[0].chips).toBe(-5);
+    expect(result.pairs[0].capped).toBe(true);
+    expect(result.pairs[1].chips).toBe(-5);
     expect(result.pairs[1].capped).toBe(true);
-    expect(result.pairs[2].chips).toBe(-11);
+    expect(result.pairs[2].chips).toBe(-10);
     expect(result.pairs[2].capped).toBe(true);
     expect(result.chipDelta).toEqual({ p0: -10, p1: -5, p2: 15 });
     expect(result.eliminatedIds).toEqual(['p0', 'p1']);

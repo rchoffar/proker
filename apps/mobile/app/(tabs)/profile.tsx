@@ -143,8 +143,6 @@ export default function ProfileScreen() {
               <View style={styles.settingsHeader}>
                 <Text style={[styles.settingsTitle, { color: colors.textTertiary }]}>{t('settings.title')}</Text>
               </View>
-              <SettingRow label={t('settings.currency')} value={`${user.settings.currency} €`} />
-              <Divider />
               <SettingRow
                 label={t('settings.language')}
                 value={LANGUAGE_NAMES[user.settings.language === 'fr' ? 'fr' : 'en']}

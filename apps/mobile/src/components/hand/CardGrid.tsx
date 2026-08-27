@@ -79,7 +79,9 @@ export function CardGrid({ value, onChange, disabledCards, label }: Props) {
                         { backgroundColor: colors.cardFaceBg, borderColor: colors.cardFaceBorder },
                         isSelected && {
                           borderColor: colors.accent,
-                          backgroundColor: colors.accentTint,
+                          // Solid light green, NOT accentTint: the translucent tint over a dark
+                          // screen made the black pips unreadable in dark scheme.
+                          backgroundColor: colors.cardFaceSelectedBg,
                           borderWidth: 1.5,
                         },
                         isDisabled && styles.disabled,

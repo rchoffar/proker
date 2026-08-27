@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { BarChart3, ChevronRight, Heart, History, Coins, Drama, Disc3, Layers, Trophy } from 'lucide-react-native';
+import { BarChart3, ChevronRight, Heart, History, Coins, Drama, Disc3, Layers, Spade, Diamond, Trophy } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
@@ -155,11 +155,21 @@ export default function DashboardScreen() {
                 onPress={() => router.push('/games/roulette')}
               />
               <GameTile
-                name="Open-Face Chinese Poker"
+                name="OFC"
                 description={t('degen:games.ofc')}
                 icon={<Layers size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/ofc')}
+              />
+              <GameTile
+                name="Poker"
+                description={t('degen:games.poker')}
+                icon={<Spade size={20} color={colors.textSecondary} strokeWidth={1.5} />}
+              />
+              <GameTile
+                name="Blackjack"
+                description={t('degen:games.blackjack')}
+                icon={<Diamond size={20} color={colors.textSecondary} strokeWidth={1.5} />}
               />
               <GameTile
                 name={t('games.replayTitle')}

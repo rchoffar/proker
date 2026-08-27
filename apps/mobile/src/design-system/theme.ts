@@ -14,6 +14,12 @@ export const lightColors: Record<string, any> = {
   loss: '#E5484D',
   neutralChart: '#2B2E37', // non-accent bar/gauge fill — must read against a LIGHT surface
 
+  // Scoped exception to the single-accent rule: gold = "poker table" moments (all-in, the
+  // replayer hero card) — the felt's brass palette lifted into the app chrome. Darker on
+  // light surfaces for legibility.
+  gold: '#9C6F1E',
+  goldTint: 'rgba(231, 195, 111, 0.22)',
+
   // Scoped exception to the single-accent rule: distinct hues for telling apart
   // multiple simultaneous items in a legend-like context (e.g. calendar festival bars).
   calendarPalette: ['#0E9E62', '#B45309', '#4F46E5', '#BE185D', '#0E7490', '#7C3AED'],
@@ -22,6 +28,7 @@ export const lightColors: Record<string, any> = {
   // card (light face, red/black pips) regardless of the app's light/dark scheme — identical
   // values in both color objects on purpose.
   cardFaceBg: '#F7F7F5',
+  cardFaceSelectedBg: '#CFF5E3', // solid light green — pips must stay readable on a selected face
   cardFaceBorder: 'rgba(30, 34, 46, 0.10)',
   cardSuitRed: '#E5484D',
   cardSuitBlack: '#23252B',
@@ -64,6 +71,10 @@ export const darkColors: Record<string, any> = {
   loss: '#FF6B70',
   neutralChart: '#4A4F5A', // lighter than the light-scheme value — must read against a DARK surface
 
+  // Scoped exception to the single-accent rule: gold = "poker table" moments — see lightColors.gold.
+  gold: '#E7C36F',
+  goldTint: 'rgba(231, 195, 111, 0.16)',
+
   // Scoped exception to the single-accent rule: distinct hues for telling apart
   // multiple simultaneous items in a legend-like context (e.g. calendar festival bars).
   calendarPalette: ['#17E58A', '#FBBF24', '#818CF8', '#F472B6', '#22D3EE', '#A78BFA'],
@@ -72,6 +83,7 @@ export const darkColors: Record<string, any> = {
   // card (light face, red/black pips) regardless of the app's light/dark scheme — identical
   // values in both color objects on purpose.
   cardFaceBg: '#F7F7F5',
+  cardFaceSelectedBg: '#CFF5E3', // identical in both schemes — see lightColors comment
   cardFaceBorder: 'rgba(30, 34, 46, 0.10)',
   cardSuitRed: '#E5484D',
   cardSuitBlack: '#23252B',

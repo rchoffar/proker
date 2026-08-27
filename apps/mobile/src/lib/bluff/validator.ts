@@ -60,6 +60,19 @@ export function findHigherClaim(
 }
 
 /**
+ * The strongest claim that holds in the pool — the actual "jeu max". Exact by
+ * construction: the whole finite claim space is scanned from the top.
+ */
+export function findBestClaim(pool: Card[]): { claim: Claim; witness: Card[] } | null {
+  const all = enumerateAllClaims();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const witness = findClaimWitness(all[i], pool);
+    if (witness) return { claim: all[i], witness };
+  }
+  return null;
+}
+
+/**
  * The concrete cards proving the claim (for reveal highlighting), or null when the
  * claim does not hold.
  */

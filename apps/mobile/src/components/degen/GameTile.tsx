@@ -78,7 +78,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
     textAlign: 'center',
-    minHeight: 28,
+    // Fixed 2-line box (not minHeight): every tile is the same height whether its
+    // description wraps or not — grid rows used to come out uneven.
+    lineHeight: 15,
+    height: 30,
   },
   pill: {
     marginTop: 4,

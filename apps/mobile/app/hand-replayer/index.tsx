@@ -172,12 +172,15 @@ export default function HandReplayerBuilderScreen() {
   const [winnerIds, setWinnerIds] = useState<string[]>([]);
   const [customTitle, setCustomTitle] = useState('');
   const [boardPhase, setBoardPhase] = useState<'flop' | 'turn' | 'river'>('flop');
-  // Which player's position picker is open in step 0 (null = none).
-  const [positionPickerFor, setPositionPickerFor] = useState<string | null>(null);
+  // Which player's position picker is open in step 0 (null = none). Starts open on the hero
+  // ('p0' from makePlayers): picking your own position is the first thing done after the
+  // player count, so the menu shouldn't cost an extra tap.
+  const [positionPickerFor, setPositionPickerFor] = useState<string | null>('p0');
   const [bigBlindAmount, setBigBlindAmount] = useState('2');
   // Optional global ante total — one amount for the whole table (posters may include players
   // not entered in the hand), pure dead money: added to the pot, never run through the engine.
-  const [anteInput, setAnteInput] = useState('');
+  // Defaults to 1 in BB mode — the ante is almost always 1 BB.
+  const [anteInput, setAnteInput] = useState('1');
   const [unitMode, setUnitMode] = useState<UnitMode>('bb');
   // Per-player stack strings; absent/empty = the mode's default (100 BB / 200 chips).
   const [stackOverrides, setStackOverrides] = useState<Record<string, string>>({});
@@ -235,7 +238,7 @@ export default function HandReplayerBuilderScreen() {
     setUnitMode(mode);
     // Stacks and ante are expressed in the unit — carrying values across a unit switch would corrupt them.
     setStackOverrides({});
-    setAnteInput('');
+    setAnteInput(mode === 'bb' ? '1' : '');
   };
 
   const blindPosting = useMemo(
@@ -431,6 +434,13 @@ export default function HandReplayerBuilderScreen() {
   const goNext = () => setStep((s) => s + 1);
   const goBack = () => (step > 0 ? setStep((s) => s - 1) : router.back());
 
+  // Each step is a fresh page: never inherit the previous step's scroll offset (the long
+  // board step used to leave the showdown step opening scrolled to the bottom).
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
   const reset = () => {
     setSessionIdentity({ id: randomUUID(), createdAt: new Date().toISOString() });
     setStep(0);
@@ -445,9 +455,9 @@ export default function HandReplayerBuilderScreen() {
     setWinnerIds([]);
     setCustomTitle('');
     setBoardPhase('flop');
-    setPositionPickerFor(null);
+    setPositionPickerFor('p0');
     setBigBlindAmount('2');
-    setAnteInput('');
+    setAnteInput('1');
     setUnitMode('bb');
     setStackOverrides({});
     setEditingBoard(false);
@@ -1011,7 +1021,14 @@ export default function HandReplayerBuilderScreen() {
         ))}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <Animated.View entering={FadeInDown.springify().damping(18).stiffness(140)}>{renderStep()}</Animated.View>
         <View style={{ height: 100 }} />
       </ScrollView>

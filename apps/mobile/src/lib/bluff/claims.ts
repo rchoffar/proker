@@ -157,7 +157,8 @@ function ranksWithValue(predicate: (value: number) => boolean): Set<Rank> {
 
 /**
  * Legal ranks for a category's primary parameter, given the claim to beat:
- * pair/trips/quads rank, twoPair high pair, fullHouse trips, straight/flush/SF high card.
+ * pair/trips/quads rank, twoPair LOW pair (picked first — table convention),
+ * fullHouse trips, straight/flush/SF high card.
  */
 export function allowedPrimaryRanks(category: ClaimCategory, current: Claim | null): Set<Rank> {
   const domain = ((): Set<Rank> => {
@@ -167,8 +168,8 @@ export function allowedPrimaryRanks(category: ClaimCategory, current: Claim | nu
       case 'quads':
         return new Set(RANKS);
       case 'twoPair':
-        // The high pair needs a strictly lower low pair to exist.
-        return ranksWithValue((v) => v >= 3);
+        // The low pair needs a strictly higher high pair to exist.
+        return ranksWithValue((v) => v <= 13);
       case 'fullHouse':
         return new Set(RANKS);
       case 'straight':
@@ -196,9 +197,11 @@ export function allowedPrimaryRanks(category: ClaimCategory, current: Claim | nu
         if (v > RANK_VALUE[current.rank]) filtered.add(rank);
         break;
       case 'twoPair': {
-        if (v > RANK_VALUE[current.high]) filtered.add(rank);
-        // Same high pair works only if some low above current.low still fits under it.
-        else if (v === RANK_VALUE[current.high] && RANK_VALUE[current.low] < v - 1) filtered.add(rank);
+        // Candidate is the LOW pair: it works if a high above current.high can still be
+        // picked (always, unless the current high is already the ace), or by keeping the
+        // ace high and strictly raising the low.
+        if (RANK_VALUE[current.high] < 14) filtered.add(rank);
+        else if (v > RANK_VALUE[current.low]) filtered.add(rank);
         break;
       }
       case 'fullHouse': {
@@ -223,8 +226,8 @@ export function allowedPrimaryRanks(category: ClaimCategory, current: Claim | nu
 }
 
 /**
- * Legal ranks for the secondary parameter (twoPair low pair / fullHouse pair),
- * given the chosen primary and the claim to beat.
+ * Legal ranks for the secondary parameter (twoPair HIGH pair — the low was picked first —
+ * / fullHouse pair), given the chosen primary and the claim to beat.
  */
 export function allowedSecondaryRanks(
   category: 'twoPair' | 'fullHouse',
@@ -234,15 +237,20 @@ export function allowedSecondaryRanks(
   const primaryValue = RANK_VALUE[primary];
   const base =
     category === 'twoPair'
-      ? ranksWithValue((v) => v < primaryValue)
+      ? ranksWithValue((v) => v > primaryValue)
       : ranksWithValue((v) => v !== primaryValue);
 
   if (!current || current.category !== category) return base;
 
   if (category === 'twoPair' && current.category === 'twoPair') {
-    if (primaryValue > RANK_VALUE[current.high]) return base;
-    // Same high pair: the low pair must strictly beat the current low.
-    return new Set([...base].filter((r) => RANK_VALUE[r] > RANK_VALUE[current.low]));
+    // The high pair must beat the current high outright, or match it with a raised low.
+    return new Set(
+      [...base].filter(
+        (r) =>
+          RANK_VALUE[r] > RANK_VALUE[current.high] ||
+          (RANK_VALUE[r] === RANK_VALUE[current.high] && primaryValue > RANK_VALUE[current.low]),
+      ),
+    );
   }
   if (category === 'fullHouse' && current.category === 'fullHouse') {
     if (primaryValue > RANK_VALUE[current.trips]) return base;

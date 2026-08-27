@@ -43,7 +43,8 @@ function buildDraft(category: ClaimCategory | null, primary: Rank | null, second
     case 'quads':
       return primary ? { category, rank: primary } : null;
     case 'twoPair':
-      return primary && secondary ? { category, high: primary, low: secondary } : null;
+      // Low pair is picked first (primary), then the high — matches how it's said at the table.
+      return primary && secondary ? { category, high: secondary, low: primary } : null;
     case 'fullHouse':
       return primary && secondary ? { category, trips: primary, pair: secondary } : null;
     case 'straight':
@@ -170,7 +171,7 @@ export function ClaimPickerSheet({ visible, onClose, currentClaim, onSubmit }: P
 
         {(category === 'twoPair' || category === 'fullHouse') && primary ? (
           <RankGrid
-            label={category === 'twoPair' ? t('picker.lowPair') : t('picker.pairOf')}
+            label={category === 'twoPair' ? t('picker.highPair') : t('picker.pairOf')}
             value={secondary}
             onChange={setSecondary}
             allowed={secondaryAllowed}

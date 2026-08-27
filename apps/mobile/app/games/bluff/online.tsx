@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw, Users, WifiOff, EyeOff } from 'lucide-react-native';
+import { X, RotateCw, Users, WifiOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -336,8 +336,10 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
         <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.7}>
           <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('online.headerCode', { code })}</Text>
-        <View style={styles.iconBtn}>
+        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]} numberOfLines={1}>
+          {t('online.headerCode', { code })}
+        </Text>
+        <View style={styles.headerRight}>
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: view.round })}</Text>
         </View>
       </View>
@@ -352,7 +354,7 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
                   : reveal.holds
                     ? t('game.jeuMaxFailHigher', {
                         name: catcher?.name,
-                        higher: reveal.higherClaim ? claimLabel(reveal.higherClaim, t) : '',
+                        best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
                       })
                     : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
               </Text>
@@ -447,14 +449,16 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
             </View>
           )}
           {phase === 'chooseBoard' && isStarter ? (
-            // The starter sizes the middle BLIND — their own fan only unlocks once the
-            // board split is validated (rule decision). Other players keep their hand.
-            <View style={styles.blindHint}>
-              <EyeOff size={16} color={colors.onDarkSecondary} strokeWidth={2} />
-              <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>
-                {t('play.peekAfterBoard')}
-              </Text>
-            </View>
+            // The starter sizes the middle BLIND — their own fan only unlocks once the board
+            // split is validated (rule decision; no explanatory sentence, the reveal button
+            // sits right here next to the steppers). Other players keep their hand.
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
+              onPress={() => sendAction({ type: 'chooseBoard', playerId: myId, faceUpCount, faceDownCount })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
+            </TouchableOpacity>
           ) : (
             <View style={styles.ownFan}>
               {myHand.map((card, i) => (
@@ -482,20 +486,11 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
           </Animated.Text>
         )}
 
-        {phase === 'chooseBoard' &&
-          (isStarter ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
-              onPress={() => sendAction({ type: 'chooseBoard', playerId: myId, faceUpCount, faceDownCount })}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('online.waitingBoard', { name: starter?.name })}
-            </Text>
-          ))}
+        {phase === 'chooseBoard' && !isStarter && (
+          <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
+            {t('online.waitingBoard', { name: starter?.name })}
+          </Text>
+        )}
 
         {phase === 'bidding' &&
           (myTurn ? (
@@ -613,6 +608,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.bold,
+    // Constrained + centered — see play.tsx headerTitle.
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRight: {
+    minWidth: 32,
+    alignItems: 'flex-end',
   },
   roundBadge: {
     fontSize: fontSize.xs,
@@ -713,13 +715,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  blindHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
   },
   ownFanOverlap: {
     marginLeft: -18,

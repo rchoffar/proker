@@ -1,10 +1,7 @@
 export * from './hand';
 
-export type Currency = 'EUR' | 'USD' | 'GBP';
-
 export interface UserSettings {
   language: 'fr' | 'en';
-  currency: Currency;
   notifications: boolean;
   theme: 'light' | 'dark';
 }

@@ -54,7 +54,10 @@ export function PlayerActionRow({
 
   const tonePressableStyle = (type: ActionType) => {
     if (type === 'fold') return { borderColor: colors.loss, backgroundColor: 'transparent' };
-    if (type === 'bet' || type === 'raise' || type === 'allin') {
+    // All-in gets the table's gold, not the money green — it's a different kind of moment
+    // than a routine bet/raise (and green next to green read as "just another raise").
+    if (type === 'allin') return { borderColor: colors.gold, backgroundColor: colors.goldTint };
+    if (type === 'bet' || type === 'raise') {
       return { borderColor: colors.accent, backgroundColor: colors.accentTint };
     }
     return { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg };
@@ -62,7 +65,8 @@ export function PlayerActionRow({
 
   const toneTextColor = (type: ActionType) => {
     if (type === 'fold') return colors.loss;
-    if (type === 'bet' || type === 'raise' || type === 'allin') return colors.accent;
+    if (type === 'allin') return colors.gold;
+    if (type === 'bet' || type === 'raise') return colors.accent;
     return colors.textPrimary;
   };
 
@@ -106,8 +110,6 @@ export function PlayerActionRow({
       return t('actionButtons.callAmount', {
         amount: formatHandAmount(maxTo !== undefined ? Math.min(currentBet, maxTo) : currentBet, unitMode),
       });
-    if (type === 'allin' && maxTo !== undefined)
-      return t('actionButtons.allinAmount', { amount: formatHandAmount(maxTo, unitMode) });
     return t(`actionButtons.${type}`);
   };
 

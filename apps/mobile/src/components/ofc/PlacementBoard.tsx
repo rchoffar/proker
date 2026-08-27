@@ -39,8 +39,11 @@ export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Pr
     () => new Set(ROW_IDS.flatMap((row) => layout[row].map(cardKey))),
     [layout],
   );
-  const unplaced = hand.filter((card) => !placedKeys.has(cardKey(card)));
-  const tray = sortMode ? sortHand(unplaced, sortMode) : unplaced;
+  // Sort the FULL hand, then filter out placed cards: the pairs mode groups by rank count,
+  // and counting the shrinking tray instead made a pair's remaining card jump to the singles
+  // block the moment its sibling was placed.
+  const ordered = sortMode ? sortHand(hand, sortMode) : hand;
+  const tray = ordered.filter((card) => !placedKeys.has(cardKey(card)));
   // A Fantasy Land tray (14-16 cards) is unreadable unsorted — offer the sort filter there.
   const sortable = hand.length > INITIAL_TRAY_MAX;
   const done = tray.length === discards;

@@ -73,8 +73,7 @@
     "raise": "Raise",
     "allin": "All-in",
     "post": "Post",
-    "callAmount": "Call {{amount}}",
-    "allinAmount": "All-in {{amount}}"
+    "callAmount": "Call {{amount}}"
   },
   "actionBadges": {
     "fold": "Folds",

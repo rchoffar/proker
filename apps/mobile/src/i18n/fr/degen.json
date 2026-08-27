@@ -7,7 +7,9 @@
     "flip": "Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise",
     "bluff": "Annonces, surenchères… qui ose crier menteur ?",
     "roulette": "Misez, tournez, tentez le sort",
-    "ofc": "Trois lignes, treize cartes — sans jamais fauler"
+    "ofc": "Trois lignes, treize cartes — sans jamais fauler",
+    "poker": "Le vrai jeu — tables, blindes, showdowns",
+    "blackjack": "Battez le croupier jusqu'à 21"
   },
   "tile": {
     "comingSoon": "Bientôt disponible",
