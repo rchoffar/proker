@@ -116,5 +116,9 @@
     "saveFailed": "Export failed. Try again.",
     "progress": "Recording step {{current}} of {{total}}…",
     "videoSaved": "Video saved to your photos."
+  },
+  "actionLine": "{{name}} — {{action}}",
+  "winOverlay": {
+    "title": "WINNER"
   }
 }

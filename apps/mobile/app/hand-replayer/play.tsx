@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
+import { View, Text, Pressable, ScrollView, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import Animated, { FadeIn, FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
 import ViewShot, { captureRef, releaseCapture } from 'react-native-view-shot';
 import type { ViewShotRef } from 'react-native-view-shot';
 // The function-style API moved to /legacy in SDK 56 — importing it from the package root
@@ -35,12 +35,18 @@ const AUTOPLAY_INTERVAL = 1800;
 // The river is the money card — it flips in slow, after a suspense pause.
 const RIVER_FLIP_DELAY = 400;
 const RIVER_FLIP_DURATION = 1000;
+// Readable gap between an action landing and the response to it — chained actions used to
+// blur past at 200ms.
+const ACTION_STAGGER = 700;
 // A winner at or below this pre-river equity makes the river a staged bad-beat moment.
 const BAD_BEAT_EQUITY_PCT = 30;
 
 const TABLE_W = SCREEN_WIDTH - 96;
 const TABLE_H = Math.min(480, Math.max(350, Math.round(SCREEN_HEIGHT * 0.5)));
 const POD_W = 74;
+// Board cards deal left-aligned from the betting line; exact width so 5 always fit.
+const BOARD_INSET = 40;
+const BOARD_CARD_W = Math.min(46, Math.floor((TABLE_W - BOARD_INSET - 12 - 4 * 6) / 5));
 
 // One background for the whole replay screen AND every exported video frame — table beats
 // and the recap alike — so the app view and the encoder's letterbox read as one canvas.
@@ -61,9 +67,7 @@ const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 
 type Beat =
   | { kind: 'intro' }
-  | { kind: 'heroCards' }
-  | { kind: 'streetCards'; street: Street }
-  | { kind: 'streetActions'; street: Street; actions: HandAction[] }
+  | { kind: 'street'; street: Street; revealsCards: boolean; actions: HandAction[] }
   | { kind: 'showdown' }
   | { kind: 'result' };
 
@@ -75,15 +79,20 @@ function bubbleLabel(a: HandAction, unitMode: HandHistory['unitMode'], t: TFunct
   return a.amount && a.type !== 'fold' && a.type !== 'check' ? `${label} ${formatHandAmount(a.amount, unitMode)}` : label;
 }
 
+// One beat per street: a single tap reveals the street's card(s) AND its actions (the old
+// two-tap card-then-actions rhythm doubled the clicks for nothing). Hero cards show from
+// the intro — no dedicated beat. A full river hand is 7 beats: intro, 4 streets, showdown,
+// result.
 function buildBeats(hand: HandHistory): Beat[] {
-  const beats: Beat[] = [{ kind: 'intro' }, { kind: 'heroCards' }];
+  const beats: Beat[] = [{ kind: 'intro' }];
   const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
   streets.forEach((street) => {
-    if (street === 'flop' && hand.board.flop) beats.push({ kind: 'streetCards', street });
-    if (street === 'turn' && hand.board.turn) beats.push({ kind: 'streetCards', street });
-    if (street === 'river' && hand.board.river) beats.push({ kind: 'streetCards', street });
-    const streetActions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
-    if (streetActions.length > 0) beats.push({ kind: 'streetActions', street, actions: streetActions });
+    const revealsCards =
+      (street === 'flop' && !!hand.board.flop) ||
+      (street === 'turn' && !!hand.board.turn) ||
+      (street === 'river' && !!hand.board.river);
+    const actions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
+    if (revealsCards || actions.length > 0) beats.push({ kind: 'street', street, revealsCards, actions });
   });
   // A showdown moment on the table (villain reveal + winning-hand highlight) only when
   // there is something to show — a full run-out or at least one known villain hand;
@@ -100,14 +109,22 @@ function buildBeats(hand: HandHistory): Beat[] {
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// How long a beat's entering animations run, in 1×-speed video time: card flips run 450ms
-// (flop staggers +100ms/card, the river flips slow per the constants above), action bubbles
-// ZoomIn 220ms staggered 200ms apart. Windows also cover the lagged stats refresh below
-// (delay + a render), so the settling frames include the updated numbers. The export
-// captures continuously for the whole window (times EXPORT_SLOWMO on the wall clock).
+// Within a merged street beat, the actions start writing only after the card flips land.
+function cardLeadMs(beat: Beat): number {
+  if (beat.kind !== 'street' || !beat.revealsCards) return 0;
+  return beat.street === 'river' ? RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 400 : 1000;
+}
+
+// How long a beat's entering animations run, in 1×-speed video time: card flips first
+// (cardLeadMs), then action lines/bubbles staggered ACTION_STAGGER apart. Windows also
+// cover the lagged stats refresh below (delay + a render), so the settling frames include
+// the updated numbers. The export captures continuously for the whole window (times
+// EXPORT_SLOWMO on the wall clock).
 function animWindowMsFor(beat: Beat): number {
-  if (beat.kind === 'streetActions') return Math.max((beat.actions.length - 1) * 200 + 220, 300) + 100;
-  if (beat.kind === 'streetCards') return beat.street === 'river' ? RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 400 : 1000;
+  if (beat.kind === 'street') {
+    const actionsMs = beat.actions.length > 0 ? (beat.actions.length - 1) * ACTION_STAGGER + 220 + 100 : 0;
+    return Math.max(cardLeadMs(beat) + actionsMs, 500);
+  }
   // Villain reveals stagger flips per seat (k*120 + i*80 + 450) — cover a full 9-max table.
   if (beat.kind === 'showdown') return 1800;
   // The recap card is static — it gets a single settled frame (after a layout wait).
@@ -120,7 +137,7 @@ function animWindowMsFor(beat: Beat): number {
 // breathe longer). Holds cost no wall time: they are pure PTS bookkeeping.
 function holdMsFor(beat: Beat): number {
   if (beat.kind === 'result') return 2800;
-  if (beat.kind === 'streetCards' && beat.street === 'river') return 1600;
+  if (beat.kind === 'street' && beat.street === 'river' && beat.revealsCards) return 1600;
   if (beat.kind === 'showdown') return 1500;
   return 900;
 }
@@ -173,7 +190,7 @@ export default function HandReplayerPlayScreen() {
   useEffect(() => {
     const beat = beats[index];
     const delay =
-      beat?.kind === 'streetCards'
+      beat?.kind === 'street' && beat.revealsCards
         ? beat.street === 'river'
           ? RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 200
           : 800
@@ -191,9 +208,9 @@ export default function HandReplayerPlayScreen() {
     if (!hand) return null;
     let lastActions = -1;
     beats.forEach((b, i) => {
-      if (b.kind === 'streetActions') lastActions = i;
+      if (b.kind === 'street' && b.actions.length > 0) lastActions = i;
     });
-    const runOut = beats.some((b, i) => i > lastActions && b.kind === 'streetCards');
+    const runOut = beats.some((b, i) => i > lastActions && b.kind === 'street' && b.revealsCards);
     return runOut ? lastActions + 1 : null;
   }, [hand, beats]);
   // Cheap beat-derived key so the Monte-Carlo equity below only re-runs when its inputs
@@ -205,10 +222,10 @@ export default function HandReplayerPlayScreen() {
     const upTo = beats.slice(0, statsIndex + 1);
     let boardLen = 0;
     upTo.forEach((b) => {
-      if (b.kind === 'streetCards') boardLen += b.street === 'flop' ? 3 : 1;
+      if (b.kind === 'street' && b.revealsCards) boardLen += b.street === 'flop' ? 3 : 1;
     });
     const folded = upTo
-      .filter((b): b is Extract<Beat, { kind: 'streetActions' }> => b.kind === 'streetActions')
+      .filter((b): b is Extract<Beat, { kind: 'street' }> => b.kind === 'street')
       .flatMap((b) => b.actions)
       .filter((a) => a.type === 'fold')
       .map((a) => a.playerId)
@@ -274,6 +291,12 @@ export default function HandReplayerPlayScreen() {
     return { name: winner.name, percent: Math.max(1, Math.round(winnerEquity)) };
   }, [hand]);
   const [badBeatVisible, setBadBeatVisible] = useState(false);
+  // The hero taking the pot gets a staged celebration burst at showdown (see effect below).
+  const heroWins = useMemo(
+    () => !!hand && hand.players.some((p) => p.isHero && (hand.winnerIds ?? []).includes(p.id)),
+    [hand]
+  );
+  const [winVisible, setWinVisible] = useState(false);
 
   const showMessage = (type: 'error' | 'success', text: string) => {
     setExportMessage({ type, text });
@@ -395,20 +418,22 @@ export default function HandReplayerPlayScreen() {
       setPlaying(false);
       return;
     }
-    // The river beat needs extra air for its slow flip — and the full bad-beat burst when
-    // there is one — before auto-advancing.
+    // Autoplay gives every beat its full animation window plus breathing room — merged
+    // street beats vary a lot in length now. The river keeps extra air for the bad-beat
+    // burst, the showdown for the hero-win celebration.
     const beat = beats[index];
-    const isRiverBeat = beat?.kind === 'streetCards' && beat.street === 'river';
-    const interval = isRiverBeat ? (badBeat ? 5200 : 2800) : AUTOPLAY_INTERVAL;
+    const isRiverReveal = beat?.kind === 'street' && beat.street === 'river' && beat.revealsCards;
+    const extra = isRiverReveal && badBeat ? 3400 : beat?.kind === 'showdown' && heroWins ? 3400 : 900;
+    const interval = Math.max(AUTOPLAY_INTERVAL, (beat ? animWindowMsFor(beat) : 0) + extra);
     const timer = setTimeout(() => setIndex((i) => Math.min(i + 1, lastIndex)), interval);
     return () => clearTimeout(timer);
-  }, [playing, index, lastIndex, beats, badBeat]);
+  }, [playing, index, lastIndex, beats, badBeat, heroWins]);
 
   useEffect(() => {
     // Stage the bad-beat burst once the slow river flip has landed. Suppressed while
     // exporting: captured frames must show the table, not the overlay.
     const beat = beats[index];
-    const onRiverReveal = beat?.kind === 'streetCards' && beat.street === 'river';
+    const onRiverReveal = beat?.kind === 'street' && beat.street === 'river' && beat.revealsCards;
     if (!onRiverReveal || !badBeat || exportState === 'exporting') return;
     const timer = setTimeout(() => setBadBeatVisible(true), RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 200);
     return () => {
@@ -416,6 +441,33 @@ export default function HandReplayerPlayScreen() {
       setBadBeatVisible(false);
     };
   }, [beats, index, badBeat, exportState]);
+
+  // The hero taking the pot deserves the same staged burst at showdown, once the villain
+  // flips have landed. Suppressed while exporting, like the bad beat.
+  useEffect(() => {
+    if (beats[index]?.kind !== 'showdown' || !heroWins || exportState === 'exporting') return;
+    const timer = setTimeout(() => setWinVisible(true), 1300);
+    return () => {
+      clearTimeout(timer);
+      setWinVisible(false);
+    };
+  }, [beats, index, heroWins, exportState]);
+
+  // Reanimated can drop entering animations scheduled on the screen's very first frame
+  // (mid push-transition), leaving seats/tags frozen at their entering state until the
+  // next re-render — the "half-painted table until you tap" bug. Skip entering animations
+  // entirely until one frame has been presented: the intro paints instantly and complete,
+  // every later beat animates normally.
+  const [entranceReady, setEntranceReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void nextFrame().then(() => {
+      if (live) setEntranceReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Expo Router can reuse an already-mounted screen instance when re-navigating to the
@@ -459,14 +511,14 @@ export default function HandReplayerPlayScreen() {
   const foldedIds = new Set(
     beats
       .slice(0, index + 1)
-      .filter((b): b is { kind: 'streetActions'; street: Street; actions: HandAction[] } => b.kind === 'streetActions')
+      .filter((b): b is Extract<Beat, { kind: 'street' }> => b.kind === 'street')
       .flatMap((b) => b.actions)
       .filter((a) => a.type === 'fold')
       .map((a) => a.playerId)
   );
 
-  const heroRevealed = index >= 1;
-  const streetRevealed = (street: Street) => beats.slice(0, index + 1).some((b) => b.kind === 'streetCards' && b.street === street);
+  const streetRevealed = (street: Street) =>
+    beats.slice(0, index + 1).some((b) => b.kind === 'street' && b.street === street && b.revealsCards);
   const isResult = beats[index]?.kind === 'result';
   const isShowdown = beats[index]?.kind === 'showdown';
   const allInRevealed = allInRevealIndex !== null && index >= allInRevealIndex;
@@ -486,7 +538,7 @@ export default function HandReplayerPlayScreen() {
   // committed totals as the replay advances.
   const revealedContribs: Record<string, Record<string, number>> = {};
   beats.slice(0, index + 1).forEach((b) => {
-    if (b.kind !== 'streetActions') return;
+    if (b.kind !== 'street') return;
     const perPlayer = revealedContribs[b.street] ?? {};
     b.actions.forEach((a) => {
       if (a.amount !== undefined) perPlayer[a.playerId] = a.amount;
@@ -505,14 +557,12 @@ export default function HandReplayerPlayScreen() {
     roundAmount(Object.values(revealedContribs).reduce((sum, perPlayer) => sum + (perPlayer[playerId] ?? 0), 0));
 
   // During a street beat, each player's latest action pops as a bubble on their seat,
-  // staggered in true action order.
+  // staggered in true action order — starting after the street's card flips land.
   const bubbles = new Map<string, { action: HandAction; orderIdx: number }>();
-  if (currentBeat?.kind === 'streetActions') {
+  if (currentBeat?.kind === 'street') {
     currentBeat.actions.forEach((a, i) => bubbles.set(a.playerId, { action: a, orderIdx: i }));
   }
-
-  const dealerId = hand.players.find((p) => p.position === 'BTN')?.id;
-  const handStarted = index >= 1;
+  const actionLead = currentBeat ? cardLeadMs(currentBeat) : 0;
 
   const handleTap = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
     if (exportState === 'exporting') return; // the export loop owns the cursor
@@ -526,10 +576,8 @@ export default function HandReplayerPlayScreen() {
   };
 
   const renderCaption = () => {
-    if (currentBeat?.kind === 'streetActions') return t(`poker:phases.${currentBeat.street}`);
-    if (currentBeat?.kind === 'streetCards') return t(`poker:phases.${currentBeat.street}`);
+    if (currentBeat?.kind === 'street') return t(`poker:phases.${currentBeat.street}`);
     if (currentBeat?.kind === 'showdown') return t('poker:phases.showdown');
-    if (currentBeat?.kind === 'heroCards') return t('steps.myCards');
     if (currentBeat?.kind === 'intro') return hand.title ?? t('handStarts');
     return '';
   };
@@ -588,7 +636,9 @@ export default function HandReplayerPlayScreen() {
       </View>
 
       {isResult ? (
-        <View style={styles.resultWrap}>
+        // Scrollable so the recap + actions never clip on short screens — and it opens at
+        // the top by construction (fresh ScrollView per conditional mount).
+        <ScrollView contentContainerStyle={styles.resultWrap} showsVerticalScrollIndicator={false}>
           <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={styles.recapShot}>
             <HandRecapCard hand={hand} onReady={setCardSize} />
           </ViewShot>
@@ -608,7 +658,7 @@ export default function HandReplayerPlayScreen() {
               {exportMessage.text}
             </Text>
           )}
-        </View>
+        </ScrollView>
       ) : (
         <Pressable style={styles.tableArea} onPress={handleTap}>
           {/* Everything the per-step export captures lives inside this wrapper — with an
@@ -616,12 +666,32 @@ export default function HandReplayerPlayScreen() {
               the app background), which would otherwise yield transparent PNGs. The tap hint
               and progress label below are siblings on purpose: never in the captures. */}
           <View ref={tableShotRef} collapsable={false} style={styles.tableShot}>
+            <LayoutAnimationConfig skipEntering={!entranceReady}>
             <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(ms(300))} style={styles.caption}>
               {renderCaption()}
             </Animated.Text>
 
             <PokerTable width={TABLE_W} height={TABLE_H} style={styles.table}>
             <View style={styles.feltCenter} pointerEvents="none">
+              {/* The street's actions written on the felt, above the pot — the bubbles show
+                  WHO acted, these lines keep the whole sequence readable at a glance. */}
+              {currentBeat?.kind === 'street' && currentBeat.actions.length > 0 && (
+                <View style={styles.actionLines}>
+                  {currentBeat.actions.map((a, i) => (
+                    <Animated.Text
+                      key={a.id}
+                      entering={FadeInDown.duration(ms(250)).delay(ms(actionLead + i * ACTION_STAGGER))}
+                      style={[styles.actionLine, a.type === 'fold' && { color: colors.loss }]}
+                      numberOfLines={1}
+                    >
+                      {t('actionLine', {
+                        name: hand.players.find((p) => p.id === a.playerId)?.name ?? '',
+                        action: bubbleLabel(a, hand.unitMode, t),
+                      })}
+                    </Animated.Text>
+                  ))}
+                </View>
+              )}
               {potSoFar > 0 && (
                 <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(ms(250))} style={styles.potPill}>
                   <Text style={styles.potLabel}>{t('pot')}</Text>
@@ -633,28 +703,38 @@ export default function HandReplayerPlayScreen() {
                   streetRevealed('flop') &&
                   hand.board.flop.map((c, i) => (
                     <Animated.View key={`flop-${i}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(i * 100))}>
-                      <PlayingCard card={c} size="md" dimmed={dimCard(c)} />
+                      <PlayingCard card={c} width={BOARD_CARD_W} dimmed={dimCard(c)} />
                     </Animated.View>
                   ))}
                 {hand.board.turn && streetRevealed('turn') && (
                   <Animated.View entering={FlipInEasyY.duration(ms(450))}>
-                    <PlayingCard card={hand.board.turn} size="md" dimmed={dimCard(hand.board.turn)} />
+                    <PlayingCard card={hand.board.turn} width={BOARD_CARD_W} dimmed={dimCard(hand.board.turn)} />
                   </Animated.View>
                 )}
                 {hand.board.river && streetRevealed('river') && (
                   <Animated.View entering={FlipInEasyY.duration(ms(RIVER_FLIP_DURATION)).delay(ms(RIVER_FLIP_DELAY))}>
-                    <PlayingCard card={hand.board.river} size="md" dimmed={dimCard(hand.board.river)} />
+                    <PlayingCard card={hand.board.river} width={BOARD_CARD_W} dimmed={dimCard(hand.board.river)} />
                   </Animated.View>
                 )}
               </View>
             </View>
 
-            {heroRevealed && hero?.holeCards && (
-              <Animated.View entering={FlipInEasyY.duration(ms(450))} style={styles.heroCards} pointerEvents="none">
-                <PlayingCard card={hero.holeCards[0]} size="lg" dimmed={dimCard(hero.holeCards[0])} style={styles.heroCardLeft} />
-                <PlayingCard card={hero.holeCards[1]} size="lg" dimmed={dimCard(hero.holeCards[1])} style={styles.heroCardRight} />
-              </Animated.View>
-            )}
+            {/* Hero cards live small next to the hero's seat for the whole hand (visible from
+                the intro — no dedicated tap), then pop large and centered at showdown. Two
+                rendered states, not a shared transition: the export loop only understands
+                entering animations. */}
+            {hero?.holeCards &&
+              (isShowdown ? (
+                <Animated.View key="hero-lg" entering={ZoomIn.duration(ms(300))} style={styles.heroCards} pointerEvents="none">
+                  <PlayingCard card={hero.holeCards[0]} size="lg" dimmed={dimCard(hero.holeCards[0])} style={styles.heroCardLeft} />
+                  <PlayingCard card={hero.holeCards[1]} size="lg" dimmed={dimCard(hero.holeCards[1])} style={styles.heroCardRight} />
+                </Animated.View>
+              ) : (
+                <Animated.View key="hero-sm" entering={FlipInEasyY.duration(ms(450))} style={styles.heroCardsSide} pointerEvents="none">
+                  <PlayingCard card={hero.holeCards[0]} size="sm" style={styles.heroCardLeft} />
+                  <PlayingCard card={hero.holeCards[1]} size="sm" style={styles.heroCardRight} />
+                </Animated.View>
+              ))}
 
             {orderedPlayers.map((p, k) => {
               const { x, y } = seatPoint(k, orderedPlayers.length, TABLE_W, TABLE_H);
@@ -671,9 +751,22 @@ export default function HandReplayerPlayScreen() {
               const statsActive = allInRevealed && knownCards;
               const equityPct = statsActive ? equity?.get(p.id) : undefined;
               const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.action.type) : false;
-              // Dealer button sits between the pod and the felt center.
-              const toCenter = { x: TABLE_W / 2 - x, y: TABLE_H / 2 - y };
-              const dist = Math.hypot(toCenter.x, toCenter.y) || 1;
+              // Villain cards only exist revealed — at showdown or during an all-in run-out —
+              // as a readable md fan toward the felt (in-flow TableSeat slot: below the pod
+              // for top-rail seats, above it for bottom-rail ones). No face-down peeks: they
+              // used to cover the street caption for nothing.
+              const revealFan =
+                !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards
+                  ? p.holeCards.map((c, i) => (
+                      <Animated.View key={`reveal-${cardKey(c)}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(k * 120 + i * 80))}>
+                        {/* Static rotate on an inner View: FlipInEasyY drives the outer transform. */}
+                        <View style={i === 0 ? styles.peekCardLeft : styles.peekCardRight}>
+                          <PlayingCard card={c} size="md" dimmed={dimCard(c)} />
+                        </View>
+                      </Animated.View>
+                    ))
+                  : null;
+              const topHalf = y < TABLE_H / 2;
               return (
                 <TableSeat
                   key={p.id}
@@ -686,6 +779,9 @@ export default function HandReplayerPlayScreen() {
                   ringWidth={p.isHero ? 2 : 1.5}
                   dimmed={folded}
                   tag={p.position}
+                  cardsBelow={topHalf ? revealFan : undefined}
+                  cardsAbove={!topHalf ? revealFan : undefined}
+                  cardsAboveOffset={56}
                   secondLine={
                     folded
                       ? { text: t('folded'), color: colors.loss }
@@ -702,49 +798,10 @@ export default function HandReplayerPlayScreen() {
                           : null
                   }
                 >
-                  {handStarted && !folded && !p.isHero && (
-                    <View
-                      style={
-                        (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards
-                          ? [styles.holePeek, styles.holePeekRevealed]
-                          : styles.holePeek
-                      }
-                    >
-                      {(isShowdown || allInRevealed) && p.cardsKnown && p.holeCards ? (
-                        // The static rotate lives on an inner View: FlipInEasyY drives the
-                        // Animated.View's transform and would overwrite it (Reanimated warns).
-                        p.holeCards.map((c, i) => (
-                          <Animated.View key={`reveal-${i}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(k * 120 + i * 80))}>
-                            <View style={i === 0 ? styles.peekCardLeft : styles.peekCardRight}>
-                              <PlayingCard card={c} size="sm" dimmed={dimCard(c)} />
-                            </View>
-                          </Animated.View>
-                        ))
-                      ) : (
-                        <>
-                          <PlayingCard faceDown size="sm" style={styles.peekCardLeft} />
-                          <PlayingCard faceDown size="sm" style={styles.peekCardRight} />
-                        </>
-                      )}
-                    </View>
-                  )}
-                  {dealerId === p.id && (
-                    <View
-                      style={[
-                        styles.dealerBtn,
-                        {
-                          left: POD_W / 2 + (toCenter.x / dist) * 52 - 10,
-                          top: 20 + (toCenter.y / dist) * 52 - 10,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.dealerBtnText}>D</Text>
-                    </View>
-                  )}
                   {bubble && (
                     <Animated.View
                       key={bubble.action.id}
-                      entering={ZoomIn.duration(ms(220)).delay(ms(bubble.orderIdx * 200))}
+                      entering={ZoomIn.duration(ms(220)).delay(ms(actionLead + bubble.orderIdx * ACTION_STAGGER))}
                       style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
                     >
                       <View
@@ -780,7 +837,17 @@ export default function HandReplayerPlayScreen() {
                 onDone={() => setBadBeatVisible(false)}
               />
             )}
+            {winVisible && hero && (
+              <WinCelebration
+                width={TABLE_W}
+                height={TABLE_H}
+                title={t('winOverlay.title')}
+                subtitle={t('winsHand', { name: hero.name })}
+                onDone={() => setWinVisible(false)}
+              />
+            )}
           </PokerTable>
+          </LayoutAnimationConfig>
 
           {/* Branding on every video frame — only while recording, invisible in normal
               playback. The recap card carries its own wordmark. */}
@@ -916,12 +983,29 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bold,
     color: TABLE.gold,
   },
+  // Deal left-aligned from the betting line — the flop lands left, turn and river extend
+  // rightward, like on a real table.
   boardRow: {
     flexDirection: 'row',
     gap: 6,
     minHeight: 64,
     alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    paddingLeft: BOARD_INSET,
   },
+  actionLines: {
+    alignItems: 'center',
+    gap: 2,
+    maxWidth: TABLE_W - 80,
+  },
+  actionLine: {
+    fontSize: 10,
+    fontFamily: fontFamily.semibold,
+    color: TABLE.plateText,
+    textAlign: 'center',
+  },
+  // Showdown state: the hero hand pops large and centered.
   heroCards: {
     position: 'absolute',
     bottom: 50,
@@ -929,6 +1013,13 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
+  },
+  // In-hand state: small fan parked left of the hero pod (hero is seat 0, bottom center).
+  heroCardsSide: {
+    position: 'absolute',
+    bottom: 14,
+    left: TABLE_W / 2 - POD_W / 2 - 54,
+    flexDirection: 'row',
   },
   heroCardLeft: {
     transform: [{ rotate: '-7deg' }],
@@ -938,21 +1029,6 @@ const styles = StyleSheet.create({
     marginLeft: -16,
     marginTop: 4,
   },
-  holePeek: {
-    position: 'absolute',
-    top: -14,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  // Face-down peeks tuck behind the avatar; revealed cards at showdown lift high enough to
-  // be readable while still painting BEHIND the avatar stack — only their bottom sliver is
-  // covered, and the position tag stays visible on top. No zIndex on purpose: lifting the
-  // cards further instead would crop them in export captures for top-rail seats.
-  holePeekRevealed: {
-    top: -34,
-  },
   peekCardLeft: {
     transform: [{ rotate: '-10deg' }],
   },
@@ -960,23 +1036,6 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '10deg' }],
     marginLeft: -14,
     marginTop: 2,
-  },
-  dealerBtn: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F4EFE4',
-    borderWidth: 1,
-    borderColor: '#C9BFA8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 3,
-  },
-  dealerBtnText: {
-    fontSize: 10,
-    fontFamily: fontFamily.extrabold,
-    color: '#1A150F',
   },
   bubble: {
     position: 'absolute',
@@ -1018,10 +1077,11 @@ const styles = StyleSheet.create({
     marginTop: -spacing.lg,
   },
   resultWrap: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.lg,
+    paddingVertical: spacing.base,
   },
   resultActions: {
     flexDirection: 'row',

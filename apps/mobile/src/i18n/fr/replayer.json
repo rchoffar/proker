@@ -116,5 +116,9 @@
     "saveFailed": "L'export a échoué. Réessayez.",
     "progress": "Enregistrement de l'étape {{current}} sur {{total}}…",
     "videoSaved": "Vidéo enregistrée dans vos photos."
+  },
+  "actionLine": "{{name}} — {{action}}",
+  "winOverlay": {
+    "title": "GAGNÉ"
   }
 }
