@@ -6,20 +6,25 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMemo } from 'react';
-import { useRouter } from 'expo-router';
+import { useCallback, useMemo } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { BarChart3, ChevronRight, Heart, History, Coins, Drama, Disc3, Layers, Spade, Diamond, Trophy } from 'lucide-react-native';
+import { BarChart3, ChevronRight, Heart, Coins, Drama, Disc3, Layers, Spade, Diamond, Trophy } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { Pill } from '../../src/components/ui/Pill';
 import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
+import { ReplayerHeroCard } from '../../src/components/dashboard/ReplayerHeroCard';
 import { GameTile } from '../../src/components/degen/GameTile';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useHandHistoryStore } from '../../src/store/useHandHistoryStore';
+import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
+import { sortHandsNewestFirst } from '../../src/lib/handSync';
 import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
+import type { HandHistory } from '../../src/types';
 import { hasAnyStats, totals } from '../../src/lib/gameStats';
 import { formatAmount, formatDateShort, isFestivalOngoing, initials } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
@@ -35,6 +40,23 @@ export default function DashboardScreen() {
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
   const isActive = useIsActiveTab();
+  const hands = useHandHistoryStore((s) => s.hands);
+  const setHandDraft = useHandReplayerDraft((s) => s.setHand);
+
+  // Home is the first screen after login — sync here too so the replayer hero fills
+  // without a visit to the Replayer tab (same silent pattern as that tab).
+  useFocusEffect(
+    useCallback(() => {
+      void useHandHistoryStore.getState().syncNow();
+    }, [])
+  );
+
+  const lastHands = useMemo(() => sortHandsNewestFirst(Object.values(hands)).slice(0, 2), [hands]);
+
+  const openHand = (hand: HandHistory) => {
+    setHandDraft(hand);
+    router.push('/hand-replayer/view');
+  };
 
   const organizerById = useMemo(() => {
     const map: Record<string, (typeof organizers)[number]> = {};
@@ -104,6 +126,11 @@ export default function DashboardScreen() {
             </View>
           </Animated.View>
 
+          {/* Replayer — the featured spot (Mathieu: above the tournament, eye-catching) */}
+          <Animated.View entering={FadeInDown.delay(40).springify().damping(18).stiffness(140)}>
+            <ReplayerHeroCard hands={lastHands} onOpenHand={openHand} onNewHand={() => router.push('/hand-replayer')} />
+          </Animated.View>
+
           {/* Festival hero */}
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
             {currentFestival ? (
@@ -170,14 +197,6 @@ export default function DashboardScreen() {
                 name="Blackjack"
                 description={t('degen:games.blackjack')}
                 icon={<Diamond size={20} color={colors.textSecondary} strokeWidth={1.5} />}
-              />
-              <GameTile
-                name={t('games.replayTitle')}
-                description={t('games.replayDesc')}
-                icon={<History size={20} color={colors.textSecondary} strokeWidth={1.5} />}
-                comingSoon={false}
-                pillLabel={t('tilePills.open')}
-                onPress={() => router.push('/hand-replayer')}
               />
             </View>
           </Animated.View>

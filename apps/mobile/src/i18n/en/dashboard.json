@@ -28,8 +28,5 @@
   "tournament": {
     "buyIn": "Buy-in {{amount}}",
     "guaranteed": "{{amount}} GTD"
-  },
-  "tilePills": {
-    "open": "Open"
   }
 }
