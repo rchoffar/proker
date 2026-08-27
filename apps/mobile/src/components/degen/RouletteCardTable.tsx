@@ -104,7 +104,6 @@ export function RouletteCardTable({
 
   const elapsed = useSharedValue(0);
   const activeIndex = useSharedValue(-1);
-  const lastHop = useSharedValue(-1);
   const hopData = useSharedValue<{ seq: number[]; cumulative: number[] }>({ seq: [], cumulative: [] });
   // Tagged with the spin token so a new draw invalidates the highlight without an effect reset.
   const [landed, setLanded] = useState<{ token: number; index: number } | null>(null);
@@ -127,7 +126,6 @@ export function RouletteCardTable({
 
     const { loserIndex, seq, cumulative, total } = computeHopSchedule(players.length);
     const loser = players[loserIndex];
-    lastHop.value = -1;
     elapsed.value = 0;
     triggerTick();
     elapsed.value = withTiming(total, { duration: total, easing: Easing.linear }, (finished) => {
@@ -153,9 +151,8 @@ export function RouletteCardTable({
       while (k < cumulative.length - 1 && elapsed.value >= cumulative[k]) k++;
       return seq[k];
     },
-    (index) => {
-      if (index !== -1 && index !== lastHop.value) {
-        lastHop.value = index;
+    (index, previous) => {
+      if (index !== -1 && index !== previous) {
         activeIndex.value = index;
         runOnJS(triggerTick)();
       }

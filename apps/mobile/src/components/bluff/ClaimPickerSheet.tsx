@@ -18,11 +18,10 @@ import {
   isStrictlyHigher,
 } from '../../lib/bluff';
 import type { Claim, ClaimCategory, FlushHigh, SFHigh, StraightHigh } from '../../lib/bluff';
-import type { Card } from '../../types';
 import { TABLE } from '../hand/PokerTable';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
-import type { Rank } from '../../types';
+import type { Card, Rank } from '../../types';
 
 interface Props {
   visible: boolean;
