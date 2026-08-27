@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Player } from '../types';
+import type { BluffVariant } from '../lib/bluff';
 
 export type BluffMode = 'passPlay' | 'host' | 'guest';
 
@@ -9,12 +10,14 @@ interface BluffDraftStore {
   pseudo: string; // online modes
   joinCode: string | null; // guest only
   jeuMax: boolean; // passPlay + host — guests learn it from the host's state
+  variant: BluffVariant; // passPlay + host — guests learn it from the host's state
   setDraft: (draft: {
     mode: BluffMode;
     players?: Player[];
     pseudo?: string;
     joinCode?: string | null;
     jeuMax?: boolean;
+    variant?: BluffVariant;
   }) => void;
   clear: () => void;
 }
@@ -28,7 +31,8 @@ export const useBluffDraft = create<BluffDraftStore>((set) => ({
   pseudo: '',
   joinCode: null,
   jeuMax: false,
-  setDraft: ({ mode, players = [], pseudo = '', joinCode = null, jeuMax = false }) =>
-    set({ mode, players, pseudo, joinCode, jeuMax }),
-  clear: () => set({ mode: 'passPlay', players: [], pseudo: '', joinCode: null, jeuMax: false }),
+  variant: 'standard',
+  setDraft: ({ mode, players = [], pseudo = '', joinCode = null, jeuMax = false, variant = 'standard' }) =>
+    set({ mode, players, pseudo, joinCode, jeuMax, variant }),
+  clear: () => set({ mode: 'passPlay', players: [], pseudo: '', joinCode: null, jeuMax: false, variant: 'standard' }),
 }));

@@ -5,6 +5,7 @@ import { createDeck } from '../pokerHandEvaluator';
 import type { Claim } from './claims';
 import { isStrictlyHigher } from './claims';
 import { claimHolds, findBestClaim, findClaimWitness, findHigherClaim } from './validator';
+import { isClaimForbiddenByBoard } from './domination';
 import { shuffleWithRng } from '../rng';
 
 // Pure, UI-free game engine: Pass & Play drives it through local state, the online host
@@ -31,9 +32,22 @@ export interface BluffPlayerState {
 // to guests for free (same pattern as OfcState.variant).
 export interface BluffConfig {
   jeuMax: boolean;
+  variant: BluffVariant;
 }
 
-export const DEFAULT_BLUFF_CONFIG: BluffConfig = { jeuMax: false };
+// standard = historical rules; quick = shorter games (1 card start, out at 4).
+export type BluffVariant = 'standard' | 'quick';
+
+export const VARIANT_RULES: Record<BluffVariant, { startCards: number; eliminationAt: number }> = {
+  standard: { startCards: 2, eliminationAt: 5 },
+  quick: { startCards: 1, eliminationAt: 4 },
+};
+
+export function eliminationCardCount(config: BluffConfig): number {
+  return VARIANT_RULES[config.variant].eliminationAt;
+}
+
+export const DEFAULT_BLUFF_CONFIG: BluffConfig = { jeuMax: false, variant: 'standard' };
 
 export interface RevealResult {
   kind: 'catch' | 'jeuMax';
@@ -89,7 +103,7 @@ export type BluffAction =
 export const MIN_BLUFF_PLAYERS = 2;
 export const MAX_BLUFF_PLAYERS = 6;
 export const MAX_BOARD_CARDS = 5;
-export const ELIMINATION_CARD_COUNT = 5;
+
 
 export function aliveInOrder(state: BluffState): BluffPlayerState[] {
   return state.players.filter((p) => !p.eliminated);
@@ -125,7 +139,7 @@ export function initGame(
     players: players.map((p) => ({
       id: p.id,
       name: p.name,
-      cardCount: 2,
+      cardCount: VARIANT_RULES[config.variant].startCards,
       hand: [],
       eliminated: false,
       jeuMaxAttempts: 0,
@@ -182,6 +196,7 @@ export type BluffErrorCode =
   | 'jeuMaxDisabled'
   | 'royalFlushUnbeatable'
   | 'claimNotHigher'
+  | 'claimDominatedByBoard'
   | 'firstPlayerMustClaim'
   | 'nothingToConfirm'
   | 'roundNotOver';
@@ -236,6 +251,10 @@ export function validateAction(state: BluffState, action: BluffAction): BluffVal
       }
       if (!isStrictlyHigher(action.claim, state.currentClaim)) {
         return { ok: false, code: 'claimNotHigher' };
+      }
+      // Face-up middle cards forbid vacuous/dominated announcements (see domination.ts).
+      if (isClaimForbiddenByBoard(action.claim, state.board)) {
+        return { ok: false, code: 'claimDominatedByBoard' };
       }
       return { ok: true };
     }
@@ -330,7 +349,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
           loserId,
           pool,
           witness: holds ? findClaimWitness(lastClaim.claim, pool) : null,
-          eliminatesLoser: loser.cardCount === ELIMINATION_CARD_COUNT,
+          eliminatesLoser: loser.cardCount === eliminationCardCount(state.config),
         },
         version: state.version + 1,
       };
@@ -366,7 +385,7 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
           loserId: success ? null : action.playerId,
           pool,
           witness: holds ? findClaimWitness(lastClaim.claim, pool) : null,
-          eliminatesLoser: !success && caller.cardCount === ELIMINATION_CARD_COUNT,
+          eliminatesLoser: !success && caller.cardCount === eliminationCardCount(state.config),
           jeuMaxSuccess: success,
           higherClaim: higher?.claim ?? null,
           higherWitness: higher?.witness ?? null,

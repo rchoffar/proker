@@ -33,7 +33,8 @@
     "claimNotHigher": "L’annonce doit être strictement supérieure",
     "firstPlayerMustClaim": "Le premier joueur doit faire une annonce",
     "nothingToConfirm": "Rien à confirmer",
-    "roundNotOver": "La manche n’est pas terminée"
+    "roundNotOver": "La manche n’est pas terminée",
+    "claimDominatedByBoard": "Le milieu visible rend cette annonce impossible — annonce plus fort"
   },
   "connection": {
     "not_found": "Table introuvable — vérifie le code",
@@ -61,7 +62,11 @@
     "jeuMaxLabel": "Règles de la partie",
     "jeuMaxClassic": "Classique",
     "jeuMaxOption": "Jeu Max",
-    "jeuMaxHint": "À ton tour tu peux dire « Jeu Max » : si la dernière annonce est vraiment le jeu maximum possible, tu te débarrasses d’une carte — à 0 carte tu gagnes. Sinon tu en prends une."
+    "jeuMaxHint": "À ton tour tu peux dire « Jeu Max » : si la dernière annonce est vraiment le jeu maximum possible, tu te débarrasses d’une carte — à 0 carte tu gagnes. Sinon tu en prends une.",
+    "variantLabel": "Variante",
+    "variantStandard": "Classique (2 cartes)",
+    "variantQuick": "Rapide (1 carte)",
+    "variantQuickHint": "On commence avec 1 carte, éliminé à 4 cartes — parties plus courtes."
   },
   "game": {
     "roundBadge": "M{{round}}",
@@ -113,7 +118,9 @@
     "waitingNextRound": "L’hôte lance la manche suivante…",
     "quit": "Quitter",
     "jeuMaxEnabled": "Règle Jeu Max activée",
-    "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max"
+    "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max",
+    "variantStandard": "Variante classique — 2 cartes, éliminé à 5",
+    "variantQuick": "Variante rapide — 1 carte, éliminé à 4"
   },
   "picker": {
     "title": "Annoncer",

@@ -9,14 +9,16 @@ import {
   FLUSH_HIGHS,
   SF_HIGHS,
   STRAIGHT_HIGHS,
-  allowedPrimaryRanks,
-  allowedSecondaryRanks,
-  categoryHasHigherClaim,
+  allowedPrimaryRanksOnBoard,
+  allowedSecondaryRanksOnBoard,
+  categoryHasAllowedClaim,
   categoryLabel,
   claimLabel,
+  isClaimForbiddenByBoard,
   isStrictlyHigher,
 } from '../../lib/bluff';
 import type { Claim, ClaimCategory, FlushHigh, SFHigh, StraightHigh } from '../../lib/bluff';
+import type { Card } from '../../types';
 import { TABLE } from '../hand/PokerTable';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -26,6 +28,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   currentClaim: Claim | null;
+  // Face-up middle cards — they forbid vacuous/dominated announcements (domination.ts).
+  board: Card[];
   onSubmit: (claim: Claim) => void;
 }
 
@@ -58,7 +62,7 @@ function buildDraft(category: ClaimCategory | null, primary: Rank | null, second
   }
 }
 
-export function ClaimPickerSheet({ visible, onClose, currentClaim, onSubmit }: Props) {
+export function ClaimPickerSheet({ visible, onClose, currentClaim, board, onSubmit }: Props) {
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const [category, setCategory] = useState<ClaimCategory | null>(null);
@@ -76,16 +80,17 @@ export function ClaimPickerSheet({ visible, onClose, currentClaim, onSubmit }: P
   }, [visible]);
 
   const draft = buildDraft(category, primary, secondary);
-  const canSubmit = draft !== null && isStrictlyHigher(draft, currentClaim);
+  const canSubmit =
+    draft !== null && isStrictlyHigher(draft, currentClaim) && !isClaimForbiddenByBoard(draft, board);
 
   const primaryAllowed = useMemo(
-    () => (category ? allowedPrimaryRanks(category, currentClaim) : new Set<Rank>()),
-    [category, currentClaim],
+    () => (category ? allowedPrimaryRanksOnBoard(category, currentClaim, board) : new Set<Rank>()),
+    [category, currentClaim, board],
   );
   const secondaryAllowed = useMemo(() => {
     if ((category !== 'twoPair' && category !== 'fullHouse') || !primary) return new Set<Rank>();
-    return allowedSecondaryRanks(category, primary, currentClaim);
-  }, [category, primary, currentClaim]);
+    return allowedSecondaryRanksOnBoard(category, primary, currentClaim, board);
+  }, [category, primary, currentClaim, board]);
 
   const pickCategory = (cat: ClaimCategory) => {
     Haptics.selectionAsync();
@@ -133,7 +138,7 @@ export function ClaimPickerSheet({ visible, onClose, currentClaim, onSubmit }: P
 
         <View style={styles.categoryGrid}>
           {CATEGORY_ORDER.map((cat) => {
-            const enabled = categoryHasHigherClaim(cat, currentClaim);
+            const enabled = categoryHasAllowedClaim(cat, currentClaim, board);
             const active = cat === category;
             return (
               <TouchableOpacity

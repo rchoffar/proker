@@ -61,6 +61,7 @@ export default function BluffPlayScreen() {
   const router = useRouter();
   const players = useBluffDraft((s) => s.players);
   const jeuMaxEnabled = useBluffDraft((s) => s.jeuMax);
+  const variant = useBluffDraft((s) => s.variant);
   const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   // The engine leaves dealing to the controller (randomness stays out of reduce):
@@ -69,7 +70,7 @@ export default function BluffPlayScreen() {
     s.phase === 'dealing' ? reduce(s, createRoundDeal(s)) : s;
 
   const [state, setState] = useState<BluffState | null>(() =>
-    players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled })) : null,
+    players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })) : null,
   );
   useConfirmQuitGame(!!state && state.phase !== 'gameOver');
 
@@ -202,7 +203,7 @@ export default function BluffPlayScreen() {
   };
 
   const handleReplay = () => {
-    setState(withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled })));
+    setState(withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })));
     setCelebrating(false);
     setPeeking(false);
     setFaceUpCount(3);
@@ -459,6 +460,7 @@ export default function BluffPlayScreen() {
         visible={pickerOpen}
         onClose={() => setPickerOpen(false)}
         currentClaim={state.currentClaim}
+        board={state.board}
         onSubmit={handleClaim}
       />
 

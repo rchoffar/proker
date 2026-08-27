@@ -4,6 +4,7 @@ import type { User, Player, Festival, Tournament, Country, Organizer } from '../
 import { mockUser, mockFestivals, mockTournaments, mockCountries, mockOrganizers } from '../data/mock';
 import i18n, { defaultLocale } from '../i18n';
 import type { FlipGameType } from '../lib/pokerHandEvaluator';
+import type { BluffVariant } from '../lib/bluff';
 import type { OfcVariant } from '../lib/ofc';
 import type { GameStatsState } from '../lib/gameStats';
 import { mmkvStorage } from './mmkvStorage';
@@ -22,6 +23,7 @@ interface AppStore {
   flipLastGameType: FlipGameType;
   bluffLastPlayers: Player[];
   bluffJeuMax: boolean;
+  bluffVariant: BluffVariant;
   ofcLastPlayers: Player[];
   ofcStartingStack: number;
   ofcVariant: OfcVariant;
@@ -33,7 +35,7 @@ interface AppStore {
   toggleLikedTournament: (tournamentId: string) => void;
   setRouletteLastPlayers: (players: Player[]) => void;
   setFlipDraftDefaults: (players: Player[], gameType: FlipGameType) => void;
-  setBluffDefaults: (patch: { players?: Player[]; jeuMax?: boolean }) => void;
+  setBluffDefaults: (patch: { players?: Player[]; jeuMax?: boolean; variant?: BluffVariant }) => void;
   setOfcDefaults: (patch: {
     players?: Player[];
     startingStack?: number;
@@ -60,6 +62,7 @@ export const useAppStore = create<AppStore>()(
       flipLastGameType: 'holdem',
       bluffLastPlayers: [],
       bluffJeuMax: false,
+      bluffVariant: 'standard',
       ofcLastPlayers: [],
       ofcStartingStack: 100,
       ofcVariant: 'classic',
@@ -93,6 +96,7 @@ export const useAppStore = create<AppStore>()(
         set((state) => ({
           bluffLastPlayers: patch.players ?? state.bluffLastPlayers,
           bluffJeuMax: patch.jeuMax ?? state.bluffJeuMax,
+          bluffVariant: patch.variant ?? state.bluffVariant,
         })),
 
       setOfcDefaults: (patch) =>
@@ -122,6 +126,7 @@ export const useAppStore = create<AppStore>()(
           flipLastGameType: 'holdem',
           bluffLastPlayers: [],
           bluffJeuMax: false,
+          bluffVariant: 'standard',
           ofcLastPlayers: [],
           ofcStartingStack: 100,
           ofcVariant: 'classic',
@@ -146,6 +151,7 @@ export const useAppStore = create<AppStore>()(
         flipLastGameType: state.flipLastGameType,
         bluffLastPlayers: state.bluffLastPlayers,
         bluffJeuMax: state.bluffJeuMax,
+        bluffVariant: state.bluffVariant,
         ofcLastPlayers: state.ofcLastPlayers,
         ofcStartingStack: state.ofcStartingStack,
         ofcVariant: state.ofcVariant,
@@ -174,6 +180,7 @@ export const useAppStore = create<AppStore>()(
           );
           // Older persisted blobs predate game stats — no persist `migrate` exists.
           state.gameStats = state.gameStats ?? {};
+          state.bluffVariant = state.bluffVariant ?? 'standard';
           // Re-apply the persisted language choice — i18next inits with the device
           // locale and would otherwise silently override the user's setting on boot.
           // MMKV rehydration is synchronous, so this runs before the first frame.

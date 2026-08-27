@@ -94,6 +94,12 @@ describe('redactFor — the leak test', () => {
     }
   });
 
+  it('carries the full config (jeuMax + variant) to guests', () => {
+    const state = { ...dealtGame(), config: { jeuMax: true, variant: 'quick' as const } };
+    const redacted = redactFor(state, 'b');
+    expect(redacted.config).toEqual({ jeuMax: true, variant: 'quick' });
+  });
+
   it('carries connection flags when provided', () => {
     const state = dealtGame();
     const connected = new Map([['a', true], ['b', false], ['c', true]]);

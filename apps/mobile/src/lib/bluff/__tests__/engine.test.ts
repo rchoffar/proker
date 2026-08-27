@@ -4,8 +4,10 @@ import type { Card, Rank, Suit } from '../../../types/hand';
 import { cardKey } from '../../../types/hand';
 import type { BluffConfig, BluffState } from '../engine';
 import {
+  VARIANT_RULES,
   aliveInOrder,
   createRoundDeal,
+  eliminationCardCount,
   initGame,
   nextAliveAfter,
   reduce,
@@ -43,7 +45,7 @@ function craftedBidding(opts: {
   faceDownCount?: number;
   jeuMax?: boolean;
 }): BluffState {
-  let state = initGame(PLAYERS, mulberry32(1), { jeuMax: opts.jeuMax ?? true });
+  let state = initGame(PLAYERS, mulberry32(1), { jeuMax: opts.jeuMax ?? true, variant: 'standard' });
   state = reduce(state, {
     type: 'deal',
     playerId: state.starterId,
@@ -88,6 +90,50 @@ describe('initGame', () => {
   it('rejects invalid player counts', () => {
     expect(() => initGame([PLAYERS[0]])).toThrow();
     expect(() => initGame(Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, name: `P${i}` })))).toThrow();
+  });
+});
+
+describe('variants', () => {
+  it('quick variant deals 1 card per player at init', () => {
+    const state = freshGame(1, { jeuMax: false, variant: 'quick' });
+    for (const p of state.players) expect(p.cardCount).toBe(1);
+    const dealt = reduce(state, createRoundDeal(state, mulberry32(3)));
+    for (const p of aliveInOrder(dealt)) expect(p.hand).toHaveLength(1);
+  });
+
+  it('elimination threshold follows the variant — 4 in quick, 5 in standard', () => {
+    expect(eliminationCardCount({ jeuMax: false, variant: 'quick' })).toBe(4);
+    expect(eliminationCardCount({ jeuMax: false, variant: 'standard' })).toBe(5);
+    expect(VARIANT_RULES.quick).toEqual({ startCards: 1, eliminationAt: 4 });
+    expect(VARIANT_RULES.standard).toEqual({ startCards: 2, eliminationAt: 5 });
+  });
+
+  it('a caught bluff at the quick threshold (4 cards) eliminates the loser', () => {
+    // Crafted bidding in quick variant with the claimer already at 4 cards.
+    let state = initGame(PLAYERS, mulberry32(1), { jeuMax: false, variant: 'quick' });
+    const claimerId = state.starterId;
+    state = {
+      ...state,
+      players: state.players.map((p) => (p.id === claimerId ? { ...p, cardCount: 4 } : p)),
+    };
+    const hands: Record<string, Card[]> = {
+      a: [card('3', 'spades')],
+      b: [card('5', 'spades')],
+      c: [card('7', 'spades')],
+      [claimerId]: [card('A', 'spades'), card('K', 'hearts'), card('Q', 'diamonds'), card('J', 'clubs')],
+    };
+    state = reduce(state, {
+      type: 'deal',
+      playerId: state.starterId,
+      deal: { hands, boardStock: NEUTRAL_STOCK },
+    });
+    state = reduce(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 0, faceDownCount: 0 });
+    // The starter claims something the pool can't hold, the next player catches.
+    state = reduce(state, { type: 'claim', playerId: claimerId, claim: { category: 'quads', rank: '2' } });
+    state = reduce(state, { type: 'catch', playerId: state.turnId });
+    expect(state.reveal!.holds).toBe(false);
+    expect(state.reveal!.loserId).toBe(claimerId);
+    expect(state.reveal!.eliminatesLoser).toBe(true);
   });
 });
 
@@ -170,6 +216,44 @@ describe('bidding', () => {
       code: 'claimNotHigher',
     });
     expect(validateAction(state, { type: 'claim', playerId: state.turnId, claim: { category: 'trips', rank: 'T' } }).ok).toBe(true);
+  });
+
+  it('rejects a claim dominated by the face-up middle, but never by hidden cards', () => {
+    // A face-up pair of 9s: announcing any pair is dishonest (a pair of 9s is vacuous,
+    // any other pair plus the visible 9-9 always makes two pair).
+    const PAIRED_STOCK: Card[] = [
+      card('9', 'clubs'),
+      card('9', 'diamonds'),
+      card('5', 'clubs'),
+      card('J', 'diamonds'),
+      card('8', 'clubs'),
+    ];
+    const faceUp = craftedBidding({ hands: MAX_HANDS, stock: PAIRED_STOCK, faceUpCount: 2 });
+    expect(faceUp.board).toEqual([card('9', 'clubs'), card('9', 'diamonds')]);
+    expect(
+      validateAction(faceUp, { type: 'claim', playerId: faceUp.turnId, claim: { category: 'pair', rank: '5' } }),
+    ).toEqual({ ok: false, code: 'claimDominatedByBoard' });
+    expect(
+      validateAction(faceUp, {
+        type: 'claim',
+        playerId: faceUp.turnId,
+        claim: { category: 'twoPair', high: '9', low: '5' },
+      }).ok,
+    ).toBe(true);
+
+    // The same 9-9 face DOWN restricts nothing — nobody knows it.
+    const faceDown = craftedBidding({ hands: MAX_HANDS, stock: PAIRED_STOCK, faceDownCount: 2 });
+    expect(faceDown.board).toEqual([]);
+    expect(
+      validateAction(faceDown, { type: 'claim', playerId: faceDown.turnId, claim: { category: 'pair', rank: '5' } }).ok,
+    ).toBe(true);
+  });
+
+  it('a royal flush announcement is always accepted, whatever the board shows', () => {
+    const state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK, faceUpCount: 5 });
+    expect(
+      validateAction(state, { type: 'claim', playerId: state.turnId, claim: { category: 'royalFlush' } }).ok,
+    ).toBe(true);
   });
 
   it('rejects actions from the wrong player', () => {

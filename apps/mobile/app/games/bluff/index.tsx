@@ -12,6 +12,7 @@ import { useAppStore } from '../../../src/store/useAppStore';
 import { useAuthStore } from '../../../src/store/useAuthStore';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
 import { MAX_BLUFF_PLAYERS, MIN_BLUFF_PLAYERS } from '../../../src/lib/bluff';
+import type { BluffVariant } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
@@ -22,7 +23,7 @@ export default function BluffSetupScreen() {
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const router = useRouter();
-  const { players, addPlayer, bluffLastPlayers, bluffJeuMax, setBluffDefaults } = useAppStore();
+  const { players, addPlayer, bluffLastPlayers, bluffJeuMax, bluffVariant, setBluffDefaults } = useAppStore();
   const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
   const setDraft = useBluffDraft((s) => s.setDraft);
 
@@ -39,6 +40,7 @@ export default function BluffSetupScreen() {
   const [query, setQuery] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [jeuMax, setJeuMax] = useState(bluffJeuMax);
+  const [variant, setVariant] = useState<BluffVariant>(bluffVariant);
 
   const canDeal = selected.length >= MIN_BLUFF_PLAYERS && selected.length <= MAX_BLUFF_PLAYERS;
   const atMax = selected.length >= MAX_BLUFF_PLAYERS;
@@ -61,14 +63,14 @@ export default function BluffSetupScreen() {
   const handleStartPassPlay = () => {
     const newPlayers = selected.filter((p) => !players.some((existing) => existing.id === p.id));
     for (const p of newPlayers) addPlayer(p);
-    setBluffDefaults({ players: selected, jeuMax });
-    setDraft({ mode: 'passPlay', players: selected, jeuMax });
+    setBluffDefaults({ players: selected, jeuMax, variant });
+    setDraft({ mode: 'passPlay', players: selected, jeuMax, variant });
     router.push('/games/bluff/play');
   };
 
   const handleHost = () => {
-    setBluffDefaults({ jeuMax });
-    setDraft({ mode: 'host', pseudo, jeuMax });
+    setBluffDefaults({ jeuMax, variant });
+    setDraft({ mode: 'host', pseudo, jeuMax, variant });
     router.push('/games/bluff/online');
   };
 
@@ -106,6 +108,34 @@ export default function BluffSetupScreen() {
       </View>
       {jeuMax ? (
         <Text style={[styles.ruleHint, { color: colors.textTertiary }]}>{t('setup.jeuMaxHint')}</Text>
+      ) : null}
+      <Text style={[styles.fieldLabel, styles.fieldLabelSpaced, { color: colors.textSecondary }]}>
+        {t('setup.variantLabel')}
+      </Text>
+      <View style={styles.ruleRow}>
+        {(['standard', 'quick'] as const).map((value) => {
+          const active = variant === value;
+          return (
+            <TouchableOpacity
+              key={value}
+              style={[
+                styles.ruleChip,
+                active
+                  ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
+                  : { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
+              ]}
+              onPress={() => setVariant(value)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.ruleChipText, { color: active ? colors.accent : colors.textSecondary }]}>
+                {t(value === 'standard' ? 'setup.variantStandard' : 'setup.variantQuick')}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {variant === 'quick' ? (
+        <Text style={[styles.ruleHint, { color: colors.textTertiary }]}>{t('setup.variantQuickHint')}</Text>
       ) : null}
     </GlassCard>
   );
@@ -306,6 +336,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
+  },
+  fieldLabelSpaced: {
+    marginTop: spacing.base,
   },
   input: {
     borderWidth: 1,

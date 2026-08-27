@@ -33,7 +33,8 @@
     "claimNotHigher": "The call must be strictly higher",
     "firstPlayerMustClaim": "The first player must make a call",
     "nothingToConfirm": "Nothing to confirm",
-    "roundNotOver": "The round isn't over"
+    "roundNotOver": "The round isn't over",
+    "claimDominatedByBoard": "The visible middle makes this call impossible — announce higher"
   },
   "connection": {
     "not_found": "Table not found — check the code",
@@ -61,7 +62,11 @@
     "jeuMaxLabel": "Game rules",
     "jeuMaxClassic": "Classic",
     "jeuMaxOption": "Jeu Max",
-    "jeuMaxHint": "On your turn you can call \"Jeu Max\": if the last call really is the highest possible hand, you shed a card — reach 0 cards and you win. If not, you take one."
+    "jeuMaxHint": "On your turn you can call \"Jeu Max\": if the last call really is the highest possible hand, you shed a card — reach 0 cards and you win. If not, you take one.",
+    "variantLabel": "Variant",
+    "variantStandard": "Classic (2 cards)",
+    "variantQuick": "Quick (1 card)",
+    "variantQuickHint": "Start with 1 card, out at 4 cards — shorter games."
   },
   "game": {
     "roundBadge": "R{{round}}",
@@ -113,7 +118,9 @@
     "waitingNextRound": "The host starts the next round…",
     "quit": "Leave",
     "jeuMaxEnabled": "Jeu Max rule enabled",
-    "jeuMaxDisabledLobby": "Classic rules — no Jeu Max"
+    "jeuMaxDisabledLobby": "Classic rules — no Jeu Max",
+    "variantStandard": "Classic variant — 2 cards, out at 5",
+    "variantQuick": "Quick variant — 1 card, out at 4"
   },
   "picker": {
     "title": "Announce",

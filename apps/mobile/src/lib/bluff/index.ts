@@ -1,4 +1,5 @@
 export * from './claims';
 export * from './labels';
 export * from './validator';
+export * from './domination';
 export * from './engine';

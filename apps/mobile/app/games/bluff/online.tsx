@@ -23,7 +23,7 @@ import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStat
 import { useBluffGuest, useBluffHost } from '../../../src/hooks/useBluffOnline';
 import type { BluffOnlineCommon } from '../../../src/hooks/useBluffOnline';
 import { MAX_BLUFF_PLAYERS, MAX_BOARD_CARDS, MIN_BLUFF_PLAYERS, claimLabel } from '../../../src/lib/bluff';
-import type { Claim } from '../../../src/lib/bluff';
+import type { BluffVariant, Claim } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
@@ -67,13 +67,15 @@ export default function BluffOnlineScreen() {
 
 function HostFlow({ pseudo }: { pseudo: string }) {
   const jeuMax = useBluffDraft((s) => s.jeuMax);
+  const variant = useBluffDraft((s) => s.variant);
   const online = useBluffHost(pseudo);
   return (
     <OnlineView
       online={online}
       isHost
       hostJeuMax={jeuMax}
-      onStart={() => online.startGame({ jeuMax })}
+      hostVariant={variant}
+      onStart={() => online.startGame({ jeuMax, variant })}
       onReplay={online.replay}
     />
   );
@@ -90,11 +92,12 @@ interface OnlineViewProps {
   // Lobby-only display of the host's chosen rules — guests learn them from the first
   // state broadcast once the game starts.
   hostJeuMax?: boolean;
+  hostVariant?: BluffVariant;
   onStart?: () => void;
   onReplay?: () => void;
 }
 
-function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineViewProps) {
+function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay }: OnlineViewProps) {
   // Locking the phone suspends the socket — fatal for the host, disruptive for guests.
   useKeepAwake();
   const { t } = useTranslation('bluff');
@@ -219,6 +222,11 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
             {isHost && (
               <Text style={[styles.mutedText, { color: hostJeuMax ? TABLE.gold : colors.onDarkTertiary }]}>
                 {t(hostJeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby')}
+              </Text>
+            )}
+            {isHost && (
+              <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
+                {t(hostVariant === 'quick' ? 'online.variantQuick' : 'online.variantStandard')}
               </Text>
             )}
           </Animated.View>
@@ -574,6 +582,7 @@ function OnlineView({ online, isHost, hostJeuMax, onStart, onReplay }: OnlineVie
         visible={pickerOpen}
         onClose={() => setPickerOpen(false)}
         currentClaim={view.currentClaim}
+        board={view.board}
         onSubmit={handleClaim}
       />
     </SafeAreaView>
