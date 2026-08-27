@@ -234,7 +234,7 @@ placeholder. The 3 originally-specced games were expanded to 4 per a later produ
 **8b. Hand Replayer**
 - Input: pre-flop cards, board (flop/turn/river), actions
 - Visual output: clean hand history card
-- Export as image
+- Export as a story-format MP4 video of the animated replay (on-device encoder), saved to camera roll + share sheet
 
 ---
 

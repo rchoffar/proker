@@ -1,6 +1,8 @@
-// Static legal/support pages served by the API so the App Store listing has
-// stable privacy-policy and support URLs without extra infrastructure.
-// https://upk-api.fly.dev/privacy — https://upk-api.fly.dev/support
+// Static legal/support pages served by the API so the store listings have
+// stable privacy-policy, support and account-deletion URLs without extra
+// infrastructure. https://upk-api.fly.dev/privacy — /support — /account-deletion
+// (/account-deletion is required by Google Play's Data safety form for apps
+// with account creation.)
 
 const CONTACT_EMAIL = 'froxyonfr@gmail.com';
 const EFFECTIVE_DATE = '2026-08-19';
@@ -140,6 +142,36 @@ export const supportHtml: string = page(
 </ul>
 <p>Problems or suggestions? Email us: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. We usually reply within 48 hours.</p>
 
-<p><a href="/privacy">Politique de confidentialité / Privacy policy</a></p>
+<p><a href="/privacy">Politique de confidentialité / Privacy policy</a> · <a href="/account-deletion">Suppression de compte / Account deletion</a></p>
+`,
+);
+
+export const accountDeletionHtml: string = page(
+  'UPK — Suppression de compte / Account deletion',
+  `
+<h1>UPK — Ultimate Poker Kit</h1>
+<p><small class="muted">Suppression de compte / Account deletion</small></p>
+
+<h2>🇫🇷 Supprimer votre compte UPK</h2>
+<p>Vous pouvez supprimer votre compte à tout moment, directement dans l'application :</p>
+<ol>
+  <li>Ouvrez UPK et allez dans l'onglet <strong>Profil</strong> ;</li>
+  <li>Touchez <strong>Supprimer le compte</strong> et confirmez.</li>
+</ol>
+<p>La suppression est <strong>immédiate et définitive</strong> : toutes les données serveur associées à votre compte (adresse e-mail, identifiants, pseudo) sont effacées. Les données stockées localement sur votre appareil (mains enregistrées, statistiques, préférences) sont supprimées lorsque vous désinstallez l'application.</p>
+<p>Vous ne pouvez plus accéder à l'application ? Envoyez votre demande de suppression par e-mail à <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> depuis l'adresse associée à votre compte — nous la traitons sous 30 jours (généralement sous 48 h).</p>
+
+<hr>
+
+<h2>🇬🇧 Delete your UPK account</h2>
+<p>You can delete your account at any time, directly in the app:</p>
+<ol>
+  <li>Open UPK and go to the <strong>Profile</strong> tab;</li>
+  <li>Tap <strong>Delete account</strong> and confirm.</li>
+</ol>
+<p>Deletion is <strong>immediate and permanent</strong>: all server data associated with your account (email address, identifiers, nickname) is erased. Data stored locally on your device (recorded hands, stats, preferences) is removed when you uninstall the app.</p>
+<p>Can't access the app anymore? Email your deletion request to <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> from the address associated with your account — we process it within 30 days (usually within 48 hours).</p>
+
+<p><a href="/privacy">Politique de confidentialité / Privacy policy</a> · <a href="/support">Support</a></p>
 `,
 );

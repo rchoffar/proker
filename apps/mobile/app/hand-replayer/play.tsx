@@ -4,13 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import Animated, { FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
 import ViewShot, { captureRef, releaseCapture } from 'react-native-view-shot';
 import type { ViewShotRef } from 'react-native-view-shot';
 // The function-style API moved to /legacy in SDK 56 — importing it from the package root
 // logs a deprecation warning on every call (the export loop makes many).
 import * as MediaLibrary from 'expo-media-library/legacy';
+import * as Sharing from 'expo-sharing';
 import { useKeepAwake } from 'expo-keep-awake';
+import FrameVideoEncoder from '../../modules/frame-video-encoder';
 import { X, Play, Pause, Download, SkipForward } from 'lucide-react-native';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { PokerTable, TABLE, seatPoint } from '../../src/components/hand/PokerTable';
@@ -40,10 +42,20 @@ const TABLE_W = SCREEN_WIDTH - 96;
 const TABLE_H = Math.min(480, Math.max(350, Math.round(SCREEN_HEIGHT * 0.5)));
 const POD_W = 74;
 
-// One background for the whole replay screen AND every exported frame — table beats and
-// the recap alike — so the app view and the Instagram/Photos image set read uniform.
+// One background for the whole replay screen AND every exported video frame — table beats
+// and the recap alike — so the app view and the encoder's letterbox read as one canvas.
 // Plain black, theme-invariant (game surfaces are dark in both themes).
 const EXPORT_BG = '#000000';
+// Story format: 9:16 at 1080p, what Instagram/Snapchat expect.
+const VIDEO_WIDTH = 1080;
+const VIDEO_HEIGHT = 1920;
+// The export runs every entering animation this many times slower while view-shot samples
+// the live view (~10 captures/s); retiming each frame's PTS by the same factor plays the
+// animations back at true speed — a ~10fps capture cadence becomes a ~30fps video.
+const EXPORT_SLOWMO = 3;
+// During a beat's static hold the last frame is just re-encoded at intervals (no capture,
+// no decode) — some players choke on multi-second gaps between frames.
+const HOLD_KEEPALIVE_MS = 500;
 // Icon-button tile that works on the black background, same as the bluff screen's.
 const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 
@@ -88,22 +100,34 @@ function buildBeats(hand: HandHistory): Beat[] {
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// How long a beat's entering animations need before its frame is capture-ready:
-// card flips run 450ms (flop staggers +100ms/card, the river flips slow per the
-// constants above), action bubbles ZoomIn 220ms staggered 200ms apart — plus a
-// safety margin for the GPU-composited frame to catch up (same rationale as the
-// 250ms wait the old single-capture flow used).
-function settleMsFor(beat: Beat): number {
-  if (beat.kind === 'streetActions') return Math.max((beat.actions.length - 1) * 200 + 220, 300) + 350;
+// How long a beat's entering animations run, in 1×-speed video time: card flips run 450ms
+// (flop staggers +100ms/card, the river flips slow per the constants above), action bubbles
+// ZoomIn 220ms staggered 200ms apart. Windows also cover the lagged stats refresh below
+// (delay + a render), so the settling frames include the updated numbers. The export
+// captures continuously for the whole window (times EXPORT_SLOWMO on the wall clock).
+function animWindowMsFor(beat: Beat): number {
+  if (beat.kind === 'streetActions') return Math.max((beat.actions.length - 1) * 200 + 220, 300) + 100;
   if (beat.kind === 'streetCards') return beat.street === 'river' ? RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 400 : 1000;
   // Villain reveals stagger flips per seat (k*120 + i*80 + 450) — cover a full 9-max table.
   if (beat.kind === 'showdown') return 1800;
-  if (beat.kind === 'result') return 600;
-  return 800;
+  // The recap card is static — it gets a single settled frame (after a layout wait).
+  if (beat.kind === 'result') return 0;
+  return 500;
+}
+
+// How long the settled frame then dwells on screen, in video time — mirrors the autoplay
+// pacing (AUTOPLAY_INTERVAL minus the animation part; the river and the closing recap
+// breathe longer). Holds cost no wall time: they are pure PTS bookkeeping.
+function holdMsFor(beat: Beat): number {
+  if (beat.kind === 'result') return 2800;
+  if (beat.kind === 'streetCards' && beat.street === 'river') return 1600;
+  if (beat.kind === 'showdown') return 1500;
+  return 900;
 }
 
 export default function HandReplayerPlayScreen() {
-  // The image export auto-steps through the whole hand (~15s) — the screen must not lock mid-run.
+  // The video export auto-steps through the whole hand (~20-25s in slow motion) — the
+  // screen must not lock mid-run.
   useKeepAwake();
   const { t } = useTranslation('replayer');
   const { colors } = useTheme();
@@ -134,10 +158,17 @@ export default function HandReplayerPlayScreen() {
   }, [hand]);
   const lastIndex = beats.length - 1;
   const [index, setIndex] = useState(() => (skip === '1' ? Math.max(0, lastIndex) : 0));
+  const [exportState, setExportState] = useState<'idle' | 'exporting'>('idle');
+  // Slow-motion export: while exporting, every entering animation (and the stats lag below)
+  // runs K× slower so the ~10 captures/s cadence samples enough frames; the encoder retimes
+  // them back to true speed. Entering configs are evaluated at render, and each beat mounts
+  // its animated views fresh, so scaling here reaches every animation per-beat.
+  const K = exportState === 'exporting' ? EXPORT_SLOWMO : 1;
+  const ms = (x: number) => x * K;
   // Run-out stats keep the previous beat's numbers while the new cards flip: statsIndex
   // trails the beat cursor, catching up only after the beat's animations (the river's
   // suspense flip included), and the equity below is computed from it. The delays stay
-  // under settleMsFor's per-beat waits so exported frames include the refreshed stats.
+  // under animWindowMsFor's per-beat windows so settled frames include the refreshed stats.
   const [statsIndex, setStatsIndex] = useState(-1);
   useEffect(() => {
     const beat = beats[index];
@@ -149,9 +180,9 @@ export default function HandReplayerPlayScreen() {
         : beat?.kind === 'showdown'
           ? 700
           : 300;
-    const timer = setTimeout(() => setStatsIndex(index), delay);
+    const timer = setTimeout(() => setStatsIndex(index), delay * K);
     return () => clearTimeout(timer);
-  }, [index, beats]);
+  }, [index, beats, K]);
   // All-in run-out detection: when the last betting beat happens before board cards are
   // still to come, everyone is all-in — from the next beat on, known cards are tabled like
   // a real all-in and the win-chance % runs live with each card. Null when the hand is
@@ -205,7 +236,6 @@ export default function HandReplayerPlayScreen() {
   }, [hand, equityKey]);
   const [playing, setPlaying] = useState(false);
   const [cardSize, setCardSize] = useState<{ width: number; height: number } | null>(null);
-  const [exportState, setExportState] = useState<'idle' | 'exporting'>('idle');
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [exportMessage, setExportMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const viewShotRef = useRef<ViewShotRef>(null);
@@ -251,10 +281,12 @@ export default function HandReplayerPlayScreen() {
     messageTimer.current = setTimeout(() => setExportMessage(null), 2500);
   };
 
-  // One tap saves the WHOLE hand: the loop walks every beat itself — rendering each step,
-  // waiting out its animations, snapshotting it, saving to Photos — no user stepping. The
-  // walk-through is visible by necessity: view-shot photographs the live view, so a frame
-  // must actually be on screen to be captured.
+  // One tap records the WHOLE hand as a story-ready MP4: the loop walks every beat itself,
+  // sampling the live view throughout each beat's (slowed) animations and streaming the
+  // frames into the native encoder, which retimes them to true speed. The walk-through is
+  // visible by necessity: view-shot photographs the live view, so a frame must actually be
+  // on screen to be captured. Frames are cache tmpfiles released right after encoding —
+  // only the finished video reaches the photo library.
   const runExport = async () => {
     if (exportState !== 'idle' || beats.length === 0) return;
     // Write-only grant is enough for saveToLibraryAsync and triggers the lighter
@@ -265,37 +297,86 @@ export default function HandReplayerPlayScreen() {
       return;
     }
     const run = ++exportRunRef.current;
+    const cancelled = () => exportRunRef.current !== run;
     setExportState('exporting');
     setPlaying(false);
-    let saved = 0;
+    setIndex(0);
+    // Encoder calls are fired without awaiting — the native side serializes them — so the
+    // capture loop keeps its cadence; the first error is kept and re-thrown after the walk.
+    let encodeError: unknown = null;
+    let chain: Promise<void> = Promise.resolve();
+    const appendFrame = (uri: string, ptsMs: number) => {
+      chain = chain
+        .then(() => FrameVideoEncoder.appendFrame(uri, ptsMs))
+        .catch((e: unknown) => {
+          encodeError = encodeError ?? e;
+        })
+        .finally(() => releaseCapture(uri));
+    };
+    const repeatFrame = (ptsMs: number) => {
+      chain = chain
+        .then(() => FrameVideoEncoder.repeatLastFrame(ptsMs))
+        .catch((e: unknown) => {
+          encodeError = encodeError ?? e;
+        });
+    };
     try {
+      await FrameVideoEncoder.createSession({ width: VIDEO_WIDTH, height: VIDEO_HEIGHT });
+      let basePts = 0; // video-time cursor, ms
       for (let i = 0; i < beats.length; i++) {
-        if (exportRunRef.current !== run) return;
+        if (cancelled()) throw new Error('cancelled');
+        const beat = beats[i];
         setExportProgress({ current: i + 1, total: beats.length });
         setIndex(i);
         await nextFrame();
-        await wait(settleMsFor(beats[i]));
-        if (exportRunRef.current !== run) return;
         // The result beat swaps the table for the recap card, which has its own ViewShot
         // honoring the collapsable/onLayout contract HandRecapCard documents.
-        const uri =
-          beats[i].kind === 'result'
-            ? await viewShotRef.current?.capture?.()
-            : await captureRef(tableShotRef, { format: 'png', quality: 1 });
-        if (!uri) throw new Error('capture failed');
-        // Save each frame as it's captured: sequential saves keep Photos timestamps in
-        // step order and partial results survive a mid-way failure.
-        await MediaLibrary.saveToLibraryAsync(uri);
-        releaseCapture(uri);
-        saved = i + 1;
+        const capture = () =>
+          beat.kind === 'result'
+            ? viewShotRef.current?.capture?.()
+            : captureRef(tableShotRef, { format: 'jpg', quality: 0.9 });
+        if (beat.kind === 'result') await wait(600); // recap layout + fade before its single frame
+        // Animated window: capture as fast as view-shot allows, stamping each frame with
+        // its retimed PTS. Wall clock runs at EXPORT_SLOWMO×, the video at 1×.
+        const windowMs = animWindowMsFor(beat);
+        const start = Date.now();
+        while (Date.now() - start < windowMs * EXPORT_SLOWMO) {
+          if (cancelled()) throw new Error('cancelled');
+          if (encodeError) throw encodeError;
+          const tCapture = Date.now() - start;
+          const uri = await capture();
+          if (!uri) throw new Error('capture failed');
+          appendFrame(uri, basePts + Math.round(tCapture / EXPORT_SLOWMO));
+        }
+        // Settled frame at the window boundary, then the beat's dwell — pure PTS
+        // bookkeeping, no wall time spent.
+        const settledUri = await capture();
+        if (!settledUri) throw new Error('capture failed');
+        appendFrame(settledUri, basePts + windowMs);
+        const holdMs = holdMsFor(beat);
+        for (let tHold = HOLD_KEEPALIVE_MS; tHold < holdMs; tHold += HOLD_KEEPALIVE_MS) {
+          repeatFrame(basePts + windowMs + tHold);
+        }
+        basePts += windowMs + holdMs;
       }
-      if (exportRunRef.current === run) showMessage('success', t('export.allSaved', { count: beats.length }));
+      await chain;
+      if (encodeError) throw encodeError;
+      if (cancelled()) throw new Error('cancelled');
+      const videoUri = await FrameVideoEncoder.finish(basePts);
+      if (cancelled()) throw new Error('cancelled');
+      await MediaLibrary.saveToLibraryAsync(videoUri);
+      showMessage('success', t('export.videoSaved'));
+      setExportState('idle');
+      setExportProgress(null);
+      // Straight into the share sheet — publishing the story is the point of the export.
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(videoUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
+      }
     } catch {
-      if (exportRunRef.current === run) {
-        showMessage('error', saved > 0 ? t('export.partialSaved', { count: saved }) : t('export.saveFailed'));
-      }
+      await FrameVideoEncoder.abort().catch(() => {});
+      if (!cancelled()) showMessage('error', t('export.saveFailed'));
     } finally {
-      if (exportRunRef.current === run) {
+      if (!cancelled()) {
         setExportState('idle');
         setExportProgress(null);
       }
@@ -359,7 +440,8 @@ export default function HandReplayerPlayScreen() {
   }, [exportParam]);
 
   useEffect(() => () => {
-    exportRunRef.current++; // abort any in-flight export on unmount
+    exportRunRef.current++; // abort any in-flight export on unmount (Android back included)
+    FrameVideoEncoder.abort().catch(() => {});
     if (messageTimer.current) clearTimeout(messageTimer.current);
   }, []);
 
@@ -459,6 +541,7 @@ export default function HandReplayerPlayScreen() {
           style={[styles.iconBtn, { backgroundColor: DARK_TILE }]}
           onPress={() => {
             exportRunRef.current++; // cancel a running export before leaving
+            FrameVideoEncoder.abort().catch(() => {});
             router.back();
           }}
           activeOpacity={0.7}
@@ -533,14 +616,14 @@ export default function HandReplayerPlayScreen() {
               the app background), which would otherwise yield transparent PNGs. The tap hint
               and progress label below are siblings on purpose: never in the captures. */}
           <View ref={tableShotRef} collapsable={false} style={styles.tableShot}>
-            <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(300)} style={styles.caption}>
+            <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(ms(300))} style={styles.caption}>
               {renderCaption()}
             </Animated.Text>
 
             <PokerTable width={TABLE_W} height={TABLE_H} style={styles.table}>
             <View style={styles.feltCenter} pointerEvents="none">
               {potSoFar > 0 && (
-                <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(250)} style={styles.potPill}>
+                <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(ms(250))} style={styles.potPill}>
                   <Text style={styles.potLabel}>{t('pot')}</Text>
                   <Text style={styles.potValue}>{formatHandAmount(potSoFar, hand.unitMode)}</Text>
                 </Animated.View>
@@ -549,17 +632,17 @@ export default function HandReplayerPlayScreen() {
                 {hand.board.flop &&
                   streetRevealed('flop') &&
                   hand.board.flop.map((c, i) => (
-                    <Animated.View key={`flop-${i}`} entering={FlipInEasyY.duration(450).delay(i * 100)}>
+                    <Animated.View key={`flop-${i}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(i * 100))}>
                       <PlayingCard card={c} size="md" dimmed={dimCard(c)} />
                     </Animated.View>
                   ))}
                 {hand.board.turn && streetRevealed('turn') && (
-                  <Animated.View entering={FlipInEasyY.duration(450)}>
+                  <Animated.View entering={FlipInEasyY.duration(ms(450))}>
                     <PlayingCard card={hand.board.turn} size="md" dimmed={dimCard(hand.board.turn)} />
                   </Animated.View>
                 )}
                 {hand.board.river && streetRevealed('river') && (
-                  <Animated.View entering={FlipInEasyY.duration(RIVER_FLIP_DURATION).delay(RIVER_FLIP_DELAY)}>
+                  <Animated.View entering={FlipInEasyY.duration(ms(RIVER_FLIP_DURATION)).delay(ms(RIVER_FLIP_DELAY))}>
                     <PlayingCard card={hand.board.river} size="md" dimmed={dimCard(hand.board.river)} />
                   </Animated.View>
                 )}
@@ -567,7 +650,7 @@ export default function HandReplayerPlayScreen() {
             </View>
 
             {heroRevealed && hero?.holeCards && (
-              <Animated.View entering={FlipInEasyY.duration(450)} style={styles.heroCards} pointerEvents="none">
+              <Animated.View entering={FlipInEasyY.duration(ms(450))} style={styles.heroCards} pointerEvents="none">
                 <PlayingCard card={hero.holeCards[0]} size="lg" dimmed={dimCard(hero.holeCards[0])} style={styles.heroCardLeft} />
                 <PlayingCard card={hero.holeCards[1]} size="lg" dimmed={dimCard(hero.holeCards[1])} style={styles.heroCardRight} />
               </Animated.View>
@@ -597,6 +680,7 @@ export default function HandReplayerPlayScreen() {
                   x={x}
                   y={y}
                   width={POD_W}
+                  entering={FadeIn.duration(ms(300))}
                   name={p.name}
                   ringColor={p.isHero ? TABLE.gold : TABLE.neutralBorder}
                   ringWidth={p.isHero ? 2 : 1.5}
@@ -610,7 +694,7 @@ export default function HandReplayerPlayScreen() {
                           ? {
                               text: t('poker:strengthPercent', { value: equityPct }),
                               color: strengthColor(equityPct),
-                              entering: ZoomIn.duration(250).delay(k * 120),
+                              entering: ZoomIn.duration(ms(250)).delay(ms(k * 120)),
                             }
                           : null
                         : remaining !== undefined
@@ -630,7 +714,7 @@ export default function HandReplayerPlayScreen() {
                         // The static rotate lives on an inner View: FlipInEasyY drives the
                         // Animated.View's transform and would overwrite it (Reanimated warns).
                         p.holeCards.map((c, i) => (
-                          <Animated.View key={`reveal-${i}`} entering={FlipInEasyY.duration(450).delay(k * 120 + i * 80)}>
+                          <Animated.View key={`reveal-${i}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(k * 120 + i * 80))}>
                             <View style={i === 0 ? styles.peekCardLeft : styles.peekCardRight}>
                               <PlayingCard card={c} size="sm" dimmed={dimCard(c)} />
                             </View>
@@ -660,7 +744,7 @@ export default function HandReplayerPlayScreen() {
                   {bubble && (
                     <Animated.View
                       key={bubble.action.id}
-                      entering={ZoomIn.duration(220).delay(bubble.orderIdx * 200)}
+                      entering={ZoomIn.duration(ms(220)).delay(ms(bubble.orderIdx * 200))}
                       style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
                     >
                       <View
@@ -697,6 +781,12 @@ export default function HandReplayerPlayScreen() {
               />
             )}
           </PokerTable>
+
+          {/* Branding on every video frame — only while recording, invisible in normal
+              playback. The recap card carries its own wordmark. */}
+          {exportState === 'exporting' && (
+            <Text style={[styles.wordmark, { color: colors.onDarkTertiary }]}>Ultimate Poker Kit</Text>
+          )}
           </View>
 
           {exportState === 'exporting' && exportProgress ? (
@@ -917,6 +1007,15 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
+  },
+  // Same treatment as HandRecapCard's wordmark, on the table frames during export.
+  wordmark: {
+    alignSelf: 'center',
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.semibold,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginTop: -spacing.lg,
   },
   resultWrap: {
     flex: 1,

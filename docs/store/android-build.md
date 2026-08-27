@@ -56,8 +56,10 @@ fly secrets set GOOGLE_WEB_CLIENT_ID=<web-client-id> -a upk-api
 
 **6. Rebuild** the APK (`eas build -p android --profile preview`) and reinstall — Google Sign-In now works end-to-end on Android.
 
-## Notes for a future Play Store release
+## Play Store release
+
+See **`play-store-listing.md`** — the full Google Play submission kit (listing texts fr/en, graphics, Data safety, IARC, console checklist). Quick facts:
 
 - `production` builds produce an AAB, auto-incremented versionCode (`appVersionSource: remote`).
-- Google Play requires app signing enrollment; EAS keystore becomes the upload key.
-- Review the merged Android permissions (expo-media-library injects media/storage ones) before submitting.
+- Google Play requires app signing enrollment; EAS keystore becomes the upload key — and the Play app-signing SHA-1 needs its own Android OAuth client (see the kit, step 4).
+- Android media permissions are pruned via `android.blockedPermissions` in `app.json` (media-library is save-only).

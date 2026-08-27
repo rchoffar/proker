@@ -14,7 +14,7 @@ import {
 } from './db.js';
 import { signSession, verifySession } from './auth/session.js';
 import { verifyAppleIdentityToken, verifyGoogleIdToken } from './auth/verify.js';
-import { privacyHtml, supportHtml } from './pages.js';
+import { accountDeletionHtml, privacyHtml, supportHtml } from './pages.js';
 
 const MAX_BODY_BYTES = 16_384;
 // A full HandHistory payload (9 players, long action list) can approach ~30 KB — well past
@@ -88,9 +88,9 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
   const url = (req.url ?? '').split('?')[0];
   const method = req.method ?? 'GET';
 
-  if (method === 'GET' && (url === '/privacy' || url === '/support')) {
+  if (method === 'GET' && (url === '/privacy' || url === '/support' || url === '/account-deletion')) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    res.end(url === '/privacy' ? privacyHtml : supportHtml);
+    res.end(url === '/privacy' ? privacyHtml : url === '/support' ? supportHtml : accountDeletionHtml);
     return true;
   }
 

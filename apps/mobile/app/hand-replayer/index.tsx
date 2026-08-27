@@ -568,7 +568,7 @@ export default function HandReplayerBuilderScreen() {
     router.push('/hand-replayer/play');
   };
 
-  const handleExportImages = () => {
+  const handleExportVideo = () => {
     setDraft(buildHandHistory());
     router.push({ pathname: '/hand-replayer/play', params: { export: '1' } });
   };
@@ -826,7 +826,7 @@ export default function HandReplayerBuilderScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.secondaryBtn, { backgroundColor: colors.neutralTileBg }]}
-          onPress={handleExportImages}
+          onPress={handleExportVideo}
           activeOpacity={0.85}
         >
           <Text style={[styles.secondaryBtnText, { color: colors.textPrimary }]}>{t('exportReplay')}</Text>
