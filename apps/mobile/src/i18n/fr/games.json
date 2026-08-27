@@ -1,14 +1,14 @@
 {
   "setup": {
-    "noPlayersYet": "Aucun joueur pour l’instant",
-    "searchPlaceholder": "Chercher ou créer un joueur…"
+    "searchPlaceholder": "Chercher ou créer un joueur…",
+    "addPlayer": "Ajouter un joueur",
+    "maxPlayersReached": "Nombre maximum de joueurs atteint"
   },
   "play": {
     "noPlayers": "Aucun joueur pour cette partie."
   },
   "flip": {
     "subtitle": "2 à 6 joueurs, cartes distribuées à tous, le flop puis le turn puis la river se révèlent un par un. La main la plus faible paie.",
-    "maxPlayersReached": "Maximum de joueurs atteint",
     "dealCards": "Distribuer les cartes",
     "revealFlop": "Révéler le flop",
     "revealTurn": "Révéler le turn",
@@ -25,10 +25,10 @@
     "playersCount_other": "{{count}} joueurs"
   },
   "roulette": {
-    "subtitle": "Qui est à la table ? Ajoutez au moins 2 joueurs, la roue en désigne un pour payer l’addition.",
+    "subtitle": "Chaque joueur devient une carte sur la table — la lumière s'arrête sur celui qui paie.",
     "start": "Lancer la roulette",
-    "spinWheel": "Tourner la roue",
-    "spinning": "Ça tourne…",
+    "spinWheel": "Lancer la roulette",
+    "spinning": "Tirage…",
     "spinAgain": "Relancer",
     "payUp": "À la caisse",
     "paysTheBill": "paie l’addition 🍻"

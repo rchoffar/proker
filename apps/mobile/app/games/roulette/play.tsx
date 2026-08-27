@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { X, RotateCw } from 'lucide-react-native';
-import { RouletteWheel } from '../../../src/components/degen/RouletteWheel';
+import { RouletteCardTable } from '../../../src/components/degen/RouletteCardTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
@@ -76,7 +76,7 @@ export default function RoulettePlayScreen() {
       </View>
 
       <View style={styles.body}>
-        <RouletteWheel players={players} spinToken={spinToken} onResult={handleResult} />
+        <RouletteCardTable players={players} spinToken={spinToken} onResult={handleResult} />
 
         {winner ? (
           <>

@@ -57,7 +57,7 @@
   "autoWinnerSplit": "Pot partagé — {{names}} avec {{hand}}",
   "titlePlaceholder": "Titre (optionnel) — ex : {{example}}",
   "replayHand": "Voir la main",
-  "exportReplay": "Exporter en images",
+  "exportReplay": "Exporter la vidéo",
   "restart": "Recommencer",
   "autoTitle": {
     "vsHand": "{{hero}} vs {{villain}} — {{street}}",
@@ -111,13 +111,10 @@
   "handOver": "Main terminée",
   "untitledHand": "Une main à raconter",
   "export": {
-    "permissionSettings": "Autorisez les photos dans les réglages pour enregistrer.",
-    "permissionRequired": "Autorisation requise pour enregistrer les images.",
-    "saveFailed": "L'enregistrement a échoué. Réessayez.",
-    "progress": "Enregistrement de l'image {{current}} sur {{total}}…",
-    "allSaved_one": "Image enregistrée dans vos photos.",
-    "allSaved_other": "{{count}} images enregistrées dans vos photos.",
-    "partialSaved_one": "Export interrompu — {{count}} image enregistrée.",
-    "partialSaved_other": "Export interrompu — {{count}} images enregistrées."
+    "permissionSettings": "Autorisez les photos dans les réglages pour enregistrer la vidéo.",
+    "permissionRequired": "Autorisation requise pour enregistrer la vidéo.",
+    "saveFailed": "L'export a échoué. Réessayez.",
+    "progress": "Enregistrement de l'étape {{current}} sur {{total}}…",
+    "videoSaved": "Vidéo enregistrée dans vos photos."
   }
 }

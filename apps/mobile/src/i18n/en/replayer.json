@@ -57,7 +57,7 @@
   "autoWinnerSplit": "Split pot — {{names}} with {{hand}}",
   "titlePlaceholder": "Title (optional) — e.g. {{example}}",
   "replayHand": "Show the hand",
-  "exportReplay": "Export as images",
+  "exportReplay": "Export video",
   "restart": "Start over",
   "autoTitle": {
     "vsHand": "{{hero}} vs {{villain}} — {{street}}",
@@ -111,13 +111,10 @@
   "handOver": "Hand over",
   "untitledHand": "A hand worth telling",
   "export": {
-    "permissionSettings": "Allow photo access in Settings to save.",
-    "permissionRequired": "Permission needed to save the images.",
-    "saveFailed": "Saving failed. Try again.",
-    "progress": "Saving image {{current}} of {{total}}…",
-    "allSaved_one": "Image saved to your photos.",
-    "allSaved_other": "{{count}} images saved to your photos.",
-    "partialSaved_one": "Export stopped — {{count}} image was saved.",
-    "partialSaved_other": "Export stopped — {{count}} images were saved."
+    "permissionSettings": "Allow photo access in Settings to save the video.",
+    "permissionRequired": "Permission needed to save the video.",
+    "saveFailed": "Export failed. Try again.",
+    "progress": "Recording step {{current}} of {{total}}…",
+    "videoSaved": "Video saved to your photos."
   }
 }
