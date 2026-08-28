@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react-native';
 import { PokerTable } from '../hand/PokerTable';
 import { PlayerNameCard } from './PlayerNameCard';
 import { SeatNameBubble } from './SeatNameBubble';
+import { useAuthStore } from '../../store/useAuthStore';
 import { fontFamily, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Player } from '../../types';
@@ -52,9 +53,16 @@ export function RouletteSetupBoard({ players, selected, onChange }: Props) {
     };
   };
 
-  const suggestions = players
+  // The account pseudo always leads the suggestions — same per-pseudo stats merging
+  // rationale as SeatTableBoard.
+  const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
+  const known = players
     .filter((p) => !selected.some((s) => s.id === p.id))
     .map((p) => p.name);
+  const suggestions = [
+    ...(pseudo && !selected.some((p) => p.name === pseudo) ? [pseudo] : []),
+    ...known.filter((n) => n !== pseudo),
+  ];
 
   const pickName = (name: string) => {
     if (selected.length >= ROULETTE_MAX_PLAYERS) return;

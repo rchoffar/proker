@@ -4,6 +4,7 @@ import { X, Plus } from 'lucide-react-native';
 import { PokerTable, TABLE, seatPoint } from '../hand/PokerTable';
 import { PlayingCard } from '../hand/PlayingCard';
 import { SeatNameBubble } from './SeatNameBubble';
+import { useAuthStore } from '../../store/useAuthStore';
 import { initials } from '../../lib/format';
 import { fontFamily, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -34,9 +35,16 @@ export function SeatTableBoard({ players, selected, onChange, maxPlayers }: Prop
   const boardH = tableH + SEAT_D;
   const pad = SEAT_D / 2; // seats are centered ON the rail, half outside the table box
 
-  const suggestions = players
+  // The account pseudo always leads the suggestions: playing pass&play under it is what
+  // merges these local games into the same per-pseudo stats as the online ones.
+  const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
+  const known = players
     .filter((p) => !selected.some((s) => s.id === p.id))
     .map((p) => p.name);
+  const suggestions = [
+    ...(pseudo && !selected.some((p) => p.name === pseudo) ? [pseudo] : []),
+    ...known.filter((n) => n !== pseudo),
+  ];
 
   const pickName = (name: string) => {
     const existing = players.find((p) => p.name === name);
