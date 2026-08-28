@@ -56,8 +56,15 @@ const RIVER_FLIP_DURATION = 1000;
 // between two throws, DEAL_FLIGHT_MS one card's flight time.
 const DEAL_STEP = 100;
 const DEAL_FLIGHT_MS = 320;
-// Hole cards render at PlayingCard's "md" tier — needed to place each card's flight start.
-const CARD_W = 46;
+
+// Hole-card geometry per hand size. Omaha's four cards must stay narrow: seats sit at the
+// table's horizontal extremes, so a wide fan there runs off the screen and over the board.
+// Values are the PlayingCard tier's width plus the fan's negative margin (the visible step
+// between two cards).
+const FAN_GEOMETRY: Record<number, { size: 'sm' | 'md'; cardW: number; overlap: number }> = {
+  2: { size: 'md', cardW: 46, overlap: -16 },
+  4: { size: 'sm', cardW: 30, overlap: -12 },
+};
 
 // The river reveal IS the result — no extra tap between seeing the last card and knowing
 // who pays.
@@ -90,6 +97,7 @@ interface DealtHand {
 
 interface DealtCardProps {
   card: Card;
+  size: 'sm' | 'md';
   dimmed: boolean;
   // Offset from the card's resting place to the table center, in points — where the card
   // starts its flight.
@@ -107,7 +115,7 @@ interface DealtCardProps {
  * shuffle overlapping fans mid-deal. Here the card never leaves the normal hierarchy, so
  * document order (first card back, last card front) holds through the whole flight.
  */
-function DealtCard({ card, dimmed, fromX, fromY, delay, rotate, ready }: DealtCardProps) {
+function DealtCard({ card, size, dimmed, fromX, fromY, delay, rotate, ready }: DealtCardProps) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -132,7 +140,7 @@ function DealtCard({ card, dimmed, fromX, fromY, delay, rotate, ready }: DealtCa
 
   return (
     <Animated.View style={style}>
-      <PlayingCard card={card} size="md" dimmed={dimmed} />
+      <PlayingCard card={card} size={size} dimmed={dimmed} />
     </Animated.View>
   );
 }
@@ -311,6 +319,9 @@ export default function FlipPlayScreen() {
 
   const boardVisibleCount = BOARD_VISIBLE_COUNT[phase];
   const fanAngles = FAN_ANGLES[holeCount] ?? FAN_ANGLES[2];
+  const geometry = FAN_GEOMETRY[holeCount] ?? FAN_GEOMETRY[2];
+  const fanStep = geometry.cardW + geometry.overlap;
+  const fanW = geometry.cardW + (holeCount - 1) * fanStep;
   const loserNames = results ? players.filter((p) => results.loserIds.has(p.id)).map((p) => p.name) : [];
   const winnerNames = results ? players.filter((p) => results.winnerIds.has(p.id)).map((p) => p.name) : [];
   const firstWinner = results ? players.find((p) => results.winnerIds.has(p.id)) : undefined;
@@ -370,7 +381,12 @@ export default function FlipPlayScreen() {
           </View>
 
           {ready && players.map((p, k) => {
-            const { x, y } = seatPoint(k, players.length, TABLE_W, TABLE_H);
+            const seat = seatPoint(k, players.length, TABLE_W, TABLE_H);
+            // Squeeze the seat ring horizontally: side seats sit exactly on the table's
+            // left/right extremes, where a fan (and the long name plates) would spill past
+            // the screen edge.
+            const x = TABLE_W / 2 + (seat.x - TABLE_W / 2) * 0.92;
+            const y = seat.y;
             const showOutcome = !!results && outcomeShown;
             const isLoser = showOutcome && results!.loserIds.has(p.id);
             const isWinner = showOutcome && results!.winnerIds.has(p.id);
@@ -388,23 +404,23 @@ export default function FlipPlayScreen() {
             // round-robin like a live dealer (one card to each player, then the next card).
             // The fan itself is a plain row — no entering animation anywhere, so the
             // cards' document order stays their stacking order for the whole deal.
-            const fanW = CARD_W + (holeCount - 1) * (CARD_W + styles.holeFanOverlap.marginLeft);
             const fan = [
               <View key={`fan-${handToken}`} style={styles.fanRow}>
                 {dealt.holeCards[p.id].map((card, i) => {
                   // Vector from this card's resting spot back to the table center.
-                  const restX = x - fanW / 2 + i * (CARD_W + styles.holeFanOverlap.marginLeft) + CARD_W / 2;
+                  const restX = x - fanW / 2 + i * fanStep + geometry.cardW / 2;
                   const restY = cardsOnTop ? y - 56 : y + 56;
                   return (
                     <View
                       key={`${handToken}-${i}`}
                       style={[
-                        i > 0 && styles.holeFanOverlap,
+                        i > 0 && { marginLeft: geometry.overlap },
                         (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
                       ]}
                     >
                       <DealtCard
                         card={card}
+                        size={geometry.size}
                         dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
                         fromX={TABLE_W / 2 - restX}
                         fromY={TABLE_H / 2 - restY}
@@ -426,7 +442,9 @@ export default function FlipPlayScreen() {
                 <Animated.View
                   key={`equity-${handToken}-${statsPhase}-${showOutcome ? 'final' : 'live'}`}
                   entering={ZoomIn.duration(220).delay(k * 90 + 150)}
-                  style={styles.equityBadge}
+                  // Right-half seats flip the badge to the fan's inner side — hanging it
+                  // off their right edge puts it past the screen.
+                  style={x > TABLE_W / 2 ? styles.equityBadgeLeft : styles.equityBadge}
                 >
                   <Text style={[styles.equityBadgeText, { color: strengthColor(equityPct) }]}>
                     {t('poker:strengthPercent', { value: equityPct })}
@@ -566,15 +584,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  holeFanOverlap: {
-    marginLeft: -16,
-  },
-  // Absolutely positioned off the fan's right edge so the centered cards keep their
-  // exact place — the badge floats beside them without affecting layout.
+  // Absolutely positioned off the fan's edge so the centered cards keep their exact
+  // place — the badge floats beside them without affecting layout.
   equityBadge: {
     position: 'absolute',
     left: '100%',
     marginLeft: 4,
+    alignSelf: 'center',
+    backgroundColor: TABLE.plateBg,
+    borderWidth: 1,
+    borderColor: TABLE.neutralBorder,
+    borderRadius: radius.full,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  equityBadgeLeft: {
+    position: 'absolute',
+    right: '100%',
+    marginRight: 4,
     alignSelf: 'center',
     backgroundColor: TABLE.plateBg,
     borderWidth: 1,
