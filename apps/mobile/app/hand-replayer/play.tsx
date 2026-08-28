@@ -605,6 +605,10 @@ export default function HandReplayerPlayScreen() {
       fan: revealed
         ? {
             cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),
+            // Villain hands stay small on the rail: this table is narrower than the other
+            // games' (smaller pods, board cards scaled to fit five across), and the hero's
+            // hand growing large at showdown is meant to be the only big card moment.
+            size: 'sm' as const,
             flipInDelay: ms(k * 120),
             flipInDuration: ms(450),
           }
