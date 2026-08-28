@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, InteractionManager } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
 import { X, RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
@@ -104,13 +104,22 @@ export default function FlipPlayScreen() {
   // stagger k*90+i*70 over a 400ms flip, board cards 100ms apart over 450ms), and the
   // equities are computed from it. Null until the deal's first flips land.
   const [statsPhase, setStatsPhase] = useState<Phase | null>(null);
+  // The deal waits for the push transition to settle: entering animations scheduled while
+  // the screen is still sliding in get dropped by Reanimated, leaving half-flipped frozen
+  // cards (same bug the hand replayer had). Until then the table renders bare and the
+  // pods paint instantly (skipEntering below).
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => setReady(true));
+    return () => handle.cancel();
+  }, []);
 
   useEffect(() => {
-    if (phase === 'result') return;
+    if (phase === 'result' || !ready) return;
     const delays: Record<Phase, number> = { dealt: 1000, flop: 750, turn: 600, result: 0 };
     const timer = setTimeout(() => setStatsPhase(phase), delays[phase]);
     return () => clearTimeout(timer);
-  }, [phase, handToken]);
+  }, [phase, handToken, ready]);
 
   useConfirmQuitGame(players.length >= 2 && phase !== 'result');
 
@@ -247,6 +256,7 @@ export default function FlipPlayScreen() {
       </View>
 
       <View style={styles.tableArea}>
+        <LayoutAnimationConfig skipEntering={!ready}>
         {results && outcomeShown ? (
           <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
             <Text style={[styles.resultBanner, { color: TABLE.gold }]}>
@@ -288,7 +298,7 @@ export default function FlipPlayScreen() {
             </View>
           </View>
 
-          {players.map((p, k) => {
+          {ready && players.map((p, k) => {
             const { x, y } = seatPoint(k, players.length, TABLE_W, TABLE_H);
             const showOutcome = !!results && outcomeShown;
             const isLoser = showOutcome && results!.loserIds.has(p.id);
@@ -303,30 +313,38 @@ export default function FlipPlayScreen() {
             // Bottom-half pods fan their cards above the avatar (toward the felt); top-half
             // pods fan them below, so cards never spill off the table.
             const cardsOnTop = y >= TABLE_H / 2;
-            const fan = dealt.holeCards[p.id].map((card, i) => (
+            // The whole fan flips in as ONE packet: while a per-card entering animation
+            // runs, Reanimated renders that card in its own animation layer and sibling
+            // z-order only applies once it finishes — Omaha's overlapping 4-card fans
+            // visibly shuffled mid-flip. With a single entering on the wrapper, the cards
+            // inside are plain Views whose document order IS the stacking order (first
+            // card back, last card front), immutable by construction.
+            const fan = [
               <Animated.View
-                key={`${handToken}-${i}`}
-                entering={FlipInEasyY.duration(400).delay(k * 90 + i * 70)}
-                style={[
-                  // Staggered entering animations make sibling paint order unreliable —
-                  // pin the fan stacking left→right (first card back, last card front),
-                  // matters most for Omaha's 4-card fans.
-                  { zIndex: i + 1, elevation: i + 1 },
-                  i > 0 && styles.holeFanOverlap,
-                  (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
-                ]}
+                key={`fan-${handToken}`}
+                entering={FlipInEasyY.duration(400).delay(k * 90)}
+                style={styles.fanRow}
               >
-                {/* The static rotate lives on an inner View: FlipInEasyY drives the outer
-                    Animated.View's transform and would overwrite it (Reanimated warns). */}
-                <View style={{ transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] }}>
-                  <PlayingCard
-                    card={card}
-                    size="md"
-                    dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
-                  />
-                </View>
-              </Animated.View>
-            ));
+                {dealt.holeCards[p.id].map((card, i) => (
+                  <View
+                    key={`${handToken}-${i}`}
+                    style={[
+                      i > 0 && styles.holeFanOverlap,
+                      (fanAngles[i] ?? 0) !== 0 && {
+                        transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }],
+                        marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4,
+                      },
+                    ]}
+                  >
+                    <PlayingCard
+                      card={card}
+                      size="md"
+                      dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
+                    />
+                  </View>
+                ))}
+              </Animated.View>,
+            ];
             // The win-chance % sits to the right of the card fan (the plate's second line
             // is reserved for the hand result at showdown). Keyed per street so it pops
             // in again whenever the number changes.
@@ -381,6 +399,7 @@ export default function FlipPlayScreen() {
             />
           )}
         </PokerTable>
+        </LayoutAnimationConfig>
       </View>
 
       <View style={styles.footer}>
@@ -469,6 +488,10 @@ const styles = StyleSheet.create({
     gap: 4,
     minHeight: 64,
     alignItems: 'center',
+  },
+  fanRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   holeFanOverlap: {
     marginLeft: -16,
