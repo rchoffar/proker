@@ -3,7 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, InteractionManage
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FlipInEasyY,
+  LayoutAnimationConfig,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { X, RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
@@ -40,6 +51,14 @@ const POD_W = 84;
 const RIVER_FLIP_DELAY = 400;
 const RIVER_FLIP_DURATION = 1000;
 
+// The deal: cards fly one by one from the table center to each seat, in real dealer order
+// (one card per player, around the table, then the next card). DEAL_STEP is the gap
+// between two throws, DEAL_FLIGHT_MS one card's flight time.
+const DEAL_STEP = 100;
+const DEAL_FLIGHT_MS = 320;
+// Hole cards render at PlayingCard's "md" tier — needed to place each card's flight start.
+const CARD_W = 46;
+
 // The river reveal IS the result — no extra tap between seeing the last card and knowing
 // who pays.
 type Phase = 'dealt' | 'flop' | 'turn' | 'result';
@@ -67,6 +86,55 @@ const FAN_ANGLES: Record<number, number[]> = {
 interface DealtHand {
   holeCards: Record<string, Card[]>;
   board: Card[];
+}
+
+interface DealtCardProps {
+  card: Card;
+  dimmed: boolean;
+  // Offset from the card's resting place to the table center, in points — where the card
+  // starts its flight.
+  fromX: number;
+  fromY: number;
+  delay: number;
+  rotate: number;
+  ready: boolean;
+}
+
+/**
+ * One hole card flying in from the middle of the felt. The travel is a plain animated
+ * transform — NOT an `entering` animation: an entering view is rendered in Reanimated's
+ * own animation layer where sibling z-order doesn't apply, which is exactly what used to
+ * shuffle overlapping fans mid-deal. Here the card never leaves the normal hierarchy, so
+ * document order (first card back, last card front) holds through the whole flight.
+ */
+function DealtCard({ card, dimmed, fromX, fromY, delay, rotate, ready }: DealtCardProps) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (!ready) return;
+    progress.value = 0;
+    progress.value = withDelay(delay, withTiming(1, { duration: DEAL_FLIGHT_MS, easing: Easing.out(Easing.cubic) }));
+  }, [ready, delay, fromX, fromY, progress]);
+
+  const style = useAnimatedStyle(() => {
+    const p = progress.value;
+    return {
+      opacity: p === 0 ? 0 : 1,
+      transform: [
+        { translateX: fromX * (1 - p) },
+        { translateY: fromY * (1 - p) },
+        // Lands flat into its fan angle, after spinning in from the deck.
+        { rotate: `${rotate * p + 18 * (1 - p)}deg` },
+        { scale: 0.82 + 0.18 * p },
+      ],
+    };
+  });
+
+  return (
+    <Animated.View style={style}>
+      <PlayingCard card={card} size="md" dimmed={dimmed} />
+    </Animated.View>
+  );
 }
 
 function dealNewHand(players: Player[], holeCount: number): DealtHand {
@@ -116,10 +184,13 @@ export default function FlipPlayScreen() {
 
   useEffect(() => {
     if (phase === 'result' || !ready) return;
-    const delays: Record<Phase, number> = { dealt: 1000, flop: 750, turn: 600, result: 0 };
+    // The deal's length scales with the table (one throw per card per player), so its
+    // badge delay is computed rather than fixed; the streets keep their flip windows.
+    const dealMs = (players.length * holeCount - 1) * DEAL_STEP + DEAL_FLIGHT_MS + 150;
+    const delays: Record<Phase, number> = { dealt: dealMs, flop: 750, turn: 600, result: 0 };
     const timer = setTimeout(() => setStatsPhase(phase), delays[phase]);
     return () => clearTimeout(timer);
-  }, [phase, handToken, ready]);
+  }, [phase, handToken, ready, players.length, holeCount]);
 
   useConfirmQuitGame(players.length >= 2 && phase !== 'result');
 
@@ -313,37 +384,39 @@ export default function FlipPlayScreen() {
             // Bottom-half pods fan their cards above the avatar (toward the felt); top-half
             // pods fan them below, so cards never spill off the table.
             const cardsOnTop = y >= TABLE_H / 2;
-            // The whole fan flips in as ONE packet: while a per-card entering animation
-            // runs, Reanimated renders that card in its own animation layer and sibling
-            // z-order only applies once it finishes — Omaha's overlapping 4-card fans
-            // visibly shuffled mid-flip. With a single entering on the wrapper, the cards
-            // inside are plain Views whose document order IS the stacking order (first
-            // card back, last card front), immutable by construction.
+            // Real dealing: every card flies in from the middle of the felt, one at a time,
+            // round-robin like a live dealer (one card to each player, then the next card).
+            // The fan itself is a plain row — no entering animation anywhere, so the
+            // cards' document order stays their stacking order for the whole deal.
+            const fanW = CARD_W + (holeCount - 1) * (CARD_W + styles.holeFanOverlap.marginLeft);
             const fan = [
-              <Animated.View
-                key={`fan-${handToken}`}
-                entering={FlipInEasyY.duration(400).delay(k * 90)}
-                style={styles.fanRow}
-              >
-                {dealt.holeCards[p.id].map((card, i) => (
-                  <View
-                    key={`${handToken}-${i}`}
-                    style={[
-                      i > 0 && styles.holeFanOverlap,
-                      (fanAngles[i] ?? 0) !== 0 && {
-                        transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }],
-                        marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4,
-                      },
-                    ]}
-                  >
-                    <PlayingCard
-                      card={card}
-                      size="md"
-                      dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
-                    />
-                  </View>
-                ))}
-              </Animated.View>,
+              <View key={`fan-${handToken}`} style={styles.fanRow}>
+                {dealt.holeCards[p.id].map((card, i) => {
+                  // Vector from this card's resting spot back to the table center.
+                  const restX = x - fanW / 2 + i * (CARD_W + styles.holeFanOverlap.marginLeft) + CARD_W / 2;
+                  const restY = cardsOnTop ? y - 56 : y + 56;
+                  return (
+                    <View
+                      key={`${handToken}-${i}`}
+                      style={[
+                        i > 0 && styles.holeFanOverlap,
+                        (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
+                      ]}
+                    >
+                      <DealtCard
+                        card={card}
+                        dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
+                        fromX={TABLE_W / 2 - restX}
+                        fromY={TABLE_H / 2 - restY}
+                        // Round-robin order: card i to every player, then card i+1.
+                        delay={(i * players.length + k) * DEAL_STEP}
+                        rotate={fanAngles[i] ?? 0}
+                        ready={ready}
+                      />
+                    </View>
+                  );
+                })}
+              </View>,
             ];
             // The win-chance % sits to the right of the card fan (the plate's second line
             // is reserved for the hand result at showdown). Keyed per street so it pops
