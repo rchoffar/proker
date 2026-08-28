@@ -15,8 +15,9 @@ import { useKeepAwake } from 'expo-keep-awake';
 import FrameVideoEncoder from '../../modules/frame-video-encoder';
 import { X, Play, Pause, Download, SkipForward } from 'lucide-react-native';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
-import { PokerTable, TABLE, seatPoint } from '../../src/components/hand/PokerTable';
-import { TableSeat } from '../../src/components/hand/TableSeat';
+import { TABLE, seatPoint } from '../../src/components/hand/PokerTable';
+import { SeatedTable } from '../../src/components/table/SeatedTable';
+import type { SeatSpec } from '../../src/components/table/SeatedTable';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { WinCelebration } from '../../src/components/hand/WinCelebration';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
@@ -125,7 +126,7 @@ function animWindowMsFor(beat: Beat): number {
     const actionsMs = beat.actions.length > 0 ? (beat.actions.length - 1) * ACTION_STAGGER + 220 + 100 : 0;
     return Math.max(cardLeadMs(beat) + actionsMs, 500);
   }
-  // Villain reveals stagger flips per seat (k*120 + i*80 + 450) — cover a full 9-max table.
+  // Villain fans flip in per seat (k*120 + 450) — cover a full 9-max table.
   if (beat.kind === 'showdown') return 1800;
   // The recap card is static — it gets a single settled frame (after a layout wait).
   if (beat.kind === 'result') return 0;
@@ -575,6 +576,81 @@ export default function HandReplayerPlayScreen() {
     }
   };
 
+  // Seats for the shared table: villains reveal their hands as fans toward the felt (at
+  // showdown or once everyone is all-in), each seat carrying its action bubble and either
+  // its stack, its fold status, or its live win chance.
+  const seatSpecs: SeatSpec[] = orderedPlayers.map((p, k) => {
+    const folded = foldedIds.has(p.id);
+    const bubble = bubbles.get(p.id);
+    const bubbleBelow = seatPoint(k, orderedPlayers.length, TABLE_W, TABLE_H).y < TABLE_H / 2;
+    const remaining =
+      p.startingStack !== undefined ? Math.max(0, roundAmount(p.startingStack - committedFor(p.id))) : undefined;
+    const knownCards = p.cardsKnown && !!p.holeCards;
+    // Win-chance % only during an all-in run-out, where each card shifts it — a hand
+    // decided by betting would only ever read 100/0, so it shows nothing. The value comes
+    // from the lagged statsIndex: the previous beat's number stays up while cards flip.
+    const statsActive = allInRevealed && knownCards;
+    const equityPct = statsActive ? equity?.get(p.id) : undefined;
+    const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.action.type) : false;
+    const revealed = !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards;
+
+    return {
+      id: p.id,
+      name: p.name,
+      entering: FadeIn.duration(ms(300)),
+      ringColor: p.isHero ? TABLE.gold : TABLE.neutralBorder,
+      ringWidth: p.isHero ? 2 : 1.5,
+      dimmed: folded,
+      tag: p.position,
+      fan: revealed
+        ? {
+            cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),
+            flipInDelay: ms(k * 120),
+            flipInDuration: ms(450),
+          }
+        : undefined,
+      secondLine: folded
+        ? { text: t('folded'), color: colors.loss }
+        : statsActive
+          ? equityPct !== undefined
+            ? {
+                text: t('poker:strengthPercent', { value: equityPct }),
+                color: strengthColor(equityPct),
+                entering: ZoomIn.duration(ms(250)).delay(ms(k * 120)),
+              }
+            : null
+          : remaining !== undefined
+            ? { text: formatHandAmount(remaining, hand.unitMode) }
+            : null,
+      extras: bubble ? (
+        <Animated.View
+          key={bubble.action.id}
+          entering={ZoomIn.duration(ms(220)).delay(ms(actionLead + bubble.orderIdx * ACTION_STAGGER))}
+          style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
+        >
+          <View
+            style={[
+              styles.bubblePill,
+              {
+                borderColor:
+                  bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.bubbleText,
+                { color: bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
+              ]}
+            >
+              {bubbleLabel(bubble.action, hand.unitMode, t)}
+            </Text>
+          </View>
+        </Animated.View>
+      ) : undefined,
+    };
+  });
+
   const renderCaption = () => {
     if (currentBeat?.kind === 'street') return t(`poker:phases.${currentBeat.street}`);
     if (currentBeat?.kind === 'showdown') return t('poker:phases.showdown');
@@ -671,8 +747,14 @@ export default function HandReplayerPlayScreen() {
               {renderCaption()}
             </Animated.Text>
 
-            <PokerTable width={TABLE_W} height={TABLE_H} style={styles.table}>
-            <View style={styles.feltCenter} pointerEvents="none">
+            <SeatedTable
+              width={TABLE_W}
+              height={TABLE_H}
+              style={styles.table}
+              seatWidth={POD_W}
+              seats={seatSpecs}
+              center={
+              <>
               {/* The street's actions written on the felt, above the pot — the bubbles show
                   WHO acted, these lines keep the whole sequence readable at a glance. */}
               {currentBeat?.kind === 'street' && currentBeat.actions.length > 0 && (
@@ -717,8 +799,10 @@ export default function HandReplayerPlayScreen() {
                   </Animated.View>
                 )}
               </View>
-            </View>
-
+              </>
+              }
+              underSeats={
+              <>
             {/* Hero cards live small next to the hero's seat for the whole hand (visible from
                 the intro — no dedicated tap), then pop large and centered at showdown. Two
                 rendered states, not a shared transition: the export loop only understands
@@ -735,99 +819,9 @@ export default function HandReplayerPlayScreen() {
                   <PlayingCard card={hero.holeCards[1]} size="sm" style={styles.heroCardRight} />
                 </Animated.View>
               ))}
-
-            {orderedPlayers.map((p, k) => {
-              const { x, y } = seatPoint(k, orderedPlayers.length, TABLE_W, TABLE_H);
-              const folded = foldedIds.has(p.id);
-              const bubble = bubbles.get(p.id);
-              const bubbleBelow = y < TABLE_H / 2;
-              const remaining =
-                p.startingStack !== undefined ? Math.max(0, roundAmount(p.startingStack - committedFor(p.id))) : undefined;
-              const knownCards = p.cardsKnown && !!p.holeCards;
-              // Win-chance % only during an all-in run-out, where each card shifts it —
-              // a hand decided by betting would only ever read 100/0, so it shows nothing.
-              // The value comes from the lagged statsIndex: the previous beat's number
-              // stays up while cards flip, refreshing once they land.
-              const statsActive = allInRevealed && knownCards;
-              const equityPct = statsActive ? equity?.get(p.id) : undefined;
-              const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.action.type) : false;
-              // Villain cards only exist revealed — at showdown or during an all-in run-out —
-              // as a readable md fan toward the felt (in-flow TableSeat slot: below the pod
-              // for top-rail seats, above it for bottom-rail ones). No face-down peeks: they
-              // used to cover the street caption for nothing.
-              const revealFan =
-                !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards
-                  ? p.holeCards.map((c, i) => (
-                      <Animated.View key={`reveal-${cardKey(c)}`} entering={FlipInEasyY.duration(ms(450)).delay(ms(k * 120 + i * 80))}>
-                        {/* Static rotate on an inner View: FlipInEasyY drives the outer transform. */}
-                        <View style={i === 0 ? styles.peekCardLeft : styles.peekCardRight}>
-                          <PlayingCard card={c} size="md" dimmed={dimCard(c)} />
-                        </View>
-                      </Animated.View>
-                    ))
-                  : null;
-              const topHalf = y < TABLE_H / 2;
-              return (
-                <TableSeat
-                  key={p.id}
-                  x={x}
-                  y={y}
-                  width={POD_W}
-                  entering={FadeIn.duration(ms(300))}
-                  name={p.name}
-                  ringColor={p.isHero ? TABLE.gold : TABLE.neutralBorder}
-                  ringWidth={p.isHero ? 2 : 1.5}
-                  dimmed={folded}
-                  tag={p.position}
-                  cardsBelow={topHalf ? revealFan : undefined}
-                  cardsAbove={!topHalf ? revealFan : undefined}
-                  cardsAboveOffset={56}
-                  secondLine={
-                    folded
-                      ? { text: t('folded'), color: colors.loss }
-                      : statsActive
-                        ? equityPct !== undefined
-                          ? {
-                              text: t('poker:strengthPercent', { value: equityPct }),
-                              color: strengthColor(equityPct),
-                              entering: ZoomIn.duration(ms(250)).delay(ms(k * 120)),
-                            }
-                          : null
-                        : remaining !== undefined
-                          ? { text: formatHandAmount(remaining, hand.unitMode) }
-                          : null
-                  }
-                >
-                  {bubble && (
-                    <Animated.View
-                      key={bubble.action.id}
-                      entering={ZoomIn.duration(ms(220)).delay(ms(actionLead + bubble.orderIdx * ACTION_STAGGER))}
-                      style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
-                    >
-                      <View
-                        style={[
-                          styles.bubblePill,
-                          {
-                            borderColor:
-                              bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.bubbleText,
-                            { color: bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
-                          ]}
-                        >
-                          {bubbleLabel(bubble.action, hand.unitMode, t)}
-                        </Text>
-                      </View>
-                    </Animated.View>
-                  )}
-                </TableSeat>
-              );
-            })}
-
+              </>
+              }
+            >
             {badBeatVisible && badBeat && (
               <WinCelebration
                 width={TABLE_W}
@@ -846,7 +840,7 @@ export default function HandReplayerPlayScreen() {
                 onDone={() => setWinVisible(false)}
               />
             )}
-          </PokerTable>
+          </SeatedTable>
           </LayoutAnimationConfig>
 
           {/* Branding on every video frame — only while recording, invisible in normal
@@ -1028,14 +1022,6 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '7deg' }],
     marginLeft: -16,
     marginTop: 4,
-  },
-  peekCardLeft: {
-    transform: [{ rotate: '-10deg' }],
-  },
-  peekCardRight: {
-    transform: [{ rotate: '10deg' }],
-    marginLeft: -14,
-    marginTop: 2,
   },
   bubble: {
     position: 'absolute',

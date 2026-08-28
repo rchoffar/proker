@@ -3,23 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, InteractionManage
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, {
-  Easing,
-  FadeIn,
-  FadeInDown,
-  FlipInEasyY,
-  LayoutAnimationConfig,
-  ZoomIn,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
 import { X, RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
-import { PokerTable, TABLE, seatPoint } from '../../../src/components/hand/PokerTable';
-import { TableSeat } from '../../../src/components/hand/TableSeat';
+import { TABLE } from '../../../src/components/hand/PokerTable';
+import { SeatedTable } from '../../../src/components/table/SeatedTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -57,15 +46,6 @@ const RIVER_FLIP_DURATION = 1000;
 const DEAL_STEP = 100;
 const DEAL_FLIGHT_MS = 320;
 
-// Hole-card geometry per hand size. Omaha's four cards must stay narrow: seats sit at the
-// table's horizontal extremes, so a wide fan there runs off the screen and over the board.
-// Values are the PlayingCard tier's width plus the fan's negative margin (the visible step
-// between two cards).
-const FAN_GEOMETRY: Record<number, { size: 'sm' | 'md'; cardW: number; overlap: number }> = {
-  2: { size: 'md', cardW: 46, overlap: -16 },
-  4: { size: 'sm', cardW: 30, overlap: -12 },
-};
-
 // The river reveal IS the result — no extra tap between seeing the last card and knowing
 // who pays.
 type Phase = 'dealt' | 'flop' | 'turn' | 'result';
@@ -84,66 +64,11 @@ const BOARD_VISIBLE_COUNT: Record<Phase, number> = {
   result: 5,
 };
 
-// Fan angles per hand size — 2 cards for Hold'em, 4 for Omaha.
-const FAN_ANGLES: Record<number, number[]> = {
-  2: [-6, 6],
-  4: [-12, -4, 4, 12],
-};
-
 interface DealtHand {
   holeCards: Record<string, Card[]>;
   board: Card[];
 }
 
-interface DealtCardProps {
-  card: Card;
-  size: 'sm' | 'md';
-  dimmed: boolean;
-  // Offset from the card's resting place to the table center, in points — where the card
-  // starts its flight.
-  fromX: number;
-  fromY: number;
-  delay: number;
-  rotate: number;
-  ready: boolean;
-}
-
-/**
- * One hole card flying in from the middle of the felt. The travel is a plain animated
- * transform — NOT an `entering` animation: an entering view is rendered in Reanimated's
- * own animation layer where sibling z-order doesn't apply, which is exactly what used to
- * shuffle overlapping fans mid-deal. Here the card never leaves the normal hierarchy, so
- * document order (first card back, last card front) holds through the whole flight.
- */
-function DealtCard({ card, size, dimmed, fromX, fromY, delay, rotate, ready }: DealtCardProps) {
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    if (!ready) return;
-    progress.value = 0;
-    progress.value = withDelay(delay, withTiming(1, { duration: DEAL_FLIGHT_MS, easing: Easing.out(Easing.cubic) }));
-  }, [ready, delay, fromX, fromY, progress]);
-
-  const style = useAnimatedStyle(() => {
-    const p = progress.value;
-    return {
-      opacity: p === 0 ? 0 : 1,
-      transform: [
-        { translateX: fromX * (1 - p) },
-        { translateY: fromY * (1 - p) },
-        // Lands flat into its fan angle, after spinning in from the deck.
-        { rotate: `${rotate * p + 18 * (1 - p)}deg` },
-        { scale: 0.82 + 0.18 * p },
-      ],
-    };
-  });
-
-  return (
-    <Animated.View style={style}>
-      <PlayingCard card={card} size={size} dimmed={dimmed} />
-    </Animated.View>
-  );
-}
 
 function dealNewHand(players: Player[], holeCount: number): DealtHand {
   const deck = shuffleWithRng(createDeck(), Math.random);
@@ -318,10 +243,6 @@ export default function FlipPlayScreen() {
   }
 
   const boardVisibleCount = BOARD_VISIBLE_COUNT[phase];
-  const fanAngles = FAN_ANGLES[holeCount] ?? FAN_ANGLES[2];
-  const geometry = FAN_GEOMETRY[holeCount] ?? FAN_GEOMETRY[2];
-  const fanStep = geometry.cardW + geometry.overlap;
-  const fanW = geometry.cardW + (holeCount - 1) * fanStep;
   const loserNames = results ? players.filter((p) => results.loserIds.has(p.id)).map((p) => p.name) : [];
   const winnerNames = results ? players.filter((p) => results.winnerIds.has(p.id)).map((p) => p.name) : [];
   const firstWinner = results ? players.find((p) => results.winnerIds.has(p.id)) : undefined;
@@ -354,8 +275,67 @@ export default function FlipPlayScreen() {
           </Animated.Text>
         )}
 
-        <PokerTable width={TABLE_W} height={TABLE_H} style={styles.table}>
-          <View style={styles.feltCenter} pointerEvents="none">
+        <SeatedTable
+          width={TABLE_W}
+          height={TABLE_H}
+          style={styles.table}
+          token={handToken}
+          seatWidth={POD_W}
+          seats={
+            ready
+              ? players.map((p, k) => {
+                  const showOutcome = !!results && outcomeShown;
+                  const isLoser = showOutcome && results!.loserIds.has(p.id);
+                  const isWinner = showOutcome && results!.winnerIds.has(p.id);
+                  const categoryId = showOutcome ? results!.byId.get(p.id)?.categoryId : undefined;
+                  const equityPct = showOutcome
+                    ? isWinner
+                      ? Math.round(100 / results!.winnerIds.size)
+                      : 0
+                    : equities?.get(p.id);
+                  const borderColor = isWinner ? TABLE.gold : isLoser ? colors.loss : TABLE.neutralBorder;
+                  return {
+                    id: p.id,
+                    name: p.name,
+                    ringColor: borderColor,
+                    ringWidth: isWinner ? 2 : 1.5,
+                    glow: isWinner,
+                    plateBorderColor: isWinner || isLoser ? borderColor : undefined,
+                    secondLine: categoryId
+                      ? {
+                          text: t(`poker:handCategories.${categoryId}`),
+                          color: isWinner ? TABLE.gold : isLoser ? colors.loss : TABLE.plateText,
+                          entering: ZoomIn.duration(250).delay(120),
+                        }
+                      : null,
+                    fan: {
+                      cards: dealt.holeCards[p.id].map((card) => ({
+                        card,
+                        dimmed: showdownDim && !!results && !results.winningKeys.has(cardKey(card)),
+                      })),
+                      // Round-robin like a live dealer: card i to every player, then card i+1.
+                      deal: { ready, delayFor: (seatIdx: number, cardIdx: number) => (cardIdx * players.length + seatIdx) * DEAL_STEP },
+                    },
+                    // The win-chance % floats beside the fan (the plate's second line is
+                    // reserved for the hand result at showdown). Keyed per street so it
+                    // pops in again whenever the number changes.
+                    badge:
+                      equityPct === undefined ? undefined : (
+                        <Animated.View
+                          key={`equity-${handToken}-${statsPhase}-${showOutcome ? 'final' : 'live'}`}
+                          entering={ZoomIn.duration(220).delay(k * 90 + 150)}
+                          style={styles.equityBadge}
+                        >
+                          <Text style={[styles.equityBadgeText, { color: strengthColor(equityPct) }]}>
+                            {t('poker:strengthPercent', { value: equityPct })}
+                          </Text>
+                        </Animated.View>
+                      ),
+                  };
+                })
+              : []
+          }
+          center={
             <View style={styles.boardRow}>
               {[0, 1, 2, 3, 4].map((i) =>
                 i < boardVisibleCount ? (
@@ -378,107 +358,8 @@ export default function FlipPlayScreen() {
                 )
               )}
             </View>
-          </View>
-
-          {ready && players.map((p, k) => {
-            const seat = seatPoint(k, players.length, TABLE_W, TABLE_H);
-            // Squeeze the seat ring horizontally: side seats sit exactly on the table's
-            // left/right extremes, where a fan (and the long name plates) would spill past
-            // the screen edge.
-            const x = TABLE_W / 2 + (seat.x - TABLE_W / 2) * 0.92;
-            const y = seat.y;
-            const showOutcome = !!results && outcomeShown;
-            const isLoser = showOutcome && results!.loserIds.has(p.id);
-            const isWinner = showOutcome && results!.winnerIds.has(p.id);
-            const categoryId = showOutcome ? results!.byId.get(p.id)?.categoryId : undefined;
-            const equityPct = showOutcome
-              ? isWinner
-                ? Math.round(100 / results!.winnerIds.size)
-                : 0
-              : equities?.get(p.id);
-            const borderColor = isWinner ? TABLE.gold : isLoser ? colors.loss : TABLE.neutralBorder;
-            // Bottom-half pods fan their cards above the avatar (toward the felt); top-half
-            // pods fan them below, so cards never spill off the table.
-            const cardsOnTop = y >= TABLE_H / 2;
-            // Real dealing: every card flies in from the middle of the felt, one at a time,
-            // round-robin like a live dealer (one card to each player, then the next card).
-            // The fan itself is a plain row — no entering animation anywhere, so the
-            // cards' document order stays their stacking order for the whole deal.
-            const fan = [
-              <View key={`fan-${handToken}`} style={styles.fanRow}>
-                {dealt.holeCards[p.id].map((card, i) => {
-                  // Vector from this card's resting spot back to the table center.
-                  const restX = x - fanW / 2 + i * fanStep + geometry.cardW / 2;
-                  const restY = cardsOnTop ? y - 56 : y + 56;
-                  return (
-                    <View
-                      key={`${handToken}-${i}`}
-                      style={[
-                        i > 0 && { marginLeft: geometry.overlap },
-                        (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
-                      ]}
-                    >
-                      <DealtCard
-                        card={card}
-                        size={geometry.size}
-                        dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
-                        fromX={TABLE_W / 2 - restX}
-                        fromY={TABLE_H / 2 - restY}
-                        // Round-robin order: card i to every player, then card i+1.
-                        delay={(i * players.length + k) * DEAL_STEP}
-                        rotate={fanAngles[i] ?? 0}
-                        ready={ready}
-                      />
-                    </View>
-                  );
-                })}
-              </View>,
-            ];
-            // The win-chance % sits to the right of the card fan (the plate's second line
-            // is reserved for the hand result at showdown). Keyed per street so it pops
-            // in again whenever the number changes.
-            if (equityPct !== undefined) {
-              fan.push(
-                <Animated.View
-                  key={`equity-${handToken}-${statsPhase}-${showOutcome ? 'final' : 'live'}`}
-                  entering={ZoomIn.duration(220).delay(k * 90 + 150)}
-                  // Right-half seats flip the badge to the fan's inner side — hanging it
-                  // off their right edge puts it past the screen.
-                  style={x > TABLE_W / 2 ? styles.equityBadgeLeft : styles.equityBadge}
-                >
-                  <Text style={[styles.equityBadgeText, { color: strengthColor(equityPct) }]}>
-                    {t('poker:strengthPercent', { value: equityPct })}
-                  </Text>
-                </Animated.View>
-              );
-            }
-            return (
-              <TableSeat
-                key={p.id}
-                x={x}
-                y={y}
-                width={POD_W}
-                name={p.name}
-                ringColor={borderColor}
-                ringWidth={isWinner ? 2 : 1.5}
-                glow={isWinner}
-                plateBorderColor={isWinner || isLoser ? borderColor : undefined}
-                secondLine={
-                  categoryId
-                    ? {
-                        text: t(`poker:handCategories.${categoryId}`),
-                        color: isWinner ? TABLE.gold : isLoser ? colors.loss : TABLE.plateText,
-                        entering: ZoomIn.duration(250).delay(120),
-                      }
-                    : null
-                }
-                cardsAbove={cardsOnTop ? fan : undefined}
-                cardsBelow={cardsOnTop ? undefined : fan}
-                cardsAboveOffset={56}
-              />
-            );
-          })}
-
+          }
+        >
           {celebrating && results && (
             <WinCelebration
               width={TABLE_W}
@@ -489,7 +370,7 @@ export default function FlipPlayScreen() {
               onDone={() => setCelebrating(false)}
             />
           )}
-        </PokerTable>
+        </SeatedTable>
         </LayoutAnimationConfig>
       </View>
 
@@ -580,28 +461,10 @@ const styles = StyleSheet.create({
     minHeight: 64,
     alignItems: 'center',
   },
-  fanRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  // Absolutely positioned off the fan's edge so the centered cards keep their exact
-  // place — the badge floats beside them without affecting layout.
   equityBadge: {
     position: 'absolute',
     left: '100%',
     marginLeft: 4,
-    alignSelf: 'center',
-    backgroundColor: TABLE.plateBg,
-    borderWidth: 1,
-    borderColor: TABLE.neutralBorder,
-    borderRadius: radius.full,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  equityBadgeLeft: {
-    position: 'absolute',
-    right: '100%',
-    marginRight: 4,
     alignSelf: 'center',
     backgroundColor: TABLE.plateBg,
     borderWidth: 1,
