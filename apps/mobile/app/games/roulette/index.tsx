@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
-import { RosterSection } from '../../../src/components/games/RosterSection';
+import { RouletteSetupBoard } from '../../../src/components/games/RouletteSetupBoard';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import type { Player } from '../../../src/types';
@@ -34,7 +34,7 @@ export default function RouletteSetupScreen() {
       onCtaPress={handleStart}
     >
       <SetupBlock index={1}>
-        <RosterSection players={players} selected={selected} onChange={setSelected} />
+        <RouletteSetupBoard players={players} selected={selected} onChange={setSelected} />
       </SetupBlock>
     </GameSetupScreen>
   );

@@ -43,3 +43,6 @@ yarn-error.*
 # EAS
 .easignore
 eas-update.json
+
+# Local build artifacts
+*.apk

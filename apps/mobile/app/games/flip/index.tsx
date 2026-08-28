@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
-import { RosterSection } from '../../../src/components/games/RosterSection';
+import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
@@ -52,7 +52,7 @@ export default function FlipSetupScreen() {
         <SegmentedControl options={gameTypeOptions} value={gameType} onChange={setGameType} />
       </SetupBlock>
       <SetupBlock index={2}>
-        <RosterSection players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_PLAYERS} />
+        <SeatTableBoard players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_PLAYERS} />
       </SetupBlock>
     </GameSetupScreen>
   );

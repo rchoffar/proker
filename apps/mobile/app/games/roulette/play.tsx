@@ -1,22 +1,18 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { X, RotateCw } from 'lucide-react-native';
 import { RouletteCardTable } from '../../../src/components/degen/RouletteCardTable';
-import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordRouletteSpin } from '../../../src/lib/gameStats';
-import { fontFamily, fontSize, radius, shadow, spacing } from '../../../src/design-system/theme';
+import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function RoulettePlayScreen() {
   const { t } = useTranslation('games');
@@ -28,22 +24,20 @@ export default function RoulettePlayScreen() {
   const [spinToken, setSpinToken] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
-  const [celebrating, setCelebrating] = useState(false);
 
-  // Only a spin in flight is worth guarding — a shown winner or an idle wheel loses nothing.
+  // Only a draw in flight is worth guarding — a shown verdict or an idle table loses nothing.
   useConfirmQuitGame(spinning);
 
   const spin = () => {
     setWinner(null);
-    setCelebrating(false);
     setSpinning(true);
     setSpinToken((t) => t + 1);
   };
 
+  // Fired by the table once the loser's card has grown to the center — the verdict moment.
   const handleResult = (result: Player) => {
     setWinner(result);
     setSpinning(false);
-    setCelebrating(true);
     updateGameStats((s) =>
       recordRouletteSpin(s, {
         picked: result.name,
@@ -79,29 +73,22 @@ export default function RoulettePlayScreen() {
         <RouletteCardTable players={players} spinToken={spinToken} onResult={handleResult} />
 
         {winner ? (
-          <>
-            <Animated.View entering={FadeInDown.delay(80).springify().damping(18).stiffness(140)}>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={spin} activeOpacity={0.85}>
-                <View style={styles.relancerContent}>
-                  <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
-                  <Text style={styles.primaryBtnText}>{t('roulette.spinAgain')}</Text>
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View entering={FadeIn.duration(300)} style={styles.resultWrap}>
-              <LinearGradient
-                colors={['#20222A', '#101116']}
-                start={{ x: 0.15, y: 0 }}
-                end={{ x: 0.85, y: 1 }}
-                style={[styles.resultCard, { borderColor: colors.surface.darkGlassBorder }]}
-              >
-                <Text style={[styles.resultLabel, { color: colors.onDarkTertiary }]}>{t('roulette.payUp')}</Text>
-                <Text style={[styles.resultName, { color: colors.onDarkPrimary }]} numberOfLines={1}>{winner.name}</Text>
-                <Text style={[styles.resultSub, { color: colors.onDarkSecondary }]}>{t('roulette.paysTheBill')}</Text>
-              </LinearGradient>
-            </Animated.View>
-          </>
+          // The verdict, per the mockup: the loser's cream card is already big at the table
+          // center (drawn by RouletteCardTable) — the text lands under it.
+          <Animated.View entering={FadeIn.duration(300)} style={styles.verdict}>
+            <Text style={[styles.verdictTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+              {t('roulette.lost', { name: winner.name })}
+            </Text>
+            <Text style={[styles.verdictSub, { color: colors.textSecondary }]}>
+              {t('roulette.paysTheBill')}
+            </Text>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={spin} activeOpacity={0.85}>
+              <View style={styles.relancerContent}>
+                <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
+                <Text style={styles.primaryBtnText}>{t('roulette.spinAgain')}</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
         ) : (
           <Animated.View entering={FadeInDown.delay(80).springify().damping(18).stiffness(140)}>
             <TouchableOpacity
@@ -114,20 +101,7 @@ export default function RoulettePlayScreen() {
             </TouchableOpacity>
           </Animated.View>
         )}
-
       </View>
-
-      {celebrating && winner && (
-        <WinCelebration
-          width={SCREEN_WIDTH}
-          height={SCREEN_HEIGHT}
-          borderRadius={0}
-          title={t('roulette.payUp').toUpperCase()}
-          subtitle={winner.name}
-          detail={t('roulette.paysTheBill')}
-          onDone={() => setCelebrating(false)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -164,34 +138,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xl,
+    gap: spacing.lg,
     paddingHorizontal: spacing.xl,
   },
-  resultWrap: {
-    width: '100%',
-    gap: spacing.md,
+  verdict: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  resultCard: {
-    borderRadius: radius['2xl'],
-    borderWidth: 1,
-    padding: 20,
-    gap: 4,
-    ...shadow.dark,
-  },
-  resultLabel: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    textAlign: 'center',
-  },
-  resultName: {
+  verdictTitle: {
     fontSize: fontSize['2xl'],
     fontFamily: fontFamily.extrabold,
     textAlign: 'center',
   },
-  resultSub: {
-    fontSize: fontSize.sm,
+  verdictSub: {
+    fontSize: fontSize.md,
     fontFamily: fontFamily.medium,
     textAlign: 'center',
   },
@@ -205,6 +165,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    marginTop: spacing.sm,
   },
   disabledBtn: {
     opacity: 0.4,

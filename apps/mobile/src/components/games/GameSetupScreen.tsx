@@ -47,7 +47,12 @@ export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabl
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.stack}>
           <SetupBlock index={0}>
             <Text style={[styles.subtitle, { color: colors.textTertiary }]}>{subtitle}</Text>

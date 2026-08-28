@@ -1,8 +1,8 @@
 {
   "setup": {
-    "searchPlaceholder": "Chercher ou créer un joueur…",
     "addPlayer": "Ajouter un joueur",
-    "maxPlayersReached": "Nombre maximum de joueurs atteint"
+    "enterName": "Entrer nom…",
+    "validate": "Valider"
   },
   "play": {
     "noPlayers": "Aucun joueur pour cette partie."
@@ -30,7 +30,7 @@
     "spinWheel": "Lancer la roulette",
     "spinning": "Tirage…",
     "spinAgain": "Relancer",
-    "payUp": "À la caisse",
-    "paysTheBill": "paie l’addition 🍻"
+    "paysTheBill": "paie l’addition 🍻",
+    "lost": "{{name}} a perdu !"
   }
 }

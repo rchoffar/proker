@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
-import { RosterSection } from '../../../src/components/games/RosterSection';
+import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -117,12 +117,7 @@ export default function BluffSetupScreen() {
       {mode === 'passPlay' ? (
         <>
           <SetupBlock index={2}>
-            <RosterSection
-              players={players}
-              selected={selected}
-              onChange={setSelected}
-              maxPlayers={MAX_BLUFF_PLAYERS}
-            />
+            <SeatTableBoard players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_BLUFF_PLAYERS} />
           </SetupBlock>
           <SetupBlock index={3}>{rulePicker}</SetupBlock>
         </>

@@ -1,8 +1,8 @@
 {
   "setup": {
-    "searchPlaceholder": "Search or create a player…",
     "addPlayer": "Add a player",
-    "maxPlayersReached": "Player limit reached"
+    "enterName": "Enter name…",
+    "validate": "Confirm"
   },
   "play": {
     "noPlayers": "No players in this game."
@@ -30,7 +30,7 @@
     "spinWheel": "Launch the roulette",
     "spinning": "Drawing…",
     "spinAgain": "Draw again",
-    "payUp": "Pay up",
-    "paysTheBill": "pays the tab 🍻"
+    "paysTheBill": "pays the tab 🍻",
+    "lost": "{{name}} lost!"
   }
 }

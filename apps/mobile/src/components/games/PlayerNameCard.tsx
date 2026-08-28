@@ -65,12 +65,14 @@ export function PlayerNameCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    // Bright light border like the mockup's cards — they must read as physical cards
+    // against the felt, not tinted tiles.
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -85,14 +87,16 @@ const styles = StyleSheet.create({
   },
   removeBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -7,
+    right: -7,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   placeholder: {
     borderStyle: 'dashed',
