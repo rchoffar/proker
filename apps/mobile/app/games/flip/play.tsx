@@ -308,16 +308,23 @@ export default function FlipPlayScreen() {
                 key={`${handToken}-${i}`}
                 entering={FlipInEasyY.duration(400).delay(k * 90 + i * 70)}
                 style={[
-                  { transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] },
+                  // Staggered entering animations make sibling paint order unreliable —
+                  // pin the fan stacking left→right (first card back, last card front),
+                  // matters most for Omaha's 4-card fans.
+                  { zIndex: i + 1, elevation: i + 1 },
                   i > 0 && styles.holeFanOverlap,
                   (fanAngles[i] ?? 0) !== 0 && { marginTop: Math.abs(fanAngles[i] ?? 0) * 0.4 },
                 ]}
               >
-                <PlayingCard
-                  card={card}
-                  size="md"
-                  dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
-                />
+                {/* The static rotate lives on an inner View: FlipInEasyY drives the outer
+                    Animated.View's transform and would overwrite it (Reanimated warns). */}
+                <View style={{ transform: [{ rotate: `${fanAngles[i] ?? 0}deg` }] }}>
+                  <PlayingCard
+                    card={card}
+                    size="md"
+                    dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(card))}
+                  />
+                </View>
               </Animated.View>
             ));
             // The win-chance % sits to the right of the card fan (the plate's second line
