@@ -53,7 +53,8 @@ export function PlayingCard({ card, faceDown = false, placeholder = false, dimme
           styles.base,
           styles.placeholder,
           { width: dims.width, height: dims.height, backgroundColor: colors.neutralTileBg, borderColor: colors.hairline },
-          dimmed && styles.dimmed,
+          // An empty slot has nothing to darken — it just recedes.
+          dimmed && styles.placeholderDimmed,
           style,
         ]}
       />
@@ -67,11 +68,11 @@ export function PlayingCard({ card, faceDown = false, placeholder = false, dimme
           styles.base,
           { width: dims.width, height: dims.height, backgroundColor: '#1B1D24', borderColor: 'rgba(255,255,255,0.14)' },
           styles.backCenter,
-          dimmed && styles.dimmed,
           style,
         ]}
       >
         <PokerChip size={dims.width * 0.7} color="rgba(255,255,255,0.18)" />
+        {dimmed && <View style={styles.dimScrim} pointerEvents="none" />}
       </View>
     );
   }
@@ -85,7 +86,6 @@ export function PlayingCard({ card, faceDown = false, placeholder = false, dimme
       style={[
         styles.base,
         { width: dims.width, height: dims.height, backgroundColor: colors.cardFaceBg, borderColor: colors.cardFaceBorder },
-        dimmed && styles.dimmed,
         style,
       ]}
     >
@@ -98,6 +98,7 @@ export function PlayingCard({ card, faceDown = false, placeholder = false, dimme
       <View style={[styles.corner, styles.cornerBottom]}>
         <Text style={[styles.rank, { fontSize: dims.rankSize, color: suitColor }]}>{card.rank}</Text>
       </View>
+      {dimmed && <View style={styles.dimScrim} pointerEvents="none" />}
     </View>
   );
 }
@@ -115,8 +116,19 @@ const styles = StyleSheet.create({
   placeholder: {
     borderStyle: 'dashed',
   },
-  dimmed: {
+  placeholderDimmed: {
     opacity: 0.35,
+  },
+  // Out-of-play cards (non-winning at showdown) darken instead of fading: a translucent
+  // card let the felt bleed through and read as a rendering glitch. The scrim clips to
+  // the card's rounded corners via `base`'s overflow: hidden.
+  dimScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10, 12, 16, 0.6)',
   },
   corner: {
     position: 'absolute',
