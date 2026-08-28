@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions, NativeSyntheticEvent, NativeTouchEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
-import ViewShot, { captureRef, releaseCapture } from 'react-native-view-shot';
-import type { ViewShotRef } from 'react-native-view-shot';
+import { captureRef, releaseCapture } from 'react-native-view-shot';
 // The function-style API moved to /legacy in SDK 56 — importing it from the package root
 // logs a deprecation warning on every call (the export loop makes many).
 import * as MediaLibrary from 'expo-media-library/legacy';
@@ -18,7 +17,6 @@ import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { TABLE, seatPoint } from '../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../src/components/table/SeatedTable';
 import type { SeatSpec } from '../../src/components/table/SeatedTable';
-import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { WinCelebration } from '../../src/components/hand/WinCelebration';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
@@ -69,8 +67,7 @@ const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 type Beat =
   | { kind: 'intro' }
   | { kind: 'street'; street: Street; revealsCards: boolean; actions: HandAction[] }
-  | { kind: 'showdown' }
-  | { kind: 'result' };
+  | { kind: 'showdown' };
 
 // Short action tag for the bubble that pops over a player's seat — standalone badge
 // register (fr "Se couche"/"Relance", en "Folds"/"Raises"), distinct from poker:actions
@@ -101,14 +98,12 @@ function buildBeats(hand: HandHistory): Beat[] {
   const hasShowdown =
     !!hand.board.river || hand.players.some((p) => !p.isHero && !p.isFolded && p.cardsKnown && !!p.holeCards);
   if (hasShowdown) beats.push({ kind: 'showdown' });
-  beats.push({ kind: 'result' });
   return beats;
 }
 
 // Double-rAF fence: resolves once a state update's render is committed and at least one
 // frame has been presented — only then is waiting out the entering animations meaningful.
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Within a merged street beat, the actions start writing only after the card flips land.
 function cardLeadMs(beat: Beat): number {
@@ -128,8 +123,6 @@ function animWindowMsFor(beat: Beat): number {
   }
   // Villain fans flip in per seat (k*120 + 450) — cover a full 9-max table.
   if (beat.kind === 'showdown') return 1800;
-  // The recap card is static — it gets a single settled frame (after a layout wait).
-  if (beat.kind === 'result') return 0;
   return 500;
 }
 
@@ -137,9 +130,9 @@ function animWindowMsFor(beat: Beat): number {
 // pacing (AUTOPLAY_INTERVAL minus the animation part; the river and the closing recap
 // breathe longer). Holds cost no wall time: they are pure PTS bookkeeping.
 function holdMsFor(beat: Beat): number {
-  if (beat.kind === 'result') return 2800;
   if (beat.kind === 'street' && beat.street === 'river' && beat.revealsCards) return 1600;
-  if (beat.kind === 'showdown') return 1500;
+  // The video closes on the showdown — give it room to land before the cut.
+  if (beat.kind === 'showdown') return 2600;
   return 900;
 }
 
@@ -253,10 +246,8 @@ export default function HandReplayerPlayScreen() {
     return estimateEquity(contenders, board, 'holdem', seededRng(hashSeed(`${hand.id}|${equityKey}`)));
   }, [hand, equityKey]);
   const [playing, setPlaying] = useState(false);
-  const [cardSize, setCardSize] = useState<{ width: number; height: number } | null>(null);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [exportMessage, setExportMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
-  const viewShotRef = useRef<ViewShotRef>(null);
   const tableShotRef = useRef<View>(null);
   // Monotonic run id — bumping it aborts any in-flight export loop (cancel via X, unmount).
   const exportRunRef = useRef(0);
@@ -353,13 +344,7 @@ export default function HandReplayerPlayScreen() {
         setExportProgress({ current: i + 1, total: beats.length });
         setIndex(i);
         await nextFrame();
-        // The result beat swaps the table for the recap card, which has its own ViewShot
-        // honoring the collapsable/onLayout contract HandRecapCard documents.
-        const capture = () =>
-          beat.kind === 'result'
-            ? viewShotRef.current?.capture?.()
-            : captureRef(tableShotRef, { format: 'jpg', quality: 0.9 });
-        if (beat.kind === 'result') await wait(600); // recap layout + fade before its single frame
+        const capture = () => captureRef(tableShotRef, { format: 'jpg', quality: 0.9 });
         // Animated window: capture as fast as view-shot allows, stamping each frame with
         // its retimed PTS. Wall clock runs at EXPORT_SLOWMO×, the video at 1×.
         const windowMs = animWindowMsFor(beat);
@@ -520,7 +505,6 @@ export default function HandReplayerPlayScreen() {
 
   const streetRevealed = (street: Street) =>
     beats.slice(0, index + 1).some((b) => b.kind === 'street' && b.street === street && b.revealsCards);
-  const isResult = beats[index]?.kind === 'result';
   const isShowdown = beats[index]?.kind === 'showdown';
   const allInRevealed = allInRevealIndex !== null && index >= allInRevealIndex;
   const dimCard = (c: Card) => isShowdown && !!showdown?.winningKeys && !showdown.winningKeys.has(cardKey(c));
@@ -692,7 +676,7 @@ export default function HandReplayerPlayScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        {!isResult && (
+        {index < lastIndex && (
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: DARK_TILE }, exportState === 'exporting' && styles.disabledBtn]}
             disabled={exportState === 'exporting'}
@@ -713,33 +697,17 @@ export default function HandReplayerPlayScreen() {
         >
           {playing ? <Pause size={16} color={colors.onDarkSecondary} strokeWidth={2} /> : <Play size={16} color={colors.onDarkSecondary} strokeWidth={2} />}
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.iconBtn, { backgroundColor: DARK_TILE }, exportState !== 'idle' && styles.disabledBtn]}
+          disabled={exportState !== 'idle'}
+          onPress={runExport}
+          activeOpacity={0.7}
+          accessibilityLabel={t('exportReplay')}
+        >
+          <Download size={16} color={colors.onDarkSecondary} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
-      {isResult ? (
-        // Scrollable so the recap + actions never clip on short screens — and it opens at
-        // the top by construction (fresh ScrollView per conditional mount).
-        <ScrollView contentContainerStyle={styles.resultWrap} showsVerticalScrollIndicator={false}>
-          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={styles.recapShot}>
-            <HandRecapCard hand={hand} onReady={setCardSize} />
-          </ViewShot>
-          <View style={styles.resultActions}>
-            <TouchableOpacity
-              style={[styles.shareBtn, { backgroundColor: colors.accentBright }, (!cardSize || exportState !== 'idle') && styles.disabledBtn]}
-              onPress={runExport}
-              disabled={!cardSize || exportState !== 'idle'}
-              activeOpacity={0.85}
-            >
-              <Download size={16} color="#0A0A0F" strokeWidth={2} />
-              <Text style={styles.shareBtnText}>{t('exportReplay')}</Text>
-            </TouchableOpacity>
-          </View>
-          {exportMessage && (
-            <Text style={[styles.exportMessage, { color: exportMessage.type === 'error' ? colors.loss : colors.accentBright }]}>
-              {exportMessage.text}
-            </Text>
-          )}
-        </ScrollView>
-      ) : (
         <Pressable style={styles.tableArea} onPress={handleTap}>
           {/* Everything the per-step export captures lives inside this wrapper — with an
               explicit background because screens render transparent (the root layout paints
@@ -759,25 +727,6 @@ export default function HandReplayerPlayScreen() {
               seats={seatSpecs}
               center={
               <>
-              {/* The street's actions written on the felt, above the pot — the bubbles show
-                  WHO acted, these lines keep the whole sequence readable at a glance. */}
-              {currentBeat?.kind === 'street' && currentBeat.actions.length > 0 && (
-                <View style={styles.actionLines}>
-                  {currentBeat.actions.map((a, i) => (
-                    <Animated.Text
-                      key={a.id}
-                      entering={FadeInDown.duration(ms(250)).delay(ms(actionLead + i * ACTION_STAGGER))}
-                      style={[styles.actionLine, a.type === 'fold' && { color: colors.loss }]}
-                      numberOfLines={1}
-                    >
-                      {t('actionLine', {
-                        name: hand.players.find((p) => p.id === a.playerId)?.name ?? '',
-                        action: bubbleLabel(a, hand.unitMode, t),
-                      })}
-                    </Animated.Text>
-                  ))}
-                </View>
-              )}
               {potSoFar > 0 && (
                 <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(ms(250))} style={styles.potPill}>
                   <Text style={styles.potLabel}>{t('pot')}</Text>
@@ -866,9 +815,8 @@ export default function HandReplayerPlayScreen() {
             <Text style={[styles.tapHint, { color: colors.onDarkTertiary }]}>{t('tapHint')}</Text>
           )}
         </Pressable>
-      )}
 
-      {isResult && (
+      {isShowdown && (
         <View style={styles.resultBanner}>
           {winners.length > 0 && <GlowBlob color={colors.accentGlow} size={220} top={-60} right={-40} />}
           {winners.length > 1 ? (
@@ -929,13 +877,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.base,
     backgroundColor: EXPORT_BG,
   },
-  // The recap frame gets the same explicit background — screens render transparent, which
-  // would otherwise yield a transparent PNG (black on Instagram) unlike the table frames.
-  // No borderRadius on either capture wrapper: rounded corners capture as transparent.
-  recapShot: {
-    backgroundColor: EXPORT_BG,
-    padding: spacing.base,
-  },
   caption: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.display,
@@ -991,17 +932,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     justifyContent: 'flex-start',
     paddingLeft: BOARD_INSET,
-  },
-  actionLines: {
-    alignItems: 'center',
-    gap: 2,
-    maxWidth: TABLE_W - 80,
-  },
-  actionLine: {
-    fontSize: 10,
-    fontFamily: fontFamily.semibold,
-    color: TABLE.plateText,
-    textAlign: 'center',
   },
   // Showdown state: the hero hand pops large and centered.
   heroCards: {
@@ -1066,37 +996,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: -spacing.lg,
   },
-  resultWrap: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.lg,
-    paddingVertical: spacing.base,
-  },
-  resultActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  shareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-  },
-  shareBtnText: {
-    color: '#0A0A0F',
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.bold,
-  },
   disabledBtn: {
     opacity: 0.4,
-  },
-  exportMessage: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.medium,
-    textAlign: 'center',
   },
   resultBanner: {
     alignItems: 'center',
