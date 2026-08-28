@@ -25,7 +25,13 @@ import type { Player } from '../../types';
 
 const HOPS = 22;
 const HOP_MIN_MS = 70;
-const HOP_MAX_MS = 550;
+const HOP_MAX_MS = 650;
+// After the ramp, 1 to 3 EXTRA rolls at a crawl (randomized per draw) — whether the light
+// moves once more or three times more is never the same, so the doubt holds to the end.
+const FINAL_ROLLS_MIN = 1;
+const FINAL_ROLLS_MAX = 3;
+const FINAL_ROLL_BASE_MS = 800;
+const FINAL_ROLL_STEP_MS = 220; // each final roll crawls longer than the previous one
 const LAND_HOLD_MS = 450;
 const GROW_MS = 650;
 const GROW_SCALE = 2.4;
@@ -37,28 +43,48 @@ function triggerTick() {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
-/** Random walk over card indices, decelerating, whose last hop is the chosen loser. */
+/**
+ * Random walk over card indices, decelerating, whose last hop is the chosen loser:
+ * a fast-to-slow ramp of HOPS hops, then 1-3 agonizing final rolls at a crawl (their
+ * count is drawn per spin), the very last of which lands on the loser.
+ */
 function computeHopSchedule(count: number) {
   const loserIndex = Math.floor(Math.random() * count);
+  const finalRolls = FINAL_ROLLS_MIN + Math.floor(Math.random() * (FINAL_ROLLS_MAX - FINAL_ROLLS_MIN + 1));
+  const totalHops = HOPS + finalRolls;
   const seq: number[] = [];
-  let prev = -1;
-  for (let k = 0; k < HOPS - 1; k++) {
-    let next = Math.floor(Math.random() * count);
-    // No immediate repeat, and keep the run-up off the loser so the landing stays a reveal.
-    while (next === prev || (k === HOPS - 2 && next === loserIndex)) {
-      next = (next + 1) % count;
+  if (count === 2) {
+    // Two cards can only alternate — pick the parity that lands the last hop on the loser.
+    // (The generic walk below would deadlock: "avoid the loser" + "no repeat" leaves no move.)
+    for (let k = 0; k < totalHops; k++) {
+      seq.push((totalHops - 1 - k) % 2 === 0 ? loserIndex : 1 - loserIndex);
     }
-    seq.push(next);
-    prev = next;
+  } else {
+    let prev = -1;
+    for (let k = 0; k < totalHops - 1; k++) {
+      let next = Math.floor(Math.random() * count);
+      // No immediate repeat, and keep the whole run-up off the loser so the landing stays
+      // a reveal — especially the slow final rolls.
+      while (next === prev || (k >= HOPS - 1 && next === loserIndex)) {
+        next = (next + 1) % count;
+      }
+      seq.push(next);
+      prev = next;
+    }
+    seq.push(loserIndex);
   }
-  seq.push(loserIndex);
 
-  // Ease-in quad on hop durations: fast flicker at launch, long dwells at the end.
+  // Ease-in quad on the ramp durations (fast flicker at launch, long dwells at the end),
+  // then the final rolls each crawl longer than the previous one.
   const cumulative: number[] = [];
   let total = 0;
-  for (let k = 0; k < HOPS; k++) {
-    const p = k / (HOPS - 1);
-    total += HOP_MIN_MS + (HOP_MAX_MS - HOP_MIN_MS) * p * p;
+  for (let k = 0; k < totalHops; k++) {
+    if (k < HOPS) {
+      const p = k / (HOPS - 1);
+      total += HOP_MIN_MS + (HOP_MAX_MS - HOP_MIN_MS) * p * p;
+    } else {
+      total += FINAL_ROLL_BASE_MS + (k - HOPS) * FINAL_ROLL_STEP_MS;
+    }
     cumulative.push(total);
   }
   return { loserIndex, seq, cumulative, total };
