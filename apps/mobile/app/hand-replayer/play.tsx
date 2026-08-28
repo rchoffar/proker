@@ -19,6 +19,7 @@ import { SeatedTable } from '../../src/components/table/SeatedTable';
 import type { SeatSpec } from '../../src/components/table/SeatedTable';
 import { WinCelebration } from '../../src/components/hand/WinCelebration';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
+import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
@@ -246,7 +247,7 @@ export default function HandReplayerPlayScreen() {
     return estimateEquity(contenders, board, 'holdem', seededRng(hashSeed(`${hand.id}|${equityKey}`)));
   }, [hand, equityKey]);
   const [playing, setPlaying] = useState(false);
-  const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [exportPercent, setExportPercent] = useState(0);
   const [exportMessage, setExportMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const tableShotRef = useRef<View>(null);
   // Monotonic run id — bumping it aborts any in-flight export loop (cancel via X, unmount).
@@ -335,13 +336,29 @@ export default function HandReplayerPlayScreen() {
           encodeError = encodeError ?? e;
         });
     };
+    // Progress is weighted by how long each beat actually takes to capture (its animation
+    // window, stretched by the slow-motion factor) rather than by beat count — beats differ
+    // by an order of magnitude, so a step counter jumps unevenly. The last slice is
+    // reserved for muxing and saving, which happen after the walk.
+    const CAPTURE_SHARE = 0.92;
+    const beatWork = beats.map((b) => animWindowMsFor(b) * EXPORT_SLOWMO + 250);
+    const totalWork = beatWork.reduce((sum, w) => sum + w, 0) || 1;
+    let workDone = 0;
+    let lastShown = -1;
+    const reportProgress = (fraction: number) => {
+      const pct = Math.round(fraction * 100);
+      if (pct !== lastShown) {
+        lastShown = pct;
+        setExportPercent(fraction);
+      }
+    };
+
     try {
       await FrameVideoEncoder.createSession({ width: VIDEO_WIDTH, height: VIDEO_HEIGHT });
       let basePts = 0; // video-time cursor, ms
       for (let i = 0; i < beats.length; i++) {
         if (cancelled()) throw new Error('cancelled');
         const beat = beats[i];
-        setExportProgress({ current: i + 1, total: beats.length });
         setIndex(i);
         await nextFrame();
         const capture = () => captureRef(tableShotRef, { format: 'jpg', quality: 0.9 });
@@ -356,6 +373,7 @@ export default function HandReplayerPlayScreen() {
           const uri = await capture();
           if (!uri) throw new Error('capture failed');
           appendFrame(uri, basePts + Math.round(tCapture / EXPORT_SLOWMO));
+          reportProgress(((workDone + tCapture) / totalWork) * CAPTURE_SHARE);
         }
         // Settled frame at the window boundary, then the beat's dwell — pure PTS
         // bookkeeping, no wall time spent.
@@ -367,16 +385,19 @@ export default function HandReplayerPlayScreen() {
           repeatFrame(basePts + windowMs + tHold);
         }
         basePts += windowMs + holdMs;
+        workDone += beatWork[i];
+        reportProgress((workDone / totalWork) * CAPTURE_SHARE);
       }
+      reportProgress(0.95); // frames are in; the encoder still has to mux and write
       await chain;
       if (encodeError) throw encodeError;
       if (cancelled()) throw new Error('cancelled');
       const videoUri = await FrameVideoEncoder.finish(basePts);
       if (cancelled()) throw new Error('cancelled');
       await MediaLibrary.saveToLibraryAsync(videoUri);
+      reportProgress(1);
       showMessage('success', t('export.videoSaved'));
       setExportState('idle');
-      setExportProgress(null);
       // Straight into the share sheet — publishing the story is the point of the export.
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(videoUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
@@ -387,7 +408,6 @@ export default function HandReplayerPlayScreen() {
     } finally {
       if (!cancelled()) {
         setExportState('idle');
-        setExportProgress(null);
       }
     }
   };
@@ -803,10 +823,10 @@ export default function HandReplayerPlayScreen() {
           )}
           </View>
 
-          {exportState === 'exporting' && exportProgress ? (
-            <Text style={[styles.tapHint, { color: colors.onDarkSecondary }]}>
-              {t('export.progress', { current: exportProgress.current, total: exportProgress.total })}
-            </Text>
+          {exportState === 'exporting' ? (
+            <View style={styles.exportProgress}>
+              <ProgressBar value={exportPercent} label={t('export.generating')} onDark />
+            </View>
           ) : exportMessage ? (
             <Text style={[styles.tapHint, { color: exportMessage.type === 'error' ? colors.loss : colors.accentBright }]}>
               {exportMessage.text}
@@ -980,6 +1000,12 @@ const styles = StyleSheet.create({
   bubbleText: {
     fontSize: 10,
     fontFamily: fontFamily.bold,
+  },
+  exportProgress: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    left: spacing.xl,
+    right: spacing.xl,
   },
   tapHint: {
     position: 'absolute',

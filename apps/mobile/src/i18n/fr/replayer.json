@@ -114,8 +114,8 @@
     "permissionSettings": "Autorisez les photos dans les réglages pour enregistrer la vidéo.",
     "permissionRequired": "Autorisation requise pour enregistrer la vidéo.",
     "saveFailed": "L'export a échoué. Réessayez.",
-    "progress": "Enregistrement de l'étape {{current}} sur {{total}}…",
-    "videoSaved": "Vidéo enregistrée dans vos photos."
+    "videoSaved": "Vidéo enregistrée dans vos photos.",
+    "generating": "Génération de la vidéo…"
   },
   "winOverlay": {
     "title": "GAGNÉ"

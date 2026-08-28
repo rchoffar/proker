@@ -114,8 +114,8 @@
     "permissionSettings": "Allow photo access in Settings to save the video.",
     "permissionRequired": "Permission needed to save the video.",
     "saveFailed": "Export failed. Try again.",
-    "progress": "Recording step {{current}} of {{total}}…",
-    "videoSaved": "Video saved to your photos."
+    "videoSaved": "Video saved to your photos.",
+    "generating": "Generating video…"
   },
   "winOverlay": {
     "title": "WINNER"
