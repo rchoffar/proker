@@ -10,23 +10,18 @@ import { useCallback, useMemo } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { BarChart3, ChevronRight, Heart, Coins, Drama, Disc3, Layers, Spade, Diamond, Trophy } from 'lucide-react-native';
+import { BarChart3, Heart, Coins, Drama, Disc3, Layers, Spade, Diamond } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { Pill } from '../../src/components/ui/Pill';
 import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
 import { ReplayerHeroCard } from '../../src/components/dashboard/ReplayerHeroCard';
 import { GameTile } from '../../src/components/degen/GameTile';
 import { useAppStore } from '../../src/store/useAppStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useHandHistoryStore } from '../../src/store/useHandHistoryStore';
-import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
-import { sortHandsNewestFirst } from '../../src/lib/handSync';
 import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
-import type { HandHistory } from '../../src/types';
-import { hasAnyStats, totals } from '../../src/lib/gameStats';
-import { formatAmount, formatDateShort, isFestivalOngoing, initials } from '../../src/lib/format';
+import { isFestivalOngoing, initials } from '../../src/lib/format';
 import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 
@@ -35,28 +30,18 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const {
-    user, festivals, tournaments, organizers,
-    likedFestivalIds, toggleLikedFestival, gameStats,
+    user, festivals, organizers,
+    likedFestivalIds, toggleLikedFestival,
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
   const isActive = useIsActiveTab();
-  const hands = useHandHistoryStore((s) => s.hands);
-  const setHandDraft = useHandReplayerDraft((s) => s.setHand);
-
-  // Home is the first screen after login — sync here too so the replayer hero fills
-  // without a visit to the Replayer tab (same silent pattern as that tab).
+  // Home is the first screen after login — sync here too, so the Replayer tab is already
+  // current whichever way the user reaches it (same silent pattern as that tab).
   useFocusEffect(
     useCallback(() => {
       void useHandHistoryStore.getState().syncNow();
     }, [])
   );
-
-  const lastHands = useMemo(() => sortHandsNewestFirst(Object.values(hands)).slice(0, 2), [hands]);
-
-  const openHand = (hand: HandHistory) => {
-    setHandDraft(hand);
-    router.push('/hand-replayer/view');
-  };
 
   const organizerById = useMemo(() => {
     const map: Record<string, (typeof organizers)[number]> = {};
@@ -92,21 +77,6 @@ export default function DashboardScreen() {
       ? ('ongoing' as const)
       : ('liked' as const);
 
-  // Tournoi à la une : le prochain Main Event à venir, sinon le prochain tournoi daté.
-  const featuredTournament = useMemo(() => {
-    const upcoming = tournaments
-      .filter((tn) => tn.startDate && tn.startDate >= todayIso)
-      .sort((a, b) => (a.startDate! < b.startDate! ? -1 : 1));
-    return upcoming.find((tn) => tn.isMainEvent) ?? upcoming[0] ?? null;
-  }, [tournaments, todayIso]);
-
-  const featuredTournamentFestival = useMemo(
-    () => (featuredTournament ? festivals.find((f) => f.id === featuredTournament.festivalId) ?? null : null),
-    [featuredTournament, festivals]
-  );
-
-  const statsTotals = useMemo(() => totals(gameStats), [gameStats]);
-
   if (!isActive) return <View style={styles.screen} />;
 
   return (
@@ -124,11 +94,6 @@ export default function DashboardScreen() {
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials(displayName)}</Text>
             </View>
-          </Animated.View>
-
-          {/* Replayer — the featured spot (Mathieu: above the tournament, eye-catching) */}
-          <Animated.View entering={FadeInDown.delay(40).springify().damping(18).stiffness(140)}>
-            <ReplayerHeroCard hands={lastHands} onOpenHand={openHand} onNewHand={() => router.push('/hand-replayer')} />
           </Animated.View>
 
           {/* Festival hero */}
@@ -156,9 +121,28 @@ export default function DashboardScreen() {
             )}
           </Animated.View>
 
+          {/* Replayer: one row, between the featured card and the games */}
+          <Animated.View entering={FadeInDown.delay(70).springify().damping(18).stiffness(140)}>
+            <ReplayerHeroCard
+              onNewHand={() => router.push('/hand-replayer')}
+              onOpenHands={() => router.push('/(tabs)/replayer')}
+            />
+          </Animated.View>
+
           {/* Jeux */}
           <Animated.View entering={FadeInDown.delay(90).springify().damping(18).stiffness(140)} style={styles.section}>
-            <SectionLabel style={styles.sectionLabel}>{t('sections.games')}</SectionLabel>
+            <View style={styles.sectionHeader}>
+              <SectionLabel style={styles.sectionLabel}>{t('sections.games')}</SectionLabel>
+              <TouchableOpacity
+                onPress={() => router.push('/stats')}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.statsLink}
+              >
+                <BarChart3 size={13} color={colors.textTertiary} strokeWidth={2} />
+                <SectionLabel>{t('sections.stats')}</SectionLabel>
+              </TouchableOpacity>
+            </View>
             <View style={styles.grid}>
               <GameTile
                 name="Flip"
@@ -199,66 +183,6 @@ export default function DashboardScreen() {
                 icon={<Diamond size={20} color={colors.textSecondary} strokeWidth={1.5} />}
               />
             </View>
-          </Animated.View>
-
-          {/* Tournoi à la une */}
-          {featuredTournament && (
-            <Animated.View entering={FadeInDown.delay(160).springify().damping(18).stiffness(140)} style={styles.section}>
-              <SectionLabel style={styles.sectionLabel}>{t('sections.featuredTournament')}</SectionLabel>
-              <TouchableOpacity
-                onPress={() => router.push(`/festival/${featuredTournament.festivalId}`)}
-                activeOpacity={0.8}
-              >
-                <GlassCard padding={16}>
-                  <View style={styles.tournamentRow}>
-                    <View style={[styles.tournamentIcon, { backgroundColor: colors.accentTint }]}>
-                      <Trophy size={18} color={colors.accent} strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.tournamentInfo}>
-                      <Text style={[styles.tournamentName, { color: colors.textPrimary }]} numberOfLines={1}>
-                        {featuredTournament.name}
-                      </Text>
-                      <Text style={[styles.tournamentSub, { color: colors.textTertiary }]} numberOfLines={1}>
-                        {[featuredTournamentFestival?.name, featuredTournament.startDate ? formatDateShort(featuredTournament.startDate) : null]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </Text>
-                      <View style={styles.tournamentPills}>
-                        {featuredTournament.isMainEvent ? <Pill label="Main Event" tone="accent" /> : null}
-                        <Pill label={t('tournament.buyIn', { amount: formatAmount(featuredTournament.buyIn) })} />
-                        {featuredTournament.guaranteed ? (
-                          <Pill label={t('tournament.guaranteed', { amount: formatAmount(featuredTournament.guaranteed) })} />
-                        ) : null}
-                      </View>
-                    </View>
-                    <ChevronRight size={18} color={colors.textTertiary} strokeWidth={1.8} />
-                  </View>
-                </GlassCard>
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          {/* Stats rapides des mini-jeux — le détail par pseudo vit dans l'onglet Stats */}
-          <Animated.View entering={FadeInDown.delay(200).springify().damping(18).stiffness(140)} style={styles.section}>
-            <SectionLabel style={styles.sectionLabel}>{t('sections.stats')}</SectionLabel>
-            <TouchableOpacity onPress={() => router.push('/stats')} activeOpacity={0.8}>
-              <GlassCard padding={16}>
-                <View style={styles.tournamentRow}>
-                  <View style={[styles.tournamentIcon, { backgroundColor: colors.accentTint }]}>
-                    <BarChart3 size={18} color={colors.accent} strokeWidth={1.8} />
-                  </View>
-                  <View style={styles.tournamentInfo}>
-                    <Text style={[styles.tournamentName, { color: colors.textPrimary }]}>{t('quickStats.title')}</Text>
-                    <Text style={[styles.tournamentSub, { color: colors.textTertiary }]} numberOfLines={1}>
-                      {hasAnyStats(gameStats)
-                        ? t('quickStats.players', { count: statsTotals.pseudos })
-                        : t('quickStats.empty')}
-                    </Text>
-                  </View>
-                  <ChevronRight size={18} color={colors.textTertiary} strokeWidth={1.8} />
-                </View>
-              </GlassCard>
-            </TouchableOpacity>
           </Animated.View>
 
           <View style={{ height: 120 }} />
@@ -337,6 +261,16 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing.sm,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   sectionLabel: {
     marginLeft: 4,
   },
@@ -347,34 +281,4 @@ const styles = StyleSheet.create({
     rowGap: spacing.md,
   },
 
-  tournamentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  tournamentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tournamentInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  tournamentName: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.semibold,
-  },
-  tournamentSub: {
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.regular,
-  },
-  tournamentPills: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginTop: 3,
-  },
 });

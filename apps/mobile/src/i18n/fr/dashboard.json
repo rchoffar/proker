@@ -12,21 +12,11 @@
   },
   "sections": {
     "games": "Jeux",
-    "featuredTournament": "Tournoi à la une",
     "stats": "Stats"
   },
   "games": {
     "replayTitle": "Rejouer une main",
-    "replayDesc": "Analysez une main jouée avec vos amis"
-  },
-  "quickStats": {
-    "title": "Stats des jeux",
-    "players_one": "{{count}} joueur suivi",
-    "players_other": "{{count}} joueurs suivis",
-    "empty": "Lancez un mini-jeu pour démarrer les compteurs"
-  },
-  "tournament": {
-    "buyIn": "Buy-in {{amount}}",
-    "guaranteed": "{{amount}} garantis"
+    "replayDesc": "Analysez une main jouée avec vos amis",
+    "myHands": "Mes mains"
   }
 }

@@ -12,21 +12,11 @@
   },
   "sections": {
     "games": "Games",
-    "featuredTournament": "Featured tournament",
     "stats": "Stats"
   },
   "games": {
     "replayTitle": "Replay a hand",
-    "replayDesc": "Break down a hand played with friends"
-  },
-  "quickStats": {
-    "title": "Game stats",
-    "players_one": "{{count}} player tracked",
-    "players_other": "{{count}} players tracked",
-    "empty": "Play a mini-game to start the counters"
-  },
-  "tournament": {
-    "buyIn": "Buy-in {{amount}}",
-    "guaranteed": "{{amount}} GTD"
+    "replayDesc": "Break down a hand played with friends",
+    "myHands": "My hands"
   }
 }
