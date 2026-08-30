@@ -30,7 +30,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const {
     user, festivals, organizers,
-    likedFestivalIds, toggleLikedFestival,
+    likedFestivalIds,
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
   // Home is the first screen after login — sync here too, so the Replayer tab is already
@@ -106,9 +106,7 @@ export default function DashboardScreen() {
                 festival={currentFestival}
                 organizer={currentFestival.organizerId ? organizerById[currentFestival.organizerId] : undefined}
                 badge={heroBadge}
-                liked={likedFestivalIds.includes(currentFestival.id)}
                 onPress={() => router.push(`/festival/${currentFestival.id}`)}
-                onToggleLike={() => toggleLikedFestival(currentFestival.id)}
               />
             ) : (
               <GlassCard variant="dark" padding={24} style={styles.emptyHero}>

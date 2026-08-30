@@ -19,17 +19,7 @@ import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import type { Tournament } from '../../src/types';
 
-function TournamentRow({
-  tournament,
-  liked,
-  onPress,
-  onToggleLike,
-}: {
-  tournament: Tournament;
-  liked: boolean;
-  onPress: () => void;
-  onToggleLike: () => void;
-}) {
+function TournamentRow({ tournament, onPress }: { tournament: Tournament; onPress: () => void }) {
   const { colors } = useTheme();
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
@@ -50,7 +40,6 @@ function TournamentRow({
               ) : null}
             </View>
           </View>
-          <LikeButton liked={liked} onToggle={onToggleLike} />
         </View>
       </GlassCard>
     </TouchableOpacity>
@@ -64,7 +53,7 @@ export default function FestivalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     festivals, tournaments, organizers,
-    likedFestivalIds, likedTournamentIds, toggleLikedFestival, toggleLikedTournament,
+    likedFestivalIds, toggleLikedFestival,
   } = useAppStore();
 
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
@@ -207,9 +196,7 @@ export default function FestivalDetailScreen() {
                   <TournamentRow
                     key={t.id}
                     tournament={t}
-                    liked={likedTournamentIds.includes(t.id)}
                     onPress={() => setSelectedTournament(t)}
-                    onToggleLike={() => toggleLikedTournament(t.id)}
                   />
                 ))}
               </View>
@@ -380,7 +367,6 @@ const styles = StyleSheet.create({
   tournamentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: spacing.sm,
   },
   tournamentRowLeft: {

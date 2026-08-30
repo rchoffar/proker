@@ -4,7 +4,6 @@ import { Heart, Star } from 'lucide-react-native';
 import { GlassCard } from '../ui/GlassCard';
 import { GlowBlob } from '../ui/GlowBlob';
 import { PokerChip } from '../ui/PokerChip';
-import { LikeButton } from '../ui/LikeButton';
 import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
@@ -17,12 +16,10 @@ interface Props {
   festival: Festival;
   organizer?: Organizer;
   badge: HeroBadge;
-  liked: boolean;
   onPress: () => void;
-  onToggleLike: () => void;
 }
 
-export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, onToggleLike }: Props) {
+export function FestivalHeroCard({ festival, organizer, badge, onPress }: Props) {
   const { t } = useTranslation('dashboard');
   const { colors } = useTheme();
   const dateRange = formatDateRange(festival.startDate, festival.endDate);
@@ -37,7 +34,6 @@ export function FestivalHeroCard({ festival, organizer, badge, liked, onPress, o
           <BadgeIcon size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
           <Text style={[styles.badgeText, { color: colors.accentBright }]}>{t(`hero.${badge}`)}</Text>
         </View>
-        <LikeButton liked={liked} onToggle={onToggleLike} tone="dark" />
       </View>
 
       <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -75,7 +71,6 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   badge: {
     flexDirection: 'row',
