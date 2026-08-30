@@ -19,15 +19,9 @@ export const TABLE = {
   neutralBorder: 'rgba(255,255,255,0.18)',
 };
 
-// Seats sit on the rail along an ellipse; seat k = 0 is pinned at the bottom center (90°)
-// and the others follow clockwise in order.
-export function seatPoint(k: number, n: number, width: number, height: number): { x: number; y: number } {
-  const angle = Math.PI / 2 + (2 * Math.PI * k) / n;
-  return {
-    x: width / 2 + (width / 2) * Math.cos(angle),
-    y: height / 2 + (height / 2) * Math.sin(angle),
-  };
-}
+// Seat placement lives in seatLayout.ts (pure geometry, so it can be tested); re-exported
+// here because every table already imports it from PokerTable.
+export { seatPoint } from '../table/seatLayout';
 
 interface Props {
   width: number;

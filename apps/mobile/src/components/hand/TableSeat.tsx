@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { TABLE } from './PokerTable';
+import { POD_ANCHOR_ABOVE_Y } from '../table/seatLayout';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { initials } from '../../lib/format';
 
@@ -72,7 +73,7 @@ export function TableSeat({
     <Animated.View
       entering={entering}
       pointerEvents="none"
-      style={[styles.pod, { width, left: x - width / 2, top: y - 42 - (cardsAbove ? cardsAboveOffset : 0) }]}
+      style={[styles.pod, { width, left: x - width / 2, top: y - POD_ANCHOR_ABOVE_Y - (cardsAbove ? cardsAboveOffset : 0) }]}
     >
       {cardsAbove && <View style={[styles.cards, styles.cardsAbove]}>{cardsAbove}</View>}
       <View style={[styles.podInner, { width }, dimmed && styles.dimmed]}>

@@ -54,7 +54,8 @@ interface Props {
   seatWidth?: number;
   /**
    * Seats sit exactly on the table's left/right extremes, where fans and long name plates
-   * spill past the screen — the ring is squeezed horizontally by this factor.
+   * spill past the screen — the ring is squeezed horizontally by this factor. The default is
+   * tuned against PLAY_TABLE's width (see tableSize.ts); the two move together.
    */
   squeezeX?: number;
   /**
@@ -75,7 +76,7 @@ export function SeatedTable({
   underSeats,
   children,
   seatWidth = 84,
-  squeezeX = 0.92,
+  squeezeX = 0.86,
   fanBelowAbove = 0.5,
   style,
   token = 0,
@@ -99,7 +100,7 @@ export function SeatedTable({
 
         let fanNode: ReactNode = null;
         if (seat.fan && seat.fan.cards.length > 0) {
-          const size = seat.fan.size ?? fanSizeFor(seat.fan.cards.length);
+          const size = seat.fan.size ?? fanSizeFor(seat.fan.cards.length, seats.length);
           const geometry = FAN_GEOMETRY[size];
           const deal: DealSpec | null = seat.fan.deal
             ? {
@@ -130,7 +131,7 @@ export function SeatedTable({
           );
         }
 
-        const fanSize = seat.fan ? seat.fan.size ?? fanSizeFor(seat.fan.cards.length) : 'md';
+        const fanSize = seat.fan ? seat.fan.size ?? fanSizeFor(seat.fan.cards.length, seats.length) : 'md';
 
         return (
           <TableSeat

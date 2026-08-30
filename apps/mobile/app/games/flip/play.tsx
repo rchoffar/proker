@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, InteractionManager } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,8 @@ import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../../src/components/table/SeatedTable';
+import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { TableWordmark } from '../../../src/components/table/TableWordmark';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -29,11 +31,11 @@ import { useTheme } from '../../../src/design-system/ThemeProvider';
 import { cardKey } from '../../../src/types';
 import type { Card, Player } from '../../../src/types';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const TABLE_W = SCREEN_WIDTH - 96;
-const TABLE_H = Math.min(470, Math.max(340, Math.round(SCREEN_HEIGHT * 0.48)));
+const TABLE_W = PLAY_TABLE.width;
+const TABLE_H = PLAY_TABLE.height;
 const POD_W = 84;
+// Five community cards plus their gaps have to sit inside the betting line (inset 38 a side).
+const BOARD_CARD_W = Math.min(46, Math.floor((TABLE_W - 76 - 24 - 16) / 5));
 
 // Suspense on the last card: the river hangs face-down for a beat, then flips slower than
 // the other streets (which use 450ms). Same treatment as the hand replayer's river.
@@ -336,27 +338,30 @@ export default function FlipPlayScreen() {
               : []
           }
           center={
-            <View style={styles.boardRow}>
-              {[0, 1, 2, 3, 4].map((i) =>
-                i < boardVisibleCount ? (
-                  <Animated.View
-                    key={`board-${handToken}-${i}`}
-                    entering={
-                      i === 4
-                        ? FlipInEasyY.duration(RIVER_FLIP_DURATION).delay(RIVER_FLIP_DELAY)
-                        : FlipInEasyY.duration(450).delay((i < 3 ? i : 0) * 100)
-                    }
-                  >
-                    <PlayingCard
-                      card={dealt.board[i]}
-                      size="md"
-                      dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(dealt.board[i]))}
-                    />
-                  </Animated.View>
-                ) : (
-                  <PlayingCard key={`board-${handToken}-${i}-hidden`} faceDown size="md" />
-                )
-              )}
+            <View style={styles.feltStack}>
+              <View style={styles.boardRow}>
+                {[0, 1, 2, 3, 4].map((i) =>
+                  i < boardVisibleCount ? (
+                    <Animated.View
+                      key={`board-${handToken}-${i}`}
+                      entering={
+                        i === 4
+                          ? FlipInEasyY.duration(RIVER_FLIP_DURATION).delay(RIVER_FLIP_DELAY)
+                          : FlipInEasyY.duration(450).delay((i < 3 ? i : 0) * 100)
+                      }
+                    >
+                      <PlayingCard
+                        card={dealt.board[i]}
+                        width={BOARD_CARD_W}
+                        dimmed={showdownDim && !!results && !results.winningKeys.has(cardKey(dealt.board[i]))}
+                      />
+                    </Animated.View>
+                  ) : (
+                    <PlayingCard key={`board-${handToken}-${i}-hidden`} faceDown width={BOARD_CARD_W} />
+                  )
+                )}
+              </View>
+              <TableWordmark />
             </View>
           }
         >
@@ -454,6 +459,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  feltStack: {
+    alignItems: 'center',
   },
   boardRow: {
     flexDirection: 'row',

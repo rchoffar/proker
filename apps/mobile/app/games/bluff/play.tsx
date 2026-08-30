@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +13,7 @@ import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { BluffTable } from '../../../src/components/bluff/BluffTable';
+import { PLAY_TABLE } from '../../../src/components/table/tableSize';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
@@ -32,10 +33,8 @@ import type { BluffAction, BluffState, Claim } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const TABLE_W = SCREEN_WIDTH - 96;
-const TABLE_H = Math.min(420, Math.max(320, Math.round(SCREEN_HEIGHT * 0.42)));
+const TABLE_W = PLAY_TABLE.width;
+const TABLE_H = PLAY_TABLE.height;
 
 const HAND_FAN_ANGLES: Record<number, number[]> = {
   1: [0],

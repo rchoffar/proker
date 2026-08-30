@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { PlayingCard } from '../hand/PlayingCard';
+import { FAN_GEOMETRY, fanSizeFor, fanStep, fanWidth, type FanSize } from './fanGeometry';
 import type { Card } from '../../types';
 
 // A player's hand as a fan of cards, shared by every table in the app (flip, bluff, the
@@ -31,12 +32,7 @@ export interface FanCard {
   highlightColor?: string;
 }
 
-export type FanSize = 'sm' | 'md';
-
-export const FAN_GEOMETRY: Record<FanSize, { cardW: number; cardH: number; overlap: number; aboveOffset: number }> = {
-  sm: { cardW: 30, cardH: 42, overlap: -12, aboveOffset: 44 },
-  md: { cardW: 46, cardH: 64, overlap: -16, aboveOffset: 56 },
-};
+export { FAN_GEOMETRY, fanSizeFor, fanStep, fanWidth, type FanSize } from './fanGeometry';
 
 const FAN_ANGLES: Record<number, number[]> = {
   1: [0],
@@ -47,21 +43,6 @@ const FAN_ANGLES: Record<number, number[]> = {
 };
 
 const DEAL_FLIGHT_MS = 320;
-
-/** Four cards or more must go small: seats sit at the table's horizontal extremes, where
- *  a wide fan runs off the screen and over the board. */
-export function fanSizeFor(count: number): FanSize {
-  return count >= 4 ? 'sm' : 'md';
-}
-
-export function fanStep(size: FanSize): number {
-  const g = FAN_GEOMETRY[size];
-  return g.cardW + g.overlap;
-}
-
-export function fanWidth(count: number, size: FanSize): number {
-  return FAN_GEOMETRY[size].cardW + Math.max(0, count - 1) * fanStep(size);
-}
 
 export interface DealSpec {
   // Offset from the fan's resting place to the table centre, in points.

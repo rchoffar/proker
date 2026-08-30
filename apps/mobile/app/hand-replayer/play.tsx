@@ -17,6 +17,7 @@ import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { TABLE, seatPoint } from '../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../src/components/table/SeatedTable';
 import type { SeatSpec } from '../../src/components/table/SeatedTable';
+import { PLAY_TABLE } from '../../src/components/table/tableSize';
 import { WinCelebration } from '../../src/components/hand/WinCelebration';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
@@ -30,7 +31,7 @@ import { estimateEquity, hashSeed, seededRng } from '../../src/lib/equity';
 import { cardKey } from '../../src/types';
 import type { Card, HandAction, HandHistory, HandPlayer, Street } from '../../src/types';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AUTOPLAY_INTERVAL = 1800;
 // The river is the money card — it flips in slow, after a suspense pause.
 const RIVER_FLIP_DELAY = 400;
@@ -41,8 +42,8 @@ const ACTION_STAGGER = 700;
 // A winner at or below this pre-river equity makes the river a staged bad-beat moment.
 const BAD_BEAT_EQUITY_PCT = 30;
 
-const TABLE_W = SCREEN_WIDTH - 96;
-const TABLE_H = Math.min(480, Math.max(350, Math.round(SCREEN_HEIGHT * 0.5)));
+const TABLE_W = PLAY_TABLE.width;
+const TABLE_H = PLAY_TABLE.height;
 const POD_W = 74;
 // Board cards deal left-aligned from the betting line; exact width so 5 always fit.
 const BOARD_INSET = 40;
