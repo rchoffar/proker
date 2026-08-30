@@ -2,13 +2,12 @@
   "title": "Home",
   "hero": {
     "ongoing": "Happening now",
-    "liked": "Your liked festival",
     "viewTournaments": "View tournaments",
     "featured": "Featured"
   },
   "emptyHero": {
-    "title": "Like a festival",
-    "subtitle": "Your favorite festivals show up here so you can follow their tournaments"
+    "title": "No featured festival",
+    "subtitle": "Festivals we put forward show up here with their tournaments"
   },
   "sections": {
     "games": "Games",

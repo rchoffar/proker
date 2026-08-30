@@ -2,13 +2,12 @@
   "title": "Accueil",
   "hero": {
     "ongoing": "En ce moment",
-    "liked": "Votre festival liké",
     "viewTournaments": "Voir les tournois",
     "featured": "À la une"
   },
   "emptyHero": {
-    "title": "Aimez un festival",
-    "subtitle": "Retrouvez ici vos festivals préférés pour suivre leurs tournois"
+    "title": "Aucun festival à la une",
+    "subtitle": "Les festivals mis en avant s'afficheront ici avec leurs tournois"
   },
   "sections": {
     "games": "Jeux",

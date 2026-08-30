@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Heart, Star } from 'lucide-react-native';
+import { Radio, Star } from 'lucide-react-native';
 import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
@@ -8,7 +8,7 @@ import { FeatureCard } from '../ui/FeatureCard';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Festival, Organizer } from '../../types';
 
-type HeroBadge = 'featured' | 'ongoing' | 'liked';
+type HeroBadge = 'featured' | 'ongoing';
 
 interface Props {
   festival: Festival;
@@ -21,7 +21,7 @@ export function FestivalHeroCard({ festival, organizer, badge, onPress }: Props)
   const { t } = useTranslation('dashboard');
   const { colors } = useTheme();
   const dateRange = formatDateRange(festival.startDate, festival.endDate);
-  const BadgeIcon = badge === 'featured' ? Star : Heart;
+  const BadgeIcon = badge === 'featured' ? Star : Radio;
 
   return (
     <FeatureCard padding={20} style={styles.card}>

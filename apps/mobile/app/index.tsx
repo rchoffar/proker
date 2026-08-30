@@ -30,7 +30,6 @@ export default function DashboardScreen() {
   const router = useRouter();
   const {
     user, festivals, organizers,
-    likedFestivalIds,
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
   // Home is the first screen after login — sync here too, so the Replayer tab is already
@@ -49,31 +48,16 @@ export default function DashboardScreen() {
 
   const todayIso = new Date().toISOString().slice(0, 10);
 
-  const likedFestivals = useMemo(
-    () => festivals.filter((f) => likedFestivalIds.includes(f.id)),
-    [festivals, likedFestivalIds]
-  );
-
-  const ongoingFestival = useMemo(
-    () => likedFestivals.find((f) => isFestivalOngoing(f.startDate, f.endDate, todayIso)) ?? null,
-    [likedFestivals, todayIso]
-  );
-
-  const mostRecentlyLiked = useMemo(() => {
-    if (likedFestivalIds.length === 0) return null;
-    const lastId = likedFestivalIds[likedFestivalIds.length - 1];
-    return festivals.find((f) => f.id === lastId) ?? null;
-  }, [likedFestivalIds, festivals]);
-
-  // Le héros affiche le festival mis en avant par nous (flag featured) ;
-  // repli sur le festival liké en cours puis le dernier liké si aucun n'est poussé.
+  // The hero shows the festival we push (the featured flag), falling back to whichever one
+  // is running today. It used to fall back to a LIKED festival — there is no way to like one
+  // any more, so that leg could only ever be dead.
   const featuredFestival = useMemo(() => festivals.find((f) => f.featured) ?? null, [festivals]);
-  const currentFestival = featuredFestival ?? ongoingFestival ?? mostRecentlyLiked;
-  const heroBadge = currentFestival === featuredFestival
-    ? ('featured' as const)
-    : currentFestival === ongoingFestival
-      ? ('ongoing' as const)
-      : ('liked' as const);
+  const ongoingFestival = useMemo(
+    () => festivals.find((f) => isFestivalOngoing(f.startDate, f.endDate, todayIso)) ?? null,
+    [festivals, todayIso]
+  );
+  const currentFestival = featuredFestival ?? ongoingFestival;
+  const heroBadge = currentFestival === featuredFestival ? ('featured' as const) : ('ongoing' as const);
 
 
   return (

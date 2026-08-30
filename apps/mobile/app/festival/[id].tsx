@@ -9,7 +9,6 @@ import { GlassCard } from '../../src/components/ui/GlassCard';
 import { FeatureCard } from '../../src/components/ui/FeatureCard';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { LikeButton } from '../../src/components/ui/LikeButton';
 import { OrganizerLogo } from '../../src/components/ui/OrganizerLogo';
 import { PokerChip } from '../../src/components/ui/PokerChip';
 import { Pill } from '../../src/components/ui/Pill';
@@ -52,10 +51,7 @@ export default function FestivalDetailScreen() {
   const { t: tr } = useTranslation('finder');
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const {
-    festivals, tournaments, organizers,
-    likedFestivalIds, toggleLikedFestival,
-  } = useAppStore();
+  const { festivals, tournaments, organizers } = useAppStore();
 
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
 
@@ -92,7 +88,6 @@ export default function FestivalDetailScreen() {
     );
   }
 
-  const liked = likedFestivalIds.includes(festival.id);
   const dateRange = formatDateRange(festival.startDate, festival.endDate);
 
   return (
@@ -107,7 +102,6 @@ export default function FestivalDetailScreen() {
           <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>{festival.name}</Text>
-        <LikeButton liked={liked} onToggle={() => toggleLikedFestival(festival.id)} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
