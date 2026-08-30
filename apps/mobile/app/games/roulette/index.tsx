@@ -33,8 +33,8 @@ export default function RouletteSetupScreen() {
       ctaDisabled={!canSpin}
       onCtaPress={handleStart}
     >
-      <SetupBlock index={1}>
-        <RouletteSetupBoard players={players} selected={selected} onChange={setSelected} />
+      <SetupBlock index={1} fill>
+        <RouletteSetupBoard players={players} selected={selected} onChange={setSelected} fill />
       </SetupBlock>
     </GameSetupScreen>
   );

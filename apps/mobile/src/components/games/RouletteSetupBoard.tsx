@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react-native';
 import { PokerTable } from '../hand/PokerTable';
-import { SETUP_TABLE } from '../table/tableSize';
+import { setupTableSize } from '../table/tableSize';
+import { fillHeight, useSetupViewport } from './setupViewport';
 import { PlayerNameCard } from './PlayerNameCard';
 import { SeatNameBubble } from './SeatNameBubble';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -23,18 +24,21 @@ interface Props {
   players: Player[];
   selected: Player[];
   onChange: (selected: Player[]) => void;
+  /** Take the height the parent gives instead of a fraction of the screen — the cards on the
+   *  felt grow with it. Same contract as SeatTableBoard. */
+  fill?: boolean;
 }
 
-export function RouletteSetupBoard({ players, selected, onChange }: Props) {
+export function RouletteSetupBoard({ players, selected, onChange, fill = false }: Props) {
   const { t } = useTranslation('games');
   const { colors } = useTheme();
   const [addingSlot, setAddingSlot] = useState<number | null>(null);
+  const [offeredH, setOfferedH] = useState<number | null>(null);
+  const viewportH = useSetupViewport();
 
-  const boardW = SETUP_TABLE.boardWidth;
-  const boardH = Math.min(
-    Math.round(boardW * SETUP_TABLE.maxAspect),
-    Math.round(Dimensions.get('window').height * SETUP_TABLE.heightRatio)
-  );
+  // Same felt as the seated boards, to the point: the roulette has no seats on the rail but
+  // its table must still be the table.
+  const { width: boardW, height: boardH } = setupTableSize(fill ? fillHeight(offeredH, viewportH) : null);
 
   // Explicit 3×3 grid on the felt — positions are computed, not flexed, so the add bubble
   // (and the draw's grow animation) can anchor to exact slot centers.
@@ -75,7 +79,7 @@ export function RouletteSetupBoard({ players, selected, onChange }: Props) {
     if (!selected.some((p) => p.id === player.id)) onChange([...selected, player]);
   };
 
-  return (
+  const board = (
     <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
       <PokerTable width={boardW} height={boardH}>
         {Array.from({ length: ROULETTE_MAX_PLAYERS }, (_, i) => {
@@ -122,9 +126,20 @@ export function RouletteSetupBoard({ players, selected, onChange }: Props) {
       )}
     </View>
   );
+
+  if (!fill) return board;
+  return (
+    <View style={styles.fillWrap} onLayout={(e) => setOfferedH(e.nativeEvent.layout.height)}>
+      {board}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  fillWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   emptySlot: {
     position: 'absolute',
     borderRadius: radius.lg,

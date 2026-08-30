@@ -38,12 +38,17 @@ describe('seat layout', () => {
     });
   }
 
-  it('pins the hero at the bottom centre for every supported count', () => {
+  it('seats the hero along the bottom for every supported count', () => {
     for (const n of SEAT_LAYOUT_COUNTS) {
-      const { x, y } = seatPoint(0, n, 320, 480);
-      expect(x).toBeCloseTo(160, 5);
-      expect(y).toBeCloseTo(480, 5);
+      const { y } = seatPoint(0, n, 320, 480);
+      // Seat 0 is the local player, who always faces the table from the near side.
+      expect(y, `seat 0 of ${n}`).toBeGreaterThan(400);
     }
+  });
+
+  it('splits four players two facing two rather than three against one', () => {
+    const lower = Array.from({ length: 4 }, (_, k) => seatPoint(k, 4, 320, 480)).filter((p) => p.y > 240);
+    expect(lower).toHaveLength(2);
   });
 
   it('gives every seat a distinct place', () => {

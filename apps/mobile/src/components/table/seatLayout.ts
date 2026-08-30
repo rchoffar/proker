@@ -33,7 +33,9 @@ export function fanReach(direction: 'up' | 'down', aboveOffset: number, cardH: n
 const SEAT_ANGLES: Record<number, number[]> = {
   2: [90, 270],
   3: [90, 225, 315],
-  4: [90, 135, 270, 45],
+  // Two facing two. Seat 0 gives up the exact bottom centre here: keeping it there forces
+  // the fourth player to the top on their own, which reads as three against one.
+  4: [115, 245, 295, 65],
   5: [90, 135, 215, 325, 45],
   6: [90, 135, 215, 270, 325, 45],
   7: [90, 135, 212, 240, 300, 328, 45],

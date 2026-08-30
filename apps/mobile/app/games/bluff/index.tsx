@@ -103,24 +103,26 @@ export default function BluffSetupScreen() {
       ctaLabel={mode === 'passPlay' ? t('games:setup.dealCards') : t('games:setup.createTable')}
       ctaDisabled={mode === 'passPlay' && !canDeal}
       onCtaPress={mode === 'passPlay' ? handleStartPassPlay : handleHost}
+      topBar={
+        <SetupBlock index={0}>
+          <SegmentedControl options={modeOptions} value={mode} onChange={setMode} />
+        </SetupBlock>
+      }
     >
-      <SetupBlock index={1}>
-        <SegmentedControl options={modeOptions} value={mode} onChange={setMode} />
-      </SetupBlock>
-
       {mode === 'passPlay' ? (
-        <SetupBlock index={2}>
+        <SetupBlock index={1} fill>
           <SeatTableBoard
             players={players}
             selected={selected}
             onChange={setSelected}
             maxPlayers={MAX_BLUFF_PLAYERS}
             center={feltOptions}
+            fill
           />
         </SetupBlock>
       ) : (
         <>
-          <SetupBlock index={2}>
+          <SetupBlock index={1}>
             <GlassCard padding={16}>
               <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('games:setup.joinTable')}</Text>
               <View style={styles.joinRow}>
@@ -148,7 +150,7 @@ export default function BluffSetupScreen() {
             </GlassCard>
           </SetupBlock>
           {/* Hosting: the felt shows the rules the guests will inherit, no roster yet. */}
-          <SetupBlock index={3}>
+          <SetupBlock index={2} fill>
             <SeatTableBoard
               players={players}
               selected={[]}

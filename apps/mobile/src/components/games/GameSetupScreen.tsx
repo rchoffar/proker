@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, Info } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
+import { SetupViewportContext } from './setupViewport';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 
@@ -22,25 +23,38 @@ interface Props {
   title: string;
   /** The game's rules, shown by the (!) beside the title. */
   subtitle: string;
+  /**
+   * Pinned under the header, outside the centred area — the pass-and-play / online switch,
+   * which picks what the rest of the screen is and so must not drift with it.
+   */
+  topBar?: ReactNode;
   children: ReactNode;
   ctaLabel: string;
   ctaDisabled?: boolean;
   onCtaPress: () => void;
 }
 
-export function SetupBlock({ index, children }: { index: number; children: ReactNode }) {
+/** `fill` gives the block the height left over in the stack — for the table, which sizes
+ *  itself to whatever room it is given rather than to a fraction of the screen. */
+export function SetupBlock({ index, fill, children }: { index: number; fill?: boolean; children: ReactNode }) {
   return (
-    <Animated.View entering={FadeInDown.delay(index * 40).springify().damping(18).stiffness(140)}>
+    <Animated.View
+      style={fill ? styles.fill : undefined}
+      entering={FadeInDown.delay(index * 40).springify().damping(18).stiffness(140)}
+    >
       {children}
     </Animated.View>
   );
 }
 
-export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabled = false, onCtaPress }: Props) {
+export function GameSetupScreen({ title, subtitle, topBar, children, ctaLabel, ctaDisabled = false, onCtaPress }: Props) {
   const { colors } = useTheme();
   const router = useRouter();
   const { t } = useTranslation('games');
   const [rulesOpen, setRulesOpen] = useState(false);
+  // The scroll view's own height — the real room left under the header and top bar, which a
+  // filling board cannot work out from inside the content. See setupViewport.tsx.
+  const [viewportH, setViewportH] = useState<number | null>(null);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -64,16 +78,19 @@ export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabl
         </TouchableOpacity>
       </View>
 
+      {topBar ? <View style={styles.topBar}>{topBar}</View> : null}
+
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
       >
-        <View style={styles.stack}>
-          {children}
-          <View style={styles.footerSpacer} />
-        </View>
+        <SetupViewportContext.Provider value={viewportH === null ? null : viewportH - spacing.sm * 2}>
+          <View style={styles.stack}>{children}</View>
+        </SetupViewportContext.Provider>
       </ScrollView>
 
       <BottomSheet visible={rulesOpen} onClose={() => setRulesOpen(false)} title={t('setup.howToPlay')}>
@@ -117,20 +134,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontFamily: fontFamily.bold,
   },
-  content: {
+  topBar: {
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  scroll: {
+    flex: 1,
+  },
+  // The table is the screen now, so it takes the height between the top bar and the CTA
+  // instead of being a fraction of the screen with dead space under it. flexGrow (not flex)
+  // keeps a stack that genuinely overflows scrollable rather than squashed.
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
   stack: {
+    flex: 1,
     gap: spacing.md,
+  },
+  fill: {
+    flex: 1,
   },
   subtitle: {
     fontSize: fontSize.base,
     fontFamily: fontFamily.regular,
     lineHeight: 22,
-  },
-  footerSpacer: {
-    height: 100,
   },
   footer: {
     paddingHorizontal: spacing.base,

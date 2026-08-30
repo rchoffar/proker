@@ -8,8 +8,8 @@ import { CardFan, FAN_GEOMETRY, fanSizeFor, type DealSpec, type FanCard, type Fa
 // One poker table with players seated around it — the layer every card game shares
 // (flip, bluff, the hand replayer). Callers pass data: who sits where, what's in their
 // hand, what's on the felt. Seat placement, fan geometry, which side of the pod the cards
-// hang on, which side the badge floats to, and the deal-from-centre flight all live here,
-// so a layout fix lands in every game at once.
+// hang on, and the deal-from-centre flight all live here, so a layout fix lands in every
+// game at once.
 
 type EnteringProp = ComponentProps<typeof Animated.View>['entering'];
 
@@ -34,7 +34,7 @@ export interface SeatSpec {
   plateBorderColor?: string;
   secondLine?: { text: string; color?: string; entering?: EnteringProp } | null;
   fan?: SeatFan;
-  /** Floating badge beside the fan (win chance…); the side is chosen per seat. */
+  /** Floating badge beside the fan (win chance…); always on the fan's right. */
   badge?: ReactNode;
   /** Absolutely-positioned extras relative to the pod (action bubbles…). */
   extras?: ReactNode;
@@ -125,8 +125,10 @@ export function SeatedTable({
               }
               deal={deal}
               badge={seat.badge}
-              // Right-half seats keep the badge on the fan's inner side — outside is off-screen.
-              badgeSide={x > width / 2 ? 'left' : 'right'}
+              // Always the same side of the hand, whichever side of the table the seat is on:
+              // flipping it per seat made the win chances read as belonging to whoever they
+              // happened to sit next to. The felt is wide enough now to keep them all right.
+              badgeSide="right"
             />
           );
         }

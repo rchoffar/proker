@@ -22,10 +22,44 @@ export const PLAY_TABLE = {
   height: clamp(420, Math.round(SCREEN_HEIGHT * 0.56), 560),
 };
 
-// Setup boards draw the seats around the box rather than on it, so they budget SEAT_D of
-// horizontal room themselves (see SeatTableBoard) and only the outer margin lives here.
+// Setup boards straddle their seats on the rail, so the outer box is wider and taller than
+// the felt by half a seat on each side.
+const SEAT_D = 58;
+
 export const SETUP_TABLE = {
+  /** Outer box: the felt plus the seats hanging off it. */
   boardWidth: SCREEN_WIDTH - 32,
+  seatDiameter: SEAT_D,
+  // Used until the board has measured the room it was given, and whenever it is not filling.
   heightRatio: 0.52,
   maxAspect: 1.35,
+  // Filling: how tall the felt may get relative to its width before it stops reading as a
+  // table, and the floor below which the lower-side seats start covering the options on the
+  // felt (bluff's is the tallest panel — name, wordmark and two option rows).
+  fillMaxAspect: 1.55,
+  minHeight: 360,
 };
+
+/**
+ * Seats on a setup board straddle the rail like the play table's pods do, so they get the
+ * same inward squeeze — without it a felt this wide pushes them off the screen. Slightly
+ * tighter than SeatedTable's because these seats are circles with a name plate under them,
+ * not a pod whose plate is already centred.
+ */
+export const SETUP_SQUEEZE_X = 0.84;
+
+/**
+ * The felt every setup screen draws — the SAME width the game itself will use, so walking
+ * from setup into the hand does not resize the table under you. It used to be a seat
+ * narrower than the play felt, and the roulette a whole seat wider than both.
+ *
+ * `offeredH` is the height the parent measured for it; null before the first layout pass, or
+ * when the board is not filling.
+ */
+export function setupTableSize(offeredH: number | null): { width: number; height: number } {
+  const width = PLAY_TABLE.width;
+  const height = offeredH
+    ? clamp(SETUP_TABLE.minHeight, offeredH - SEAT_D, Math.round(width * SETUP_TABLE.fillMaxAspect))
+    : Math.min(Math.round(width * SETUP_TABLE.maxAspect), Math.round(SCREEN_HEIGHT * SETUP_TABLE.heightRatio));
+  return { width, height };
+}

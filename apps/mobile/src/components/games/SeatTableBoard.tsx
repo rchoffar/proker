@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { View, Text, TouchableOpacity, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { X, Plus } from 'lucide-react-native';
 import { PokerTable, TABLE, seatPoint } from '../hand/PokerTable';
-import { SETUP_TABLE } from '../table/tableSize';
+import { SETUP_SQUEEZE_X, SETUP_TABLE, setupTableSize } from '../table/tableSize';
+import { fillHeight, useSetupViewport } from './setupViewport';
 import { PlayingCard } from '../hand/PlayingCard';
 import { SeatNameBubble } from './SeatNameBubble';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -20,7 +21,7 @@ import type { Player } from '../../types';
 // and its options in through `center` (see FeltOptions). Without one it falls back to the
 // face-down deck and dealer chip that used to be all the felt held.
 
-const SEAT_D = 58;
+const SEAT_D = SETUP_TABLE.seatDiameter;
 // The betting line is inset 38pt a side; centre content stays inside it.
 const FELT_INSET = 38;
 
@@ -41,6 +42,12 @@ interface Props {
   emptySeatLabel?: string;
   /** Seated players to grey out — an online member who has dropped the connection. */
   dimmedIds?: string[];
+  /**
+   * Take the height the parent gives instead of a fraction of the screen. The setup screens
+   * hand the table whatever is left between the mode switch and the CTA, so the felt fills
+   * the screen rather than floating in it.
+   */
+  fill?: boolean;
 }
 
 export function SeatTableBoard({
@@ -52,18 +59,29 @@ export function SeatTableBoard({
   seatsInteractive = true,
   emptySeatLabel,
   dimmedIds,
+  fill = false,
 }: Props) {
   const { colors } = useTheme();
   const [addingSeat, setAddingSeat] = useState<number | null>(null);
+  // Measured on the first layout pass when filling. Until then the board keeps its old
+  // screen-fraction height, so it renders at roughly the right size straight away.
+  const [offeredH, setOfferedH] = useState<number | null>(null);
+  const viewportH = useSetupViewport();
 
   const boardW = SETUP_TABLE.boardWidth;
-  const tableW = boardW - SEAT_D;
-  const tableH = Math.min(
-    Math.round(tableW * SETUP_TABLE.maxAspect),
-    Math.round(Dimensions.get('window').height * SETUP_TABLE.heightRatio)
-  );
+  const { width: tableW, height: tableH } = setupTableSize(fill ? fillHeight(offeredH, viewportH) : null);
   const boardH = tableH + SEAT_D;
-  const pad = SEAT_D / 2; // seats are centered ON the rail, half outside the table box
+  // Seats sit ON the rail, half outside the felt: full clearance vertically, and horizontally
+  // whatever the content area has left over the felt — the squeeze below covers the rest.
+  const padX = Math.max(0, Math.round((boardW - tableW) / 2));
+  const padY = SEAT_D / 2;
+
+  // A seat's place on the rail, pulled in from the horizontal extremes so its circle and name
+  // plate stay on screen — the same trick SeatedTable plays with the play table's pods.
+  const seatCenter = (k: number) => {
+    const { x, y } = seatPoint(k, maxPlayers, tableW, tableH);
+    return { cx: tableW / 2 + (x - tableW / 2) * SETUP_SQUEEZE_X + padX, cy: y + padY };
+  };
 
   // The account pseudo always leads the suggestions: playing pass&play under it is what
   // merges these local games into the same per-pseudo stats as the online ones.
@@ -84,9 +102,9 @@ export function SeatTableBoard({
 
   const remove = (id: string) => onChange(selected.filter((p) => p.id !== id));
 
-  return (
+  const board = (
     <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
-      <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: pad, top: pad }}>
+      <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: padX, top: padY }}>
         {center ? (
           <View style={styles.feltCenter} pointerEvents="box-none">
             {center(tableW - FELT_INSET * 2)}
@@ -106,9 +124,7 @@ export function SeatTableBoard({
       </PokerTable>
 
       {Array.from({ length: maxPlayers }, (_, k) => {
-        const { x, y } = seatPoint(k, maxPlayers, tableW, tableH);
-        const cx = x + pad;
-        const cy = y + pad;
+        const { cx, cy } = seatCenter(k);
         const player = selected[k];
         return (
           <View key={k} style={[styles.seatWrap, { left: cx - SEAT_D / 2, top: cy - SEAT_D / 2 }]}>
@@ -162,8 +178,8 @@ export function SeatTableBoard({
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddingSeat(null)} />
           <SeatNameBubble
             anchor={(() => {
-              const { x, y } = seatPoint(addingSeat, maxPlayers, tableW, tableH);
-              return { x: x + pad, y: y + pad, below: y < tableH / 2 };
+              const { cx, cy } = seatCenter(addingSeat);
+              return { x: cx, y: cy, below: cy - padY < tableH / 2 };
             })()}
             boardWidth={boardW}
             suggestions={suggestions}
@@ -174,9 +190,20 @@ export function SeatTableBoard({
       )}
     </View>
   );
+
+  if (!fill) return board;
+  return (
+    <View style={styles.fillWrap} onLayout={(e) => setOfferedH(e.nativeEvent.layout.height)}>
+      {board}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  fillWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   seatWrap: {
     position: 'absolute',
     width: SEAT_D,

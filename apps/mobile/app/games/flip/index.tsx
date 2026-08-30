@@ -58,12 +58,13 @@ export default function FlipSetupScreen() {
       ctaDisabled={!canDeal}
       onCtaPress={handleStart}
     >
-      <SetupBlock index={1}>
+      <SetupBlock index={1} fill>
         <SeatTableBoard
           players={players}
           selected={selected}
           onChange={setSelected}
           maxPlayers={MAX_PLAYERS}
+          fill
           center={(feltWidth) => <FeltOptions gameName={GAME_NAME} rows={feltRows} width={feltWidth} />}
         />
       </SetupBlock>
