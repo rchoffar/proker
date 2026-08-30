@@ -36,10 +36,10 @@ export interface BluffOnlineCommon {
 
 // Server room-error enums → bluff namespace keys, translated on this device.
 const JOIN_ERROR_KEYS = {
-  not_found: 'connection.not_found',
-  full: 'connection.full',
-  unavailable: 'connection.unavailable',
-  bad_token: 'connection.bad_token',
+  not_found: 'games:connection.not_found',
+  full: 'games:connection.full',
+  unavailable: 'games:connection.unavailable',
+  bad_token: 'games:connection.bad_token',
 } as const;
 
 function withAutoDeal(state: BluffState): BluffState {

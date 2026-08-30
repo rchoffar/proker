@@ -31,8 +31,8 @@ export default function BluffSetupScreen() {
 
   const modeOptions = useMemo<{ key: SetupMode; label: string }[]>(
     () => [
-      { key: 'passPlay', label: t('setup.modePassPlay') },
-      { key: 'online', label: t('setup.modeOnline') },
+      { key: 'passPlay', label: t('games:setup.modePassPlay') },
+      { key: 'online', label: t('games:setup.modeOnline') },
     ],
     [t],
   );
@@ -100,7 +100,7 @@ export default function BluffSetupScreen() {
     <GameSetupScreen
       title={t('title')}
       subtitle={t('setup.subtitle')}
-      ctaLabel={mode === 'passPlay' ? t('setup.dealCards') : t('setup.createTable')}
+      ctaLabel={mode === 'passPlay' ? t('games:setup.dealCards') : t('games:setup.createTable')}
       ctaDisabled={mode === 'passPlay' && !canDeal}
       onCtaPress={mode === 'passPlay' ? handleStartPassPlay : handleHost}
     >
@@ -122,7 +122,7 @@ export default function BluffSetupScreen() {
         <>
           <SetupBlock index={2}>
             <GlassCard padding={16}>
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.joinTable')}</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('games:setup.joinTable')}</Text>
               <View style={styles.joinRow}>
                 <TextInput
                   value={joinCode}
@@ -142,7 +142,7 @@ export default function BluffSetupScreen() {
                   disabled={!canJoin}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.joinBtnText, { color: colors.accent }]}>{t('setup.join')}</Text>
+                  <Text style={[styles.joinBtnText, { color: colors.accent }]}>{t('games:setup.join')}</Text>
                 </TouchableOpacity>
               </View>
             </GlassCard>
@@ -156,7 +156,7 @@ export default function BluffSetupScreen() {
               maxPlayers={MAX_BLUFF_PLAYERS}
               center={feltOptions}
               seatsInteractive={false}
-              emptySeatLabel={t('online.waitingSeat')}
+              emptySeatLabel={t('games:online.waitingSeat')}
             />
           </SetupBlock>
         </>

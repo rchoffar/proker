@@ -3,10 +3,18 @@
     "addPlayer": "Add a player",
     "enterName": "Enter name…",
     "validate": "Confirm",
-    "howToPlay": "How to play"
+    "howToPlay": "How to play",
+    "createTable": "Create a table",
+    "dealCards": "Deal the cards",
+    "join": "Join",
+    "joinTable": "Join a table",
+    "modeOnline": "Online",
+    "modePassPlay": "On this phone"
   },
   "play": {
-    "noPlayers": "No players in this game."
+    "noPlayers": "No players in this game.",
+    "finish": "Finish",
+    "passPhoneTo": "Pass the phone to"
   },
   "flip": {
     "subtitle": "2 to 6 players, everyone gets a hand, then the flop, turn and river are revealed one by one. The weakest hand pays.",
@@ -34,5 +42,33 @@
     "spinAgain": "Draw again",
     "paysTheBill": "pays the tab 🍻",
     "lost": "{{name}} lost!"
+  },
+  "connection": {
+    "bad_token": "Session expired",
+    "full": "The table is full",
+    "not_found": "Table not found — check the code",
+    "unavailable": "Server unavailable, try again"
+  },
+  "disconnect": {
+    "expired": "The table expired",
+    "generic": "Game over",
+    "hostQuit": "The host ended the game",
+    "host_left": "The host left the table"
+  },
+  "game": {
+    "replay": "Play again",
+    "victory": "VICTORY"
+  },
+  "online": {
+    "connecting": "Connecting to the server…",
+    "players": "Players ({{current}}/{{max}})",
+    "quit": "Leave",
+    "shareCode": "Share this code with the other players",
+    "startGame": "Start the game",
+    "startsWhenHostLaunches": "The game starts as soon as the host launches it",
+    "tableCode": "Table code",
+    "waitingHostStart": "Waiting for the host to start…",
+    "waitingSeat": "Waiting…",
+    "youSuffix": "{{name}} (you)"
   }
 }

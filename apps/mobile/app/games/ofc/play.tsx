@@ -5,8 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import { X, RotateCw, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { TABLE } from '../../../src/components/hand/PokerTable';
@@ -24,20 +22,16 @@ import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
 import { GRID_SIZE, createHandDeal, initGame, reduce, validateAction, variantConfig } from '../../../src/lib/ofc';
 import type { OfcAction, OfcState } from '../../../src/lib/ofc';
 import { redactFor } from '../../../src/lib/ofc/protocol';
+import { TABLE_VIEWER, ofcLocalActorId, ofcPlayView, ofcSeatData } from '../../../src/lib/ofc/view';
+import { SCREEN_BG } from '../../../src/components/games/gameSurface';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
+import { HandoffLock } from '../../../src/components/games/HandoffLock';
+import { GameOverActions } from '../../../src/components/games/GameOverActions';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// A viewer id that matches no player: the shared table renders through the SAME
-// redaction choke point as online, so a Fantasy Land grid stays face-down for the room.
-const TABLE_VIEWER = '@table';
-
-// The game surface is dark by design in BOTH themes — so use the theme-invariant
-// onDark* text tokens plus these fixed dark surfaces, same convention as the bluff
-// play screen.
-const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
-const SCREEN_BG = '#101114';
 
 export default function OfcPlayScreen() {
   useKeepAwake(); // the shared phone must not lock mid-game
@@ -119,15 +113,7 @@ export default function OfcPlayScreen() {
   }, [state, updateGameStats]);
 
   if (!state) {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <StatusBar style="light" />
-        <Text style={{ color: colors.onDarkPrimary }}>{t('play.noPlayers')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
+    return <NoPlayersScreen message={t('games:play.noPlayers')} onBack={() => router.back()} onDark />;
   }
 
   const { phase } = state;
@@ -136,50 +122,27 @@ export default function OfcPlayScreen() {
   // Who holds the phone: Fantasy Land players arrange first (their look is private),
   // then the normal rotation. The engine accepts placeFantasy in any order — this
   // sequencing is a Pass & Play UI decision only.
-  const fantasyActor =
-    phase === 'placing'
-      ? state.players.find((p) => !p.eliminated && p.inFantasyLand && !p.fantasyPlaced) ?? null
-      : null;
-  const turnActor = phase === 'placing' ? state.players.find((p) => p.id === state.turnId) ?? null : null;
-  const actor = fantasyActor ?? turnActor;
-  // OFC is open information: the initial 5 are set face-up within the same turn, so
-  // normal placement needs no handoff lock — the caption is just a turn indicator. Only
-  // a Fantasy Land arrangement is genuinely secret (face-down until the scoring reveal).
-  const fantasyArranging = !!actor && actor.inFantasyLand && !actor.fantasyPlaced;
-  const arranging =
-    !!actor && (fantasyArranging || (state.placeRound === 0 && actor.hand.length > 0));
+  const actorId = ofcLocalActorId(state);
+  // The actor still comes from the raw state: the placement panels below need their
+  // actual cards, which is the one thing no redaction hands to a bystander.
+  const actor = actorId ? state.players.find((p) => p.id === actorId) ?? null : null;
 
-  // The shared table shows only what the whole room may see. While someone is acting,
-  // their seat leaves the strip — their board renders once, big, in the action zone.
+  // Two redactions, deliberately (see the note on ofcPlayView): the shared strip may only
+  // show what the whole room may see, while the role and caption are decided by fields
+  // that exist only in the actor's own view.
   const tableView = redactFor(state, TABLE_VIEWER);
-  const nameById = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
-  const seats: OfcSeatVM[] = tableView.players
-    .filter((p) => !(phase === 'placing' && p.id === actor?.id))
-    .map((p) => ({
-    id: p.id,
-    name: p.name,
-    chips: p.chips,
-    eliminated: p.eliminated,
-    inFantasyLand: p.inFantasyLand,
-    fantasyPlaced: p.fantasyPlaced,
-    isButton: p.id === state.buttonId,
-    gridCounts: p.gridCounts,
-    grid: p.grid,
-    fouled: phase === 'scoring' || phase === 'gameOver' ? state.handResult?.perPlayer[p.id]?.fouled : undefined,
-  }));
+  const v = ofcPlayView(redactFor(state, actorId ?? TABLE_VIEWER), {
+    actorId,
+    rotateToActor: false,
+    addressActorAsYou: false,
+  });
+  const { fantasyArranging, arranging, nameById } = v;
 
-  const caption = (() => {
-    if (phase === 'placing' && actor) {
-      if (actor.inFantasyLand && !actor.fantasyPlaced) return t('game.fantasyOther', { name: actor.name });
-      if (state.placeRound === 0) return t('game.initialOther', { name: actor.name });
-      return t(state.variant === 'pineapple' ? 'game.drawOtherPineapple' : 'game.drawOther', {
-        name: actor.name,
-      });
-    }
-    if (phase === 'placing') return t('game.waitingFantasy');
-    if (phase === 'scoring') return t('game.handScored', { hand: state.handNumber });
-    return '';
-  })();
+  // While someone is acting their seat leaves the strip — their board renders once, big,
+  // in the action zone.
+  const seats: OfcSeatVM[] = ofcSeatData(v, tableView);
+
+  const caption = v.caption.kind === 'none' ? '' : t(v.caption.key, v.caption.params);
 
   const handleNextHand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -198,15 +161,14 @@ export default function OfcPlayScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={finish} activeOpacity={0.7}>
-          <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('title')}</Text>
-        <View style={styles.iconBtn}>
+      <GamePlayHeader
+        title={t('title')}
+        onClose={finish}
+        onDark
+        right={
           <Text style={[styles.handBadge, { color: colors.onDarkTertiary }]}>{t('game.handBadge', { hand: state.handNumber })}</Text>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.Text key={`caption-${state.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
@@ -274,17 +236,12 @@ export default function OfcPlayScreen() {
           </TouchableOpacity>
         )}
         {phase === 'gameOver' && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: DARK_TILE }]} onPress={finish} activeOpacity={0.85}>
-              <Text style={[styles.actionBtnText, { color: colors.onDarkPrimary }]}>{t('play.finish')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.accentBright }]} onPress={handleReplay} activeOpacity={0.85}>
-              <View style={styles.replayContent}>
-                <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
-                <Text style={styles.primaryBtnText}>{t('game.replay')}</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+          <GameOverActions
+            finishLabel={t('games:play.finish')}
+            replayLabel={t('games:game.replay')}
+            onFinish={finish}
+            onReplay={handleReplay}
+          />
         )}
       </View>
 
@@ -293,7 +250,7 @@ export default function OfcPlayScreen() {
           <WinCelebration
             width={SCREEN_WIDTH}
             height={320}
-            title={t('game.victory')}
+            title={t('games:game.victory')}
             subtitle={t('game.winnerSub', { name: winner.name })}
             borderRadius={0}
             onDone={() => setCelebrating(false)}
@@ -303,24 +260,12 @@ export default function OfcPlayScreen() {
 
       {/* Handoff lock — Fantasy Land only: those 13 cards stay secret until the reveal. */}
       {locked && phase === 'placing' && actor && fantasyArranging && (
-        <Animated.View entering={FadeIn.duration(200)} style={StyleSheet.absoluteFill}>
-          <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={styles.lockOverlay}>
-            <Lock size={28} color={TABLE.gold} strokeWidth={1.5} />
-            <Text style={styles.lockTitle}>{t('play.passPhoneTo')}</Text>
-            <Text style={[styles.lockName, { color: TABLE.gold }]}>{actor.name}</Text>
-            <TouchableOpacity
-              style={[styles.primaryBtn, styles.lockBtn, { backgroundColor: colors.accentBright }]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setLocked(false);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryBtnText}>{t('play.itsMe')}</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+        <HandoffLock
+          name={actor.name}
+          title={t('games:play.passPhoneTo')}
+          ctaLabel={t('play.itsMe')}
+          onUnlock={() => setLocked(false)}
+        />
       )}
     </SafeAreaView>
   );
@@ -330,30 +275,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
   },
   handBadge: {
     fontSize: fontSize.xs,
@@ -378,26 +299,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
-  actionRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  actionBtn: {
-    flex: 1,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.bold,
-  },
-  replayContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   primaryBtn: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.xl,
@@ -414,31 +315,5 @@ const styles = StyleSheet.create({
     top: '25%',
     left: 0,
     right: 0,
-  },
-  lockOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(10, 12, 16, 0.72)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.xl,
-  },
-  lockTitle: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.medium,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: spacing.sm,
-  },
-  lockName: {
-    fontSize: fontSize.display,
-    fontFamily: fontFamily.display,
-    textAlign: 'center',
-  },
-  lockBtn: {
-    marginTop: spacing.lg,
   },
 });

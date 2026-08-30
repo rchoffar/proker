@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw, WifiOff } from 'lucide-react-native';
+import { WifiOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { TABLE } from '../../../src/components/hand/PokerTable';
@@ -25,24 +25,22 @@ import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
 import { useOfcGuest, useOfcHost } from '../../../src/hooks/useOfcOnline';
 import type { OfcOnlineCommon } from '../../../src/hooks/useOfcOnline';
 import { GRID_SIZE, MAX_OFC_PLAYERS, MIN_OFC_PLAYERS, VARIANT_CONFIG } from '../../../src/lib/ofc';
+import { ofcPlayView, ofcSeatData } from '../../../src/lib/ofc/view';
 import type { OfcVariant } from '../../../src/lib/ofc';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
+import { DARK_TILE, SCREEN_BG } from '../../../src/components/games/gameSurface';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { GameOverActions } from '../../../src/components/games/GameOverActions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Server/protocol disconnect enums → ofc namespace keys, translated at render.
 const DISCONNECT_KEYS = {
-  host_left: 'disconnect.host_left',
-  expired: 'disconnect.expired',
-  hostQuit: 'disconnect.hostQuit',
+  host_left: 'games:disconnect.host_left',
+  expired: 'games:disconnect.expired',
+  hostQuit: 'games:disconnect.hostQuit',
 } as const;
-
-// Modal screens sit on a black sheet in BOTH themes (EnvironmentBackground lives in the
-// root layout and doesn't follow modals) — so use the theme-invariant onDark* text tokens
-// plus these fixed dark surfaces, same convention as the bluff online screen.
-const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
-const SCREEN_BG = '#101114';
 
 export default function OfcOnlineScreen() {
   const mode = useOfcDraft((s) => s.mode);
@@ -159,7 +157,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
       <SafeAreaView style={[styles.screen, styles.centered]}>
         <StatusBar style="light" />
         <ActivityIndicator color={colors.accentBright} />
-        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('online.connecting')}</Text>
+        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('games:online.connecting')}</Text>
         <TouchableOpacity onPress={quit} style={[styles.secondaryBtn, { backgroundColor: DARK_TILE }]}>
           <Text style={[styles.secondaryBtnText, { color: colors.onDarkPrimary }]}>{t('common:cancel')}</Text>
         </TouchableOpacity>
@@ -171,7 +169,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     const message =
       status === 'error'
         ? errorMsg
-        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'disconnect.generic');
+        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'games:disconnect.generic');
     return (
       <SafeAreaView style={[styles.screen, styles.centered]}>
         <StatusBar style="light" />
@@ -189,13 +187,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     return (
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <StatusBar style="light" />
-        <View style={styles.header}>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.7}>
-            <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('online.title')}</Text>
-          <View style={styles.iconBtn} />
-        </View>
+        <GamePlayHeader title={t('online.title')} onClose={quit} onDark />
 
         {/* The room IS the table: the code sits on the felt and the seats fill as people
             join, instead of a code card above a list of names. */}
@@ -205,18 +197,18 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               players={[]}
               selected={members.map((m) => ({
                 id: m.playerId,
-                name: m.playerId === myId ? t('online.youSuffix', { name: m.name }) : m.name,
+                name: m.playerId === myId ? t('games:online.youSuffix', { name: m.name }) : m.name,
               }))}
               onChange={() => {}}
               maxPlayers={MAX_OFC_PLAYERS}
               seatsInteractive={false}
-              emptySeatLabel={t('online.waitingSeat')}
+              emptySeatLabel={t('games:online.waitingSeat')}
               dimmedIds={members.filter((m) => !m.connected).map((m) => m.playerId)}
               center={(feltWidth) => (
                 <LobbyFelt
                   code={code ?? ''}
-                  codeLabel={t('online.tableCode')}
-                  caption={isHost ? t('online.shareCode') : t('online.waitingHostStart')}
+                  codeLabel={t('games:online.tableCode')}
+                  caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
                   rules={
                     isHost && hostVariant
                       ? [
@@ -232,7 +224,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
             />
           </Animated.View>
           <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-            {t('online.players', { current: members.length, max: MAX_OFC_PLAYERS })}
+            {t('games:online.players', { current: members.length, max: MAX_OFC_PLAYERS })}
           </Text>
         </View>
 
@@ -247,11 +239,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               disabled={!canStart}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>{t('online.startGame')}</Text>
+              <Text style={styles.primaryBtnText}>{t('games:online.startGame')}</Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('online.startsWhenHostLaunches')}
+              {t('games:online.startsWhenHostLaunches')}
             </Text>
           )}
         </View>
@@ -264,57 +256,22 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   if (!view || !myId) return null;
 
   const { phase } = view;
-  const me = view.players.find((p) => p.id === myId);
-  const winner = view.winnerId ? view.players.find((p) => p.id === view.winnerId) : null;
-  const turnPlayer = view.players.find((p) => p.id === view.turnId);
-  const nameById = Object.fromEntries(view.players.map((p) => [p.id, p.name]));
+  // Online, "the actor" and "the viewer" are the same person, so the one redacted state
+  // this device already has serves both roles the shared view module distinguishes.
+  const v = ofcPlayView(view, { actorId: myId, rotateToActor: true, addressActorAsYou: true });
+  const { actor: me, winner, nameById } = v;
 
-  // Seat 0 = me, first in the strip — same rotation trick as the other games.
-  const myIdx = view.players.findIndex((p) => p.id === myId);
-  const ordered = myIdx <= 0 ? view.players : [...view.players.slice(myIdx), ...view.players.slice(0, myIdx)];
-  const seats: OfcSeatVM[] = ordered.map((p) => ({
-    id: p.id,
-    name: p.id === myId ? t('online.youSuffix', { name: p.name }) : p.name,
-    chips: p.chips,
-    eliminated: p.eliminated,
-    inFantasyLand: p.inFantasyLand,
-    fantasyPlaced: p.fantasyPlaced,
-    isButton: p.id === view.buttonId,
-    gridCounts: p.gridCounts,
-    grid: p.grid,
-    fouled: phase === 'scoring' || phase === 'gameOver' ? view.handResult?.perPlayer[p.id]?.fouled : undefined,
-    connected: p.connected,
-  }));
+  // Seat 0 = me, first in the strip — and while I'm acting my seat leaves it, since my
+  // board is already rendered once, big, in the action zone.
+  const stripSeats: OfcSeatVM[] = ofcSeatData(v, view, (p) =>
+    p.id === myId ? t('games:online.youSuffix', { name: p.name }) : p.name
+  );
 
-  const myFantasyTurn = !!me && me.inFantasyLand && !me.fantasyPlaced && (me.hand?.length ?? 0) > 0;
-  const myInitialTurn =
-    !!me && !me.inFantasyLand && phase === 'placing' && view.placeRound === 0 && view.turnId === myId && (me.hand?.length ?? 0) > 0;
-  // The owner-only `cards` field doubles as the type guard: without it there is nothing to place.
-  const myDraw =
-    phase === 'placing' && view.pending?.playerId === myId && view.pending.cards ? view.pending : null;
-  // While I'm acting, my board renders once, big, in the action zone — my seat leaves
-  // the strip so nothing shows twice (and the strip stays short enough not to scroll).
-  const iAmActing = myFantasyTurn || myInitialTurn || !!myDraw;
-  const stripSeats = iAmActing ? seats.filter((s) => s.id !== myId) : seats;
+  const myFantasyTurn = v.role === 'fantasy';
+  const myInitialTurn = v.role === 'initial';
+  const myDraw = v.role === 'draw' ? view.pending : null;
 
-  const caption = (() => {
-    if (phase !== 'placing') {
-      return phase === 'scoring' ? t('game.handScored', { hand: view.handNumber }) : '';
-    }
-    const pineapple = view.variant === 'pineapple';
-    if (myFantasyTurn) {
-      return pineapple
-        ? t('game.fantasyYouPineapple', { count: me?.hand?.length ?? 14 })
-        : t('game.fantasyYou');
-    }
-    if (myInitialTurn) return t('game.initialYou');
-    if (myDraw) return t(pineapple ? 'game.drawYouPineapple' : 'game.drawYou');
-    if (turnPlayer) {
-      if (view.placeRound === 0) return t('game.initialOther', { name: turnPlayer.name });
-      return t(pineapple ? 'game.drawOtherPineapple' : 'game.drawOther', { name: turnPlayer.name });
-    }
-    return t('game.waitingFantasy');
-  })();
+  const caption = v.caption.kind === 'none' ? '' : t(v.caption.key, v.caption.params);
 
   const handleNextHand = () => {
     sendAction({ type: 'nextHand', playerId: myId });
@@ -323,15 +280,14 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.7}>
-          <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('online.headerCode', { code })}</Text>
-        <View style={styles.iconBtn}>
+      <GamePlayHeader
+        title={t('online.headerCode', { code })}
+        onClose={quit}
+        onDark
+        right={
           <Text style={[styles.handBadge, { color: colors.onDarkTertiary }]}>{t('game.handBadge', { hand: view.handNumber })}</Text>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
@@ -343,7 +299,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
         {(myFantasyTurn || myInitialTurn) && me?.hand && (
           <Animated.View entering={FadeIn.duration(200)}>
             <OfcActorPanel
-              name={t('online.youSuffix', { name: me.name })}
+              name={t('games:online.youSuffix', { name: me.name })}
               chips={me.chips}
               isButton={me.id === view.buttonId}
               inFantasyLand={me.inFantasyLand}
@@ -367,7 +323,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
 
         {!myFantasyTurn && myDraw && me?.grid && (
           <OfcActorPanel
-            name={t('online.youSuffix', { name: me.name })}
+            name={t('games:online.youSuffix', { name: me.name })}
             chips={me.chips}
             isButton={me.id === view.buttonId}
           >
@@ -410,26 +366,19 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           ))}
 
         {phase === 'gameOver' && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.85}>
-              <Text style={[styles.actionBtnText, { color: colors.onDarkPrimary }]}>{t('online.quit')}</Text>
-            </TouchableOpacity>
-            {isHost && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: colors.accentBright }]}
-                onPress={() => {
-                  setCelebrating(false);
-                  onReplay?.();
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={styles.replayContent}>
-                  <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
-                  <Text style={styles.primaryBtnText}>{t('game.replay')}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
+          <GameOverActions
+            finishLabel={t('games:online.quit')}
+            replayLabel={t('games:game.replay')}
+            onFinish={quit}
+            onReplay={
+              isHost
+                ? () => {
+                    setCelebrating(false);
+                    onReplay?.();
+                  }
+                : undefined
+            }
+          />
         )}
       </View>
 
@@ -438,7 +387,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           <WinCelebration
             width={SCREEN_WIDTH}
             height={320}
-            title={t('game.victory')}
+            title={t('games:game.victory')}
             subtitle={t('game.winnerSub', { name: winner.name })}
             borderRadius={0}
             onDone={() => setCelebrating(false)}
@@ -458,25 +407,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.base,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
   },
   handBadge: {
     fontSize: fontSize.xs,
@@ -512,26 +442,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontFamily: fontFamily.semibold,
     textAlign: 'center',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  actionBtn: {
-    flex: 1,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.bold,
-  },
-  replayContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   waitingText: {
     textAlign: 'center',

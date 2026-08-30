@@ -36,26 +36,8 @@
     "roundNotOver": "The round isn't over",
     "claimDominatedByBoard": "The visible middle makes this call impossible — announce higher"
   },
-  "connection": {
-    "not_found": "Table not found — check the code",
-    "full": "The table is full",
-    "unavailable": "Server unavailable, try again",
-    "bad_token": "Session expired"
-  },
-  "disconnect": {
-    "host_left": "The host left the table",
-    "expired": "The table expired",
-    "hostQuit": "The host ended the game",
-    "generic": "Game over"
-  },
   "setup": {
     "subtitle": "2 to 6 players. Everyone gets hidden cards, calls climb higher and higher across all cards in play… until someone shouts \"Liar!\". The loser takes a card — at 5 cards, you're out.",
-    "modePassPlay": "On this phone",
-    "modeOnline": "Online",
-    "joinTable": "Join a table",
-    "join": "Join",
-    "dealCards": "Deal the cards",
-    "createTable": "Create a table",
     "jeuMaxLabel": "Game rules",
     "jeuMaxClassic": "Classic",
     "jeuMaxOption": "Jeu Max",
@@ -76,7 +58,6 @@
     "revealHolds": "The call was good — {{name}} loses the round",
     "revealBluff": "It was a bluff! {{name}} loses the round",
     "revealSubEliminated": "{{claim}} · {{name}} is eliminated!",
-    "victory": "VICTORY",
     "winnerSub": "{{name}} wins the game",
     "faceUpStepper": "Face-up cards in the middle",
     "faceDownStepper": "Face-down cards in the middle",
@@ -91,36 +72,22 @@
     "jeuMaxFailHigher": "Missed — the max hand was {{best}}, {{name}} takes a card",
     "jeuMaxStatLine": "{{name}}: {{successes}}/{{attempts}} Jeu Max",
     "announce": "Announce",
-    "nextRound": "Next round",
-    "replay": "Play again"
+    "nextRound": "Next round"
   },
   "play": {
-    "noPlayers": "No players for this game.",
     "peekHint": "{{name}}'s cards — hold to peek",
-    "passPhoneTo": "Pass the phone to",
-    "itsMe": "It's me, show my turn",
-    "finish": "Finish"
+    "itsMe": "It's me, show my turn"
   },
   "online": {
     "title": "Online Bluff",
     "headerCode": "Bluff · {{code}}",
-    "connecting": "Connecting to the server…",
-    "tableCode": "Table code",
-    "shareCode": "Share this code with the other players",
-    "waitingHostStart": "Waiting for the host to start…",
-    "players": "Players ({{current}}/{{max}})",
-    "youSuffix": "{{name}} (you)",
-    "startGame": "Start the game",
-    "startsWhenHostLaunches": "The game starts as soon as the host launches it",
     "waitingBoard": "{{name}} is choosing the middle…",
     "waitingTurn": "{{name}}'s turn…",
     "waitingNextRound": "The host starts the next round…",
-    "quit": "Leave",
     "jeuMaxEnabled": "Jeu Max rule enabled",
     "jeuMaxDisabledLobby": "Classic rules — no Jeu Max",
     "variantStandard": "Classic variant — 2 cards, out at 5",
-    "variantQuick": "Quick variant — 1 card, out at 4",
-    "waitingSeat": "Waiting…"
+    "variantQuick": "Quick variant — 1 card, out at 4"
   },
   "picker": {
     "title": "Announce",

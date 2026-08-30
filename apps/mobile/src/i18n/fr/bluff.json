@@ -36,26 +36,8 @@
     "roundNotOver": "La manche n’est pas terminée",
     "claimDominatedByBoard": "Le milieu visible rend cette annonce impossible — annonce plus fort"
   },
-  "connection": {
-    "not_found": "Table introuvable — vérifie le code",
-    "full": "La table est pleine",
-    "unavailable": "Serveur indisponible, réessaie",
-    "bad_token": "Session expirée"
-  },
-  "disconnect": {
-    "host_left": "L’hôte a quitté la table",
-    "expired": "La table a expiré",
-    "hostQuit": "L’hôte a mis fin à la partie",
-    "generic": "Partie terminée"
-  },
   "setup": {
     "subtitle": "2 à 6 joueurs. Chacun reçoit des cartes cachées, on annonce des combinaisons de plus en plus fortes sur l’ensemble des cartes en jeu… jusqu’à ce que quelqu’un crie « Menteur ! ». Le perdant prend une carte, à 5 cartes il saute.",
-    "modePassPlay": "Sur ce téléphone",
-    "modeOnline": "En ligne",
-    "joinTable": "Rejoindre une table",
-    "join": "Rejoindre",
-    "dealCards": "Distribuer les cartes",
-    "createTable": "Créer une table",
     "jeuMaxLabel": "Règles de la partie",
     "jeuMaxClassic": "Classique",
     "jeuMaxOption": "Jeu Max",
@@ -76,7 +58,6 @@
     "revealHolds": "L’annonce tenait — {{name}} perd la manche",
     "revealBluff": "C’était du bluff ! {{name}} perd la manche",
     "revealSubEliminated": "{{claim}} · {{name}} est éliminé !",
-    "victory": "VICTOIRE",
     "winnerSub": "{{name}} remporte la partie",
     "faceUpStepper": "Cartes visibles au centre",
     "faceDownStepper": "Cartes cachées au centre",
@@ -91,36 +72,22 @@
     "jeuMaxFailHigher": "Raté — le jeu max était {{best}}, {{name}} prend une carte",
     "jeuMaxStatLine": "{{name}} : {{successes}}/{{attempts}} Jeu Max",
     "announce": "Annoncer",
-    "nextRound": "Manche suivante",
-    "replay": "Rejouer"
+    "nextRound": "Manche suivante"
   },
   "play": {
-    "noPlayers": "Aucun joueur pour cette partie.",
     "peekHint": "Cartes de {{name}} — maintenir pour voir",
-    "passPhoneTo": "Passe le téléphone à",
-    "itsMe": "C’est moi, voir mon tour",
-    "finish": "Terminer"
+    "itsMe": "C’est moi, voir mon tour"
   },
   "online": {
     "title": "Bluff en ligne",
     "headerCode": "Bluff · {{code}}",
-    "connecting": "Connexion au serveur…",
-    "tableCode": "Code de la table",
-    "shareCode": "Partage ce code avec les autres joueurs",
-    "waitingHostStart": "En attente du lancement par l’hôte…",
-    "players": "Joueurs ({{current}}/{{max}})",
-    "youSuffix": "{{name}} (toi)",
-    "startGame": "Lancer la partie",
-    "startsWhenHostLaunches": "La partie démarre dès que l’hôte la lance",
     "waitingBoard": "{{name}} choisit le milieu…",
     "waitingTurn": "Au tour de {{name}}…",
     "waitingNextRound": "L’hôte lance la manche suivante…",
-    "quit": "Quitter",
     "jeuMaxEnabled": "Règle Jeu Max activée",
     "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max",
     "variantStandard": "Variante classique — 2 cartes, éliminé à 5",
-    "variantQuick": "Variante rapide — 1 carte, éliminé à 4",
-    "waitingSeat": "En attente…"
+    "variantQuick": "Variante rapide — 1 carte, éliminé à 4"
   },
   "picker": {
     "title": "Annoncer",

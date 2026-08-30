@@ -493,3 +493,61 @@ renaming those would wipe local data/log users out for zero user-visible benefit
 Google OAuth client, Apple Sign-In capability, and Fly volume/secrets had not been created yet,
 nothing external was invalidated. Auth screens were also migrated to a new `auth` i18n namespace
 (they predated the i18n mandate).
+
+---
+
+## ADR-014 — Every render path goes through `redactFor`
+
+**Date:** 2026-08-30
+**Status:** Decided
+
+**Decision:** Bluff and OFC Pass & Play render from `RedactedState` / `RedactedOfcState`, the same
+choke point the online host and every guest already use, rather than reading the raw engine state.
+The viewer is the player about to act — `state.turnId` for bluff, `ofcLocalActorId(state)` for OFC
+(Fantasy Land arrangers first, then the normal rotation). Everything both modes derive from that
+state — who is acting, which actions are legal, what the caption says, what goes in each seat —
+moved into two react-free modules, `src/lib/bluff/view.ts` and `src/lib/ofc/view.ts`, which return
+i18n **keys and params rather than strings** so `src/lib` stays free of react and i18n (the
+`bluff/labels.ts` convention) and the keys stay literal unions that `t()` can still type-check.
+
+Where the modes genuinely differ, the difference is a named option rather than a hidden branch:
+`rotateToViewer` (online seats you at the bottom; a shared phone must not move the seats) and
+`addressViewerAsYou` (online says "your turn"; a shared phone names the player out loud).
+
+OFC needs **two** redactions on a shared phone, and this is the part most likely to be got wrong
+later: the strip is redacted for `TABLE_VIEWER` because it may only show what the room may see,
+while the actor's role is decided by fields `redactFor` strips from everyone else — their `hand`,
+and in pineapple their `pending.cards` — so it has to be read from the actor's own view. Asking a
+table-redacted view "who is acting" always answers "nobody". `ofcSeatData` takes both and draws
+every card from the table one.
+
+**Why:**
+- The redaction rules *are* the game's secrecy rules. Duplicating them in a screen means a second,
+  untested copy that can drift — and the drifted copy is the one that shows a player's hand on a
+  shared phone. OFC already did this for its felt with the `@table` sentinel; this generalises it.
+- `redactFor` hands the viewer their **own** hand in every phase, by design: the device needs those
+  cards for the private zone. So the naive seat mapping — forwarding `p.hand` — puts the acting
+  player's hand face-up on the table everyone is looking at. That rule now lives in exactly one
+  tested function per game (`bluffSeatData`, `ofcSeatData`), and both tests were verified to fail
+  when the naive version is put back.
+- It makes the visibility rules unit-testable for the first time. They are pure functions over a
+  redacted state, so they run under the existing node-only vitest setup with no RN test harness.
+
+**Ruled out:**
+- A `useBluffLocal` conforming to the existing `BluffOnlineCommon` interface so one tree renders
+  both modes: six of its ten fields are dead locally (`status`, `code`, `members`, `hostId`,
+  `errorMsg`, `closedReason`, `leave`), and `myId` would be silently redefined from "this device"
+  to "whose turn it is" — which drives seat rotation and the `(you)` suffix, so three behaviours
+  would go wrong in a way the compiler cannot catch. The honest shared contract is
+  `{ view, viewerId }` plus the two presentation flags above.
+- One `<GameScene mode>` component for both games: bluff is an oval felt with a card fan, OFC a
+  scrolling seat strip with a placement board. They share chrome, not structure — and the chrome is
+  already shared (`GamePlayHeader`, `HandoffLock`, `NoPlayersScreen`, `GameOverActions`,
+  `gameSurface.ts`, all under `src/components/games/`).
+- Leaving Pass & Play on the raw state: the status quo, in which the same visibility predicate is
+  written twice per game in four places.
+
+**Note:** `GamePlayScreen`-style chrome extraction needs no ADR of its own — it is the same pattern
+as `GameSetupScreen`, which has none. `flip` and `roulette` deliberately take only `GamePlayHeader`:
+they are theme-aware (transparent background over the root `EnvironmentBackground`), while bluff and
+OFC paint the fixed dark `SCREEN_BG` in both colour schemes.

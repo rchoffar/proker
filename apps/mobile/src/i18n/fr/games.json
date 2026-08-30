@@ -3,10 +3,18 @@
     "addPlayer": "Ajouter un joueur",
     "enterName": "Entrer nom…",
     "validate": "Valider",
-    "howToPlay": "Comment jouer"
+    "howToPlay": "Comment jouer",
+    "createTable": "Créer une table",
+    "dealCards": "Distribuer les cartes",
+    "join": "Rejoindre",
+    "joinTable": "Rejoindre une table",
+    "modeOnline": "En ligne",
+    "modePassPlay": "Sur ce téléphone"
   },
   "play": {
-    "noPlayers": "Aucun joueur pour cette partie."
+    "noPlayers": "Aucun joueur pour cette partie.",
+    "finish": "Terminer",
+    "passPhoneTo": "Passe le téléphone à"
   },
   "flip": {
     "subtitle": "2 à 6 joueurs, cartes distribuées à tous, le flop puis le turn puis la river se révèlent un par un. La main la plus faible paie.",
@@ -34,5 +42,33 @@
     "spinAgain": "Relancer",
     "paysTheBill": "paie l’addition 🍻",
     "lost": "{{name}} a perdu !"
+  },
+  "connection": {
+    "bad_token": "Session expirée",
+    "full": "La table est pleine",
+    "not_found": "Table introuvable — vérifie le code",
+    "unavailable": "Serveur indisponible, réessaie"
+  },
+  "disconnect": {
+    "expired": "La table a expiré",
+    "generic": "Partie terminée",
+    "hostQuit": "L’hôte a mis fin à la partie",
+    "host_left": "L’hôte a quitté la table"
+  },
+  "game": {
+    "replay": "Rejouer",
+    "victory": "VICTOIRE"
+  },
+  "online": {
+    "connecting": "Connexion au serveur…",
+    "players": "Joueurs ({{current}}/{{max}})",
+    "quit": "Quitter",
+    "shareCode": "Partage ce code avec les autres joueurs",
+    "startGame": "Lancer la partie",
+    "startsWhenHostLaunches": "La partie démarre dès que l’hôte la lance",
+    "tableCode": "Code de la table",
+    "waitingHostStart": "En attente du lancement par l’hôte…",
+    "waitingSeat": "En attente…",
+    "youSuffix": "{{name}} (toi)"
   }
 }

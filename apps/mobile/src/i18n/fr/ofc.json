@@ -18,24 +18,8 @@
     "fantasyRowMismatch": "La Fantasy Land doit remplir exactement 3, 5 et 5 cartes",
     "handNotScored": "La manche n'est pas encore comptée"
   },
-  "connection": {
-    "not_found": "Table introuvable — vérifie le code",
-    "full": "La table est complète",
-    "unavailable": "Serveur indisponible, réessaie",
-    "bad_token": "Session expirée"
-  },
-  "disconnect": {
-    "host_left": "L'hôte a quitté la table",
-    "expired": "La table a expiré",
-    "hostQuit": "L'hôte a terminé la partie",
-    "generic": "Partie terminée"
-  },
   "setup": {
     "subtitle": "2 ou 3 joueurs. Construis trois lignes de poker — 3 cartes en haut, 5 au milieu, 5 en bas — sans casser l'ordre bas ≥ milieu ≥ haut. Gagne les lignes, empile les royalties, rafle tous les jetons.",
-    "modePassPlay": "Sur ce téléphone",
-    "modeOnline": "En ligne",
-    "joinTable": "Rejoindre une table",
-    "join": "Rejoindre",
     "startingStack": "Tapis de départ",
     "variantLabel": "Mode de jeu",
     "variantClassic": "Classique",
@@ -44,8 +28,6 @@
     "variantPineappleHint": "À chaque tour : pioche 3 cartes, places-en 2, défausses-en 1",
     "stackChip_one": "{{count}} jeton",
     "stackChip_other": "{{count}} jetons",
-    "dealCards": "Distribuer les cartes",
-    "createTable": "Créer une table",
     "startingStackChips": "Tapis de départ (jetons)"
   },
   "game": {
@@ -87,31 +69,16 @@
     "waitingFantasy": "En attente de la Fantasy Land…",
     "handScored": "Manche {{hand}} comptée",
     "nextHand": "Manche suivante",
-    "replay": "Rejouer",
-    "victory": "VICTOIRE",
     "winnerSub": "{{name}} rafle tous les jetons"
   },
   "play": {
-    "noPlayers": "Aucun joueur pour cette partie.",
-    "passPhoneTo": "Passe le téléphone à",
-    "itsMe": "C'est moi, montre mes cartes",
-    "finish": "Terminer"
+    "itsMe": "C'est moi, montre mes cartes"
   },
   "online": {
     "title": "OFC en ligne",
     "headerCode": "OFC · {{code}}",
-    "connecting": "Connexion au serveur…",
-    "tableCode": "Code de la table",
-    "shareCode": "Partage ce code avec les autres joueurs",
-    "waitingHostStart": "En attente du lancement par l'hôte…",
-    "players": "Joueurs ({{current}}/{{max}})",
-    "youSuffix": "{{name}} (toi)",
-    "startGame": "Lancer la partie",
-    "startsWhenHostLaunches": "La partie démarre dès que l'hôte la lance",
     "waitingNextHand": "L'hôte lance la manche suivante…",
-    "variant": "Mode : {{mode}}",
-    "quit": "Quitter",
-    "waitingSeat": "En attente…"
+    "variant": "Mode : {{mode}}"
   },
   "score": {
     "foul": "Foul",

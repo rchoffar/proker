@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import { X, RotateCw, Eye, Lock } from 'lucide-react-native';
+import { Eye } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -14,6 +13,11 @@ import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { BluffTable } from '../../../src/components/bluff/BluffTable';
 import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { DARK_CARD_BG, LOSS_ON_DARK, SCREEN_BG } from '../../../src/components/games/gameSurface';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
+import { HandoffLock } from '../../../src/components/games/HandoffLock';
+import { GameOverActions } from '../../../src/components/games/GameOverActions';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
@@ -30,6 +34,8 @@ import {
   validateAction,
 } from '../../../src/lib/bluff';
 import type { BluffAction, BluffState, Claim } from '../../../src/lib/bluff';
+import { redactFor } from '../../../src/lib/bluff/protocol';
+import { bluffPlayView, bluffSeatData } from '../../../src/lib/bluff/view';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
@@ -43,15 +49,6 @@ const HAND_FAN_ANGLES: Record<number, number[]> = {
   4: [-12, -4, 4, 12],
   5: [-14, -7, 0, 7, 14],
 };
-
-// The game surface is dark by design in BOTH themes — so use the theme-invariant
-// onDark* text tokens plus these fixed dark surfaces.
-const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
-const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
-const LOSS_ON_DARK = '#FF6B70';
-// Full-screen game surface: the felt is dark by design, in both themes — matches the
-// dark EnvironmentBackground mid-tone.
-const SCREEN_BG = '#101114';
 
 export default function BluffPlayScreen() {
   useKeepAwake(); // the shared phone must not lock mid-game
@@ -90,15 +87,6 @@ export default function BluffPlayScreen() {
       return reduce(prev, action);
     });
   };
-
-  const currentPlayer = useMemo(
-    () => state?.players.find((p) => p.id === state.turnId) ?? null,
-    [state],
-  );
-  const starter = useMemo(
-    () => state?.players.find((p) => p.id === state.starterId) ?? null,
-    [state],
-  );
 
   // Celebration bursts shortly after the final reveal settles.
   useEffect(() => {
@@ -145,31 +133,27 @@ export default function BluffPlayScreen() {
 
 
   if (!state) {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <StatusBar style="light" />
-        <Text style={{ color: colors.onDarkPrimary }}>{t('play.noPlayers')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
+    return <NoPlayersScreen message={t('games:play.noPlayers')} onBack={() => router.back()} onDark />;
   }
 
   const { phase, reveal } = state;
-  const winner = state.winnerId ? state.players.find((p) => p.id === state.winnerId) : null;
+  // The shared phone renders through the SAME redaction choke point as the host and every
+  // guest, with the player to act as the viewer — so the felt can only ever show what the
+  // room may see, and the peek zone below gets its cards from the same place online does.
+  // Seats keep their fixed order and nobody is addressed as "you": everyone is looking at
+  // this screen, not just the person holding it.
+  const view = redactFor(state, state.turnId);
+  const v = bluffPlayView(view, {
+    viewerId: state.turnId,
+    rotateToViewer: false,
+    addressViewerAsYou: false,
+  });
+  const { turnPlayer: currentPlayer, winner, canCatch, mustCatch } = v;
   const loser = reveal ? state.players.find((p) => p.id === reveal.loserId) : null;
   const catcher = reveal ? state.players.find((p) => p.id === reveal.catcherId) : null;
   const claimer = reveal ? state.players.find((p) => p.id === reveal.claimerId) : null;
-  const showAllHands = phase === 'reveal' || phase === 'roundEnd' || phase === 'gameOver';
 
-  const seats: BluffSeatVM[] = state.players.map((p) => ({
-    id: p.id,
-    name: p.name,
-    cardCount: p.cardCount,
-    eliminated: p.eliminated,
-    hand: showAllHands && !p.eliminated ? p.hand : undefined,
-  }));
+  const seats: BluffSeatVM[] = bluffSeatData(v);
 
   const handleChooseBoard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -212,36 +196,27 @@ export default function BluffPlayScreen() {
 
   const finish = () => router.dismissTo('/(tabs)/degen');
 
-  const canCatch = phase === 'bidding' && state.claimHistory.length > 0;
-  const mustCatch = state.currentClaim?.category === 'royalFlush';
+  const caption =
+    v.caption.kind === 'none'
+      ? ''
+      : v.caption.kind === 'claim'
+        ? claimLabel(v.caption.claim, t)
+        : t(v.caption.key, { name: v.caption.name });
 
-  const caption = (() => {
-    if (phase === 'chooseBoard') return t('game.chooseBoardOther', { name: starter?.name });
-    if (phase === 'bidding') {
-      return state.currentClaim
-        ? claimLabel(state.currentClaim, t)
-        : t('game.openBiddingOther', { name: currentPlayer?.name });
-    }
-    return '';
-  })();
-
-  const handFan = currentPlayer?.hand ?? [];
+  const handFan = v.viewer?.hand ?? [];
   const fanAngles = HAND_FAN_ANGLES[handFan.length] ?? HAND_FAN_ANGLES[2];
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={finish} activeOpacity={0.7}>
-          <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]} numberOfLines={1}>
-          {t('title')}
-        </Text>
-        <View style={styles.headerRight}>
+      <GamePlayHeader
+        title={t('title')}
+        onClose={finish}
+        onDark
+        right={
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: state.round })}</Text>
-        </View>
-      </View>
+        }
+      />
 
       <View style={styles.tableArea}>
         {reveal ? (
@@ -302,8 +277,8 @@ export default function BluffPlayScreen() {
           height={TABLE_H}
           players={seats}
           board={state.board}
-          hiddenCount={state.hiddenBoard.length}
-          hiddenBoard={showAllHands ? state.hiddenBoard : undefined}
+          hiddenCount={view.hiddenBoardCount}
+          hiddenBoard={view.hiddenBoard}
           turnId={phase === 'bidding' ? state.turnId : null}
           reveal={reveal}
           roundToken={state.round}
@@ -312,7 +287,7 @@ export default function BluffPlayScreen() {
             <WinCelebration
               width={TABLE_W}
               height={TABLE_H}
-              title={t('game.victory')}
+              title={t('games:game.victory')}
               subtitle={t('game.winnerSub', { name: winner.name })}
               onDone={() => setCelebrating(false)}
             />
@@ -441,17 +416,12 @@ export default function BluffPlayScreen() {
         )}
 
         {phase === 'gameOver' && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: DARK_TILE }]} onPress={finish} activeOpacity={0.85}>
-              <Text style={[styles.actionBtnText, { color: colors.onDarkPrimary }]}>{t('play.finish')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.accentBright }]} onPress={handleReplay} activeOpacity={0.85}>
-              <View style={styles.replayContent}>
-                <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
-                <Text style={styles.primaryBtnText}>{t('game.replay')}</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+          <GameOverActions
+            finishLabel={t('games:play.finish')}
+            replayLabel={t('games:game.replay')}
+            onFinish={finish}
+            onReplay={handleReplay}
+          />
         )}
       </View>
 
@@ -465,24 +435,12 @@ export default function BluffPlayScreen() {
 
       {/* Handoff lock — the next player unlocks their own turn. */}
       {locked && (phase === 'chooseBoard' || phase === 'bidding') && currentPlayer && (
-        <Animated.View entering={FadeIn.duration(200)} style={StyleSheet.absoluteFill}>
-          <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={styles.lockOverlay}>
-            <Lock size={28} color={TABLE.gold} strokeWidth={1.5} />
-            <Text style={styles.lockTitle}>{t('play.passPhoneTo')}</Text>
-            <Text style={[styles.lockName, { color: TABLE.gold }]}>{currentPlayer.name}</Text>
-            <TouchableOpacity
-              style={[styles.primaryBtn, styles.lockBtn, { backgroundColor: colors.accentBright }]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setLocked(false);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryBtnText}>{t('play.itsMe')}</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+        <HandoffLock
+          name={currentPlayer.name}
+          title={t('games:play.passPhoneTo')}
+          ctaLabel={t('play.itsMe')}
+          onUnlock={() => setLocked(false)}
+        />
       )}
     </SafeAreaView>
   );
@@ -492,38 +450,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: SCREEN_BG,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
-    // Constrained + centered: the title used to be free-width in a space-between row and
-    // collided with the round badge (whose 32px icon slot couldn't hold its text either).
-    flex: 1,
-    textAlign: 'center',
-  },
-  headerRight: {
-    minWidth: 32,
-    alignItems: 'flex-end',
   },
   roundBadge: {
     fontSize: fontSize.xs,
@@ -618,11 +544,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     textAlign: 'center',
   },
-  replayContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   primaryBtn: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.xl,
@@ -636,31 +557,5 @@ const styles = StyleSheet.create({
     color: '#0A0A0F',
     fontSize: fontSize.md,
     fontFamily: fontFamily.bold,
-  },
-  lockOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(10, 12, 16, 0.72)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.xl,
-  },
-  lockTitle: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.medium,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: spacing.sm,
-  },
-  lockName: {
-    fontSize: fontSize.display,
-    fontFamily: fontFamily.display,
-    textAlign: 'center',
-  },
-  lockBtn: {
-    marginTop: spacing.lg,
   },
 });

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw, WifiOff } from 'lucide-react-native';
+import { WifiOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
@@ -15,6 +15,9 @@ import { BluffTable } from '../../../src/components/bluff/BluffTable';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
 import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { DARK_CARD_BG, DARK_TILE, LOSS_ON_DARK, SCREEN_BG } from '../../../src/components/games/gameSurface';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { GameOverActions } from '../../../src/components/games/GameOverActions';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
@@ -25,6 +28,7 @@ import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStat
 import { useBluffGuest, useBluffHost } from '../../../src/hooks/useBluffOnline';
 import type { BluffOnlineCommon } from '../../../src/hooks/useBluffOnline';
 import { MAX_BLUFF_PLAYERS, MAX_BOARD_CARDS, MIN_BLUFF_PLAYERS, claimLabel } from '../../../src/lib/bluff';
+import { bluffPlayView, bluffSeatData } from '../../../src/lib/bluff/view';
 import type { BluffVariant, Claim } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
@@ -42,20 +46,10 @@ const HAND_FAN_ANGLES: Record<number, number[]> = {
 
 // Server/protocol disconnect enums → bluff namespace keys, translated at render.
 const DISCONNECT_KEYS = {
-  host_left: 'disconnect.host_left',
-  expired: 'disconnect.expired',
-  hostQuit: 'disconnect.hostQuit',
+  host_left: 'games:disconnect.host_left',
+  expired: 'games:disconnect.expired',
+  hostQuit: 'games:disconnect.hostQuit',
 } as const;
-
-// Modal screens sit on a black sheet in BOTH themes (EnvironmentBackground lives in the
-// root layout and doesn't follow modals) — so use the theme-invariant onDark* text tokens
-// plus these fixed dark surfaces, same convention as the roulette play modal.
-const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
-const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
-const LOSS_ON_DARK = '#FF6B70';
-// Full-screen game surface: the felt is dark by design, in both themes — matches the
-// dark EnvironmentBackground mid-tone.
-const SCREEN_BG = '#101114';
 
 export default function BluffOnlineScreen() {
   const mode = useBluffDraft((s) => s.mode);
@@ -175,7 +169,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
       <SafeAreaView style={[styles.screen, styles.centered]}>
         <StatusBar style="light" />
         <ActivityIndicator color={colors.accentBright} />
-        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('online.connecting')}</Text>
+        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('games:online.connecting')}</Text>
         <TouchableOpacity onPress={quit} style={[styles.secondaryBtn, { backgroundColor: DARK_TILE }]}>
           <Text style={[styles.secondaryBtnText, { color: colors.onDarkPrimary }]}>{t('common:cancel')}</Text>
         </TouchableOpacity>
@@ -187,7 +181,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     const message =
       status === 'error'
         ? errorMsg
-        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'disconnect.generic');
+        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'games:disconnect.generic');
     return (
       <SafeAreaView style={[styles.screen, styles.centered]}>
         <StatusBar style="light" />
@@ -205,13 +199,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     return (
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <StatusBar style="light" />
-        <View style={styles.header}>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.7}>
-            <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]}>{t('online.title')}</Text>
-          <View style={styles.iconBtn} />
-        </View>
+        <GamePlayHeader title={t('online.title')} onClose={quit} onDark />
 
         {/* The room IS the table: the code sits on the felt and the seats fill as people
             join, instead of a code card above a list of names. */}
@@ -221,18 +209,18 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
               players={[]}
               selected={members.map((m) => ({
                 id: m.playerId,
-                name: m.playerId === myId ? t('online.youSuffix', { name: m.name }) : m.name,
+                name: m.playerId === myId ? t('games:online.youSuffix', { name: m.name }) : m.name,
               }))}
               onChange={() => {}}
               maxPlayers={MAX_BLUFF_PLAYERS}
               seatsInteractive={false}
-              emptySeatLabel={t('online.waitingSeat')}
+              emptySeatLabel={t('games:online.waitingSeat')}
               dimmedIds={members.filter((m) => !m.connected).map((m) => m.playerId)}
               center={(feltWidth) => (
                 <LobbyFelt
                   code={code ?? ''}
-                  codeLabel={t('online.tableCode')}
-                  caption={isHost ? t('online.shareCode') : t('online.waitingHostStart')}
+                  codeLabel={t('games:online.tableCode')}
+                  caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
                   rules={
                     isHost
                       ? [
@@ -247,7 +235,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             />
           </Animated.View>
           <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-            {t('online.players', { current: members.length, max: MAX_BLUFF_PLAYERS })}
+            {t('games:online.players', { current: members.length, max: MAX_BLUFF_PLAYERS })}
           </Text>
         </View>
 
@@ -262,11 +250,11 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
               disabled={!canStart}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>{t('online.startGame')}</Text>
+              <Text style={styles.primaryBtnText}>{t('games:online.startGame')}</Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('online.startsWhenHostLaunches')}
+              {t('games:online.startsWhenHostLaunches')}
             </Text>
           )}
         </View>
@@ -279,43 +267,28 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   if (!view || !myId) return null;
 
   const { phase, reveal } = view;
-  const me = view.players.find((p) => p.id === myId);
-  const myTurn = view.turnId === myId && !me?.eliminated;
-  const isStarter = view.starterId === myId;
-  const turnPlayer = view.players.find((p) => p.id === view.turnId);
-  const starter = view.players.find((p) => p.id === view.starterId);
-  const winner = view.winnerId ? view.players.find((p) => p.id === view.winnerId) : null;
+  // Seat 0 = me, at bottom center, and my plate says "(you)" — the two things that make
+  // this an online table rather than a shared phone. Everything else about the felt is
+  // the same rules for both modes, so it comes out of the shared view module.
+  const v = bluffPlayView(view, { viewerId: myId, rotateToViewer: true, addressViewerAsYou: true });
+  const { turnPlayer, starter, winner, isViewerTurn: myTurn, isViewerStarter: isStarter, canCatch, mustCatch } = v;
   const loser = reveal ? view.players.find((p) => p.id === reveal.loserId) : null;
   const catcher = reveal ? view.players.find((p) => p.id === reveal.catcherId) : null;
   const claimer = reveal ? view.players.find((p) => p.id === reveal.claimerId) : null;
 
-  // Seat 0 = me, at bottom center — same rotation trick as the hand replayer.
-  const myIdx = view.players.findIndex((p) => p.id === myId);
-  const ordered = myIdx <= 0 ? view.players : [...view.players.slice(myIdx), ...view.players.slice(0, myIdx)];
-  const showAll = phase === 'reveal' || phase === 'roundEnd' || phase === 'gameOver';
-  const seats: BluffSeatVM[] = ordered.map((p) => ({
-    id: p.id,
-    name: p.id === myId ? t('online.youSuffix', { name: p.name }) : p.name,
-    cardCount: p.cardCount,
-    eliminated: p.eliminated,
-    hand: showAll ? p.hand : undefined,
-  }));
+  const seats: BluffSeatVM[] = bluffSeatData(v, (p) =>
+    p.id === myId ? t('games:online.youSuffix', { name: p.name }) : p.name
+  );
 
-  const myHand = me?.hand ?? [];
+  const myHand = v.viewer?.hand ?? [];
   const fanAngles = HAND_FAN_ANGLES[myHand.length] ?? HAND_FAN_ANGLES[2];
-  const canCatch = phase === 'bidding' && myTurn && view.claimHistory.length > 0;
-  const mustCatch = view.currentClaim?.category === 'royalFlush';
 
-  const caption = (() => {
-    if (phase === 'chooseBoard') {
-      return isStarter ? t('game.chooseBoardYou') : t('game.chooseBoardOther', { name: starter?.name });
-    }
-    if (phase === 'bidding') {
-      if (view.currentClaim) return claimLabel(view.currentClaim, t);
-      return myTurn ? t('game.openBiddingYou') : t('game.openBiddingOther', { name: turnPlayer?.name });
-    }
-    return '';
-  })();
+  const caption =
+    v.caption.kind === 'none'
+      ? ''
+      : v.caption.kind === 'claim'
+        ? claimLabel(v.caption.claim, t)
+        : t(v.caption.key, { name: v.caption.name });
 
   const handleClaim = (claim: Claim) => {
     setPickerOpen(false);
@@ -340,17 +313,14 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.7}>
-          <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.onDarkPrimary }]} numberOfLines={1}>
-          {t('online.headerCode', { code })}
-        </Text>
-        <View style={styles.headerRight}>
+      <GamePlayHeader
+        title={t('online.headerCode', { code })}
+        onClose={quit}
+        onDark
+        right={
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: view.round })}</Text>
-        </View>
-      </View>
+        }
+      />
 
       <View style={styles.tableArea}>
         {reveal ? (
@@ -421,7 +391,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             <WinCelebration
               width={TABLE_W}
               height={TABLE_H}
-              title={t('game.victory')}
+              title={t('games:game.victory')}
               subtitle={t('game.winnerSub', { name: winner.name })}
               onDone={() => setCelebrating(false)}
             />
@@ -430,7 +400,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
       </View>
 
       {/* Own hand — always visible, it's my device. */}
-      {!showAll && myHand.length > 0 && !me?.eliminated && (
+      {!v.handsPublic && myHand.length > 0 && !v.viewer?.eliminated && (
         <View style={[styles.handZone, { borderColor: colors.onDarkHairline, backgroundColor: DARK_CARD_BG }]}>
           {phase === 'chooseBoard' && isStarter && (
             <View style={styles.boardChoice}>
@@ -555,26 +525,19 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           ))}
 
         {phase === 'gameOver' && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: DARK_TILE }]} onPress={quit} activeOpacity={0.85}>
-              <Text style={[styles.actionBtnText, { color: colors.onDarkPrimary }]}>{t('online.quit')}</Text>
-            </TouchableOpacity>
-            {isHost && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: colors.accentBright }]}
-                onPress={() => {
-                  setCelebrating(false);
-                  onReplay?.();
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={styles.replayContent}>
-                  <RotateCw size={16} color="#0A0A0F" strokeWidth={2} />
-                  <Text style={styles.primaryBtnText}>{t('game.replay')}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
+          <GameOverActions
+            finishLabel={t('games:online.quit')}
+            replayLabel={t('games:game.replay')}
+            onFinish={quit}
+            onReplay={
+              isHost
+                ? () => {
+                    setCelebrating(false);
+                    onReplay?.();
+                  }
+                : undefined
+            }
+          />
         )}
       </View>
 
@@ -598,32 +561,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.base,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
-    // Constrained + centered — see play.tsx headerTitle.
-    flex: 1,
-    textAlign: 'center',
-  },
-  headerRight: {
-    minWidth: 32,
-    alignItems: 'flex-end',
   },
   roundBadge: {
     fontSize: fontSize.xs,
@@ -712,11 +649,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: fontSize.md,
     fontFamily: fontFamily.bold,
-  },
-  replayContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   waitingText: {
     textAlign: 'center',
