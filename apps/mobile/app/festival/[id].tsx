@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Users } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
+import { FeatureCard } from '../../src/components/ui/FeatureCard';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { SectionLabel } from '../../src/components/ui/SectionLabel';
 import { LikeButton } from '../../src/components/ui/LikeButton';
@@ -155,9 +156,7 @@ export default function FestivalDetailScreen() {
           {mainEvent && (
             <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
               <TouchableOpacity onPress={() => setSelectedTournament(mainEvent)} activeOpacity={0.85}>
-                <GlassCard variant="dark" padding={20} style={styles.mainEventCard}>
-                  <GlowBlob />
-                  <PokerChip size={70} style={styles.mainEventChip} color={colors.onDarkHairline} />
+                <FeatureCard padding={20} style={styles.mainEventCard} chipSize={70} chipStyle={styles.mainEventChip}>
                   <SectionLabel tone="dark">Main Event</SectionLabel>
                   <View style={styles.mainEventHeader}>
                     <Text style={[styles.mainEventName, { color: colors.onDarkPrimary }]}>{mainEvent.name}</Text>
@@ -188,7 +187,7 @@ export default function FestivalDetailScreen() {
                       <ChevronRight size={14} color={colors.onDarkTertiary} strokeWidth={1.8} />
                     </View>
                   ) : null}
-                </GlassCard>
+                </FeatureCard>
               </TouchableOpacity>
             </Animated.View>
           )}

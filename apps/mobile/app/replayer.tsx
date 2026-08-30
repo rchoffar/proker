@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight, History, Plus, Trash2 } from 'lucide-react-native';
 import { GlassCard } from '../src/components/ui/GlassCard';
+import { FeatureCard } from '../src/components/ui/FeatureCard';
 import { ScreenBackButton } from '../src/components/ui/ScreenBackButton';
 import { SectionLabel } from '../src/components/ui/SectionLabel';
 import { useHandHistoryStore } from '../src/store/useHandHistoryStore';
@@ -66,18 +67,18 @@ export default function ReplayerScreen() {
 
           <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
             <TouchableOpacity activeOpacity={0.75} onPress={() => router.push('/hand-replayer')}>
-              <GlassCard padding={16}>
+              <FeatureCard padding={16} chipSize={70} chipStyle={styles.newHandChip}>
                 <View style={styles.newHandRow}>
-                  <View style={[styles.newHandIcon, { backgroundColor: colors.accentTint }]}>
-                    <Plus size={20} color={colors.accent} strokeWidth={2} />
+                  <View style={[styles.newHandIcon, { backgroundColor: colors.accentGlow }]}>
+                    <Plus size={20} color={colors.accentBright} strokeWidth={2} />
                   </View>
                   <View style={styles.newHandInfo}>
-                    <Text style={[styles.newHandTitle, { color: colors.textPrimary }]}>{t('list.newHand')}</Text>
-                    <Text style={[styles.newHandSub, { color: colors.textTertiary }]}>{t('list.newHandSubtitle')}</Text>
+                    <Text style={[styles.newHandTitle, { color: colors.onDarkPrimary }]}>{t('list.newHand')}</Text>
+                    <Text style={[styles.newHandSub, { color: colors.onDarkTertiary }]}>{t('list.newHandSubtitle')}</Text>
                   </View>
-                  <ChevronRight size={18} color={colors.textTertiary} strokeWidth={1.8} />
+                  <ChevronRight size={18} color={colors.onDarkTertiary} strokeWidth={1.8} />
                 </View>
-              </GlassCard>
+              </FeatureCard>
             </TouchableOpacity>
           </Animated.View>
 
@@ -154,6 +155,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
 
+  newHandChip: {
+    bottom: -20,
+    right: -16,
+  },
   newHandRow: {
     flexDirection: 'row',
     alignItems: 'center',

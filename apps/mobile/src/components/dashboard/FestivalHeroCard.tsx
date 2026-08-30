@@ -1,12 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Heart, Star } from 'lucide-react-native';
-import { GlassCard } from '../ui/GlassCard';
-import { GlowBlob } from '../ui/GlowBlob';
-import { PokerChip } from '../ui/PokerChip';
 import { OrganizerLogo } from '../ui/OrganizerLogo';
 import { formatDateRange } from '../../lib/format';
 import { fontFamily, fontSize, spacing, radius } from '../../design-system/theme';
+import { FeatureCard } from '../ui/FeatureCard';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Festival, Organizer } from '../../types';
 
@@ -26,9 +24,7 @@ export function FestivalHeroCard({ festival, organizer, badge, onPress }: Props)
   const BadgeIcon = badge === 'featured' ? Star : Heart;
 
   return (
-    <GlassCard variant="dark" padding={20} style={styles.card}>
-      <GlowBlob />
-      <PokerChip size={80} style={styles.chip} color={colors.onDarkHairline} />
+    <FeatureCard padding={20} style={styles.card}>
       <View style={styles.headerRow}>
         <View style={[styles.badge, { backgroundColor: colors.accentGlow }]}>
           <BadgeIcon size={11} color={colors.accentBright} strokeWidth={2} fill={colors.accentBright} />
@@ -54,19 +50,13 @@ export function FestivalHeroCard({ festival, organizer, badge, onPress }: Props)
           <Text style={styles.primaryButtonText}>{t('hero.viewTournaments')}</Text>
         </TouchableOpacity>
       </View>
-    </GlassCard>
+    </FeatureCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     gap: spacing.sm,
-    overflow: 'hidden',
-  },
-  chip: {
-    position: 'absolute',
-    bottom: -18,
-    right: -14,
   },
   headerRow: {
     flexDirection: 'row',

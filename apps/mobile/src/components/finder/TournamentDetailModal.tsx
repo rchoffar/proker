@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Users } from 'lucide-react-native';
 import { BottomSheet } from '../ui/BottomSheet';
+import { FeatureCard } from '../ui/FeatureCard';
 import { formatAmount } from '../../lib/format';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
 import { SectionLabel } from '../ui/SectionLabel';
@@ -66,24 +67,27 @@ export function TournamentDetailModal({ tournament, festival, onClose }: Props) 
         )}
       </View>
 
-      {/* Buy-in hero */}
-      <View style={[styles.heroCard, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.accentTint }]}>
-        <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>{tr('detail.buyIn')}</Text>
-        <AnimatedNumber
-          value={t.buyIn}
-          suffix=" €"
-          decimals={0}
-          style={[styles.heroValue, { color: colors.accent }]}
-        />
-        {t.totalPlayers ? (
-          <View style={styles.playersRow}>
-            <Users size={12} color={colors.textTertiary} strokeWidth={1.5} />
-            <Text style={[styles.playersText, { color: colors.textTertiary }]}>
-              {tr('detail.players', { count: t.totalPlayers })}
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      {/* Buy-in hero — the featured festival card's surface: dark gradient, green glow,
+          chip watermark. It used to be a flat wash of accent tint. */}
+      <FeatureCard padding={spacing.xl} style={styles.heroCard} chipStyle={styles.heroChip}>
+        <View style={styles.heroContent}>
+          <Text style={[styles.heroLabel, { color: colors.onDarkSecondary }]}>{tr('detail.buyIn')}</Text>
+          <AnimatedNumber
+            value={t.buyIn}
+            suffix=" €"
+            decimals={0}
+            style={[styles.heroValue, { color: colors.accentBright }]}
+          />
+          {t.totalPlayers ? (
+            <View style={styles.playersRow}>
+              <Users size={12} color={colors.onDarkTertiary} strokeWidth={1.5} />
+              <Text style={[styles.playersText, { color: colors.onDarkTertiary }]}>
+                {tr('detail.players', { count: t.totalPlayers })}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </FeatureCard>
 
       {/* Info grid */}
       <View style={[styles.section, { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg }]}>
@@ -158,12 +162,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
   },
   heroCard: {
-    borderWidth: 1,
     borderRadius: radius.xl,
-    padding: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  heroChip: {
+    position: 'absolute',
+    top: -16,
+    right: -14,
+  },
+  heroContent: {
     alignItems: 'center',
     gap: 6,
-    marginBottom: spacing.md,
   },
   heroLabel: {
     fontSize: fontSize.sm,
