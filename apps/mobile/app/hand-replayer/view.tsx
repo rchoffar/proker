@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react-native';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
+import { GameIconButton } from '../../src/components/games/GamePlayHeader';
+import { NoPlayersScreen } from '../../src/components/games/NoPlayersScreen';
 import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/theme';
@@ -18,22 +20,15 @@ export default function HandReplayerViewScreen() {
   const hand = useHandReplayerDraft((s) => s.hand);
 
   if (!hand) {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <Text style={{ color: colors.textPrimary }}>{t('noHand')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base, paddingHorizontal: spacing.xl }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
+    return <NoPlayersScreen message={t('noHand')} onBack={() => router.back()} />;
   }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.neutralTileBg }]} onPress={() => router.back()} activeOpacity={0.7}>
+        <GameIconButton onPress={() => router.back()}>
           <X size={18} color={colors.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
+        </GameIconButton>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -64,22 +59,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   content: {
     paddingHorizontal: spacing.base,
