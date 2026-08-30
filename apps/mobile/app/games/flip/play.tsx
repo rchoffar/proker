@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
-import { X, RotateCw } from 'lucide-react-native';
+import { RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../../src/components/table/SeatedTable';
 import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
 import { TableWordmark } from '../../../src/components/table/TableWordmark';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
@@ -36,6 +38,9 @@ const TABLE_H = PLAY_TABLE.height;
 const POD_W = 84;
 // Five community cards plus their gaps have to sit inside the betting line (inset 38 a side).
 const BOARD_CARD_W = Math.min(46, Math.floor((TABLE_W - 76 - 24 - 16) / 5));
+
+// Proper noun — on the do-not-translate glossary, like the wordmark.
+const GAME_NAME = 'Flip';
 
 // Suspense on the last card: the river hangs face-down for a beat, then flips slower than
 // the other streets (which use 450ms). Same treatment as the hand replayer's river.
@@ -234,14 +239,7 @@ export default function FlipPlayScreen() {
   }, [results, players, updateGameStats]);
 
   if (players.length < 2) {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <Text style={{ color: colors.textPrimary }}>{t('play.noPlayers')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
+    return <NoPlayersScreen message={t('play.noPlayers')} onBack={() => router.back()} />;
   }
 
   const boardVisibleCount = BOARD_VISIBLE_COUNT[phase];
@@ -252,13 +250,7 @@ export default function FlipPlayScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.neutralTileBg }]} onPress={finish} activeOpacity={0.7}>
-          <X size={18} color={colors.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Flip</Text>
-        <View style={styles.iconBtn} />
-      </View>
+      <GamePlayHeader title={GAME_NAME} onClose={finish} />
 
       <View style={styles.tableArea}>
         <LayoutAnimationConfig skipEntering={!ready}>
@@ -399,30 +391,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
-  },
   tableArea: {
     flex: 1,
     alignItems: 'center',
@@ -450,15 +418,6 @@ const styles = StyleSheet.create({
   table: {
     marginVertical: 46,
     alignSelf: 'center',
-  },
-  feltCenter: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   feltStack: {
     alignItems: 'center',

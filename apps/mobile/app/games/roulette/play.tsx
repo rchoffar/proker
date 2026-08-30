@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw } from 'lucide-react-native';
+import { RotateCw } from 'lucide-react-native';
 import { RouletteCardTable } from '../../../src/components/degen/RouletteCardTable';
+import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
+import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -13,6 +15,9 @@ import { recordRouletteSpin } from '../../../src/lib/gameStats';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
+
+// Proper noun — on the do-not-translate glossary, like the wordmark.
+const GAME_NAME = 'Roulette';
 
 export default function RoulettePlayScreen() {
   const { t } = useTranslation('games');
@@ -49,25 +54,12 @@ export default function RoulettePlayScreen() {
   const finish = () => router.dismissTo('/(tabs)/degen');
 
   if (players.length < 2) {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <Text style={{ color: colors.textPrimary }}>{t('play.noPlayers')}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.primaryBtn, { backgroundColor: colors.accentBright, marginTop: spacing.base }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
+    return <NoPlayersScreen message={t('play.noPlayers')} onBack={() => router.back()} />;
   }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.neutralTileBg }]} onPress={finish} activeOpacity={0.7}>
-          <X size={18} color={colors.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Roulette</Text>
-        <View style={styles.iconBtn} />
-      </View>
+      <GamePlayHeader title={GAME_NAME} onClose={finish} />
 
       <View style={styles.body}>
         <RouletteCardTable players={players} spinToken={spinToken} onResult={handleResult} />
@@ -109,30 +101,6 @@ export default function RoulettePlayScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
   },
   body: {
     flex: 1,
