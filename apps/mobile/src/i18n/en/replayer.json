@@ -113,7 +113,8 @@
   "export": {
     "saveFailed": "Export failed. Try again.",
     "videoReady": "Video ready — choose where to share it.",
-    "generating": "Generating video…"
+    "generating": "Generating video…",
+    "share": "Share the video"
   },
   "winOverlay": {
     "title": "WINNER"

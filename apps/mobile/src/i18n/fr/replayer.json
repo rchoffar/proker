@@ -113,7 +113,8 @@
   "export": {
     "saveFailed": "L'export a échoué. Réessayez.",
     "videoReady": "Vidéo prête — choisissez où la partager.",
-    "generating": "Génération de la vidéo…"
+    "generating": "Génération de la vidéo…",
+    "share": "Partager la vidéo"
   },
   "winOverlay": {
     "title": "GAGNÉ"
