@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Pressable, StyleSheet, Dimensions } from 
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react-native';
 import { PokerTable } from '../hand/PokerTable';
+import { SETUP_TABLE } from '../table/tableSize';
 import { PlayerNameCard } from './PlayerNameCard';
 import { SeatNameBubble } from './SeatNameBubble';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -29,8 +30,11 @@ export function RouletteSetupBoard({ players, selected, onChange }: Props) {
   const { colors } = useTheme();
   const [addingSlot, setAddingSlot] = useState<number | null>(null);
 
-  const boardW = Dimensions.get('window').width - spacing.xl * 2;
-  const boardH = Math.min(Math.round(boardW * 1.35), Math.round(Dimensions.get('window').height * 0.52));
+  const boardW = SETUP_TABLE.boardWidth;
+  const boardH = Math.min(
+    Math.round(boardW * SETUP_TABLE.maxAspect),
+    Math.round(Dimensions.get('window').height * SETUP_TABLE.heightRatio)
+  );
 
   // Explicit 3×3 grid on the felt — positions are computed, not flexed, so the add bubble
   // (and the draw's grow animation) can anchor to exact slot centers.

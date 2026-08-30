@@ -45,7 +45,8 @@
     "stackChip_one": "{{count}} jeton",
     "stackChip_other": "{{count}} jetons",
     "dealCards": "Distribuer les cartes",
-    "createTable": "Créer une table"
+    "createTable": "Créer une table",
+    "startingStackChips": "Tapis de départ (jetons)"
   },
   "game": {
     "handBadge": "M{{hand}}",
@@ -109,7 +110,8 @@
     "startsWhenHostLaunches": "La partie démarre dès que l'hôte la lance",
     "waitingNextHand": "L'hôte lance la manche suivante…",
     "variant": "Mode : {{mode}}",
-    "quit": "Quitter"
+    "quit": "Quitter",
+    "waitingSeat": "En attente…"
   },
   "score": {
     "foul": "Foul",

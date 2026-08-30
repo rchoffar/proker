@@ -2,7 +2,8 @@
   "setup": {
     "addPlayer": "Add a player",
     "enterName": "Enter name…",
-    "validate": "Confirm"
+    "validate": "Confirm",
+    "howToPlay": "How to play"
   },
   "play": {
     "noPlayers": "No players in this game."
@@ -22,7 +23,8 @@
     "losesHand_other": "{{names}} lose the hand",
     "twoNames": "{{a}} and {{b}}",
     "playersCount_one": "{{count}} player",
-    "playersCount_other": "{{count}} players"
+    "playersCount_other": "{{count}} players",
+    "gameTypeLabel": "Variant"
   },
   "roulette": {
     "subtitle": "Every player becomes a card on the table — the light stops on whoever pays.",

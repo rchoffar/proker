@@ -63,7 +63,9 @@
     "variantLabel": "Variante",
     "variantStandard": "Classique (2 cartes)",
     "variantQuick": "Rapide (1 carte)",
-    "variantQuickHint": "On commence avec 1 carte, éliminé à 4 cartes — parties plus courtes."
+    "variantQuickHint": "On commence avec 1 carte, éliminé à 4 cartes — parties plus courtes.",
+    "variantStandardShort": "Classique",
+    "variantQuickShort": "Rapide"
   },
   "game": {
     "roundBadge": "M{{round}}",
@@ -117,7 +119,8 @@
     "jeuMaxEnabled": "Règle Jeu Max activée",
     "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max",
     "variantStandard": "Variante classique — 2 cartes, éliminé à 5",
-    "variantQuick": "Variante rapide — 1 carte, éliminé à 4"
+    "variantQuick": "Variante rapide — 1 carte, éliminé à 4",
+    "waitingSeat": "En attente…"
   },
   "picker": {
     "title": "Annoncer",

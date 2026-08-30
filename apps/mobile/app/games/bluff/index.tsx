@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-nativ
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
+import { FeltOptions, type FeltOptionRow } from '../../../src/components/games/FeltOptions';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -16,6 +17,9 @@ import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
 
 type SetupMode = 'passPlay' | 'online';
+
+// Proper noun — on the do-not-translate glossary, like the wordmark.
+const GAME_NAME = 'Bluff';
 
 export default function BluffSetupScreen() {
   const { t } = useTranslation('bluff');
@@ -61,45 +65,35 @@ export default function BluffSetupScreen() {
     router.push('/games/bluff/online');
   };
 
-  const ruleChip = (active: boolean, label: string, onPress: () => void, key: string) => (
-    <TouchableOpacity
-      key={key}
-      style={[
-        styles.ruleChip,
-        active
-          ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
-          : { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <Text style={[styles.ruleChipText, { color: active ? colors.accent : colors.textSecondary }]}>{label}</Text>
-    </TouchableOpacity>
-  );
+  // Same rules in both modes — for online they only apply when hosting (guests inherit the
+  // host's rules through the first state broadcast).
+  const ruleRows: FeltOptionRow[] = [
+    {
+      key: 'jeuMax',
+      label: t('setup.jeuMaxLabel'),
+      info: t('setup.jeuMaxHint'),
+      value: jeuMax ? 'on' : 'off',
+      onChange: (k) => setJeuMax(k === 'on'),
+      options: [
+        { key: 'off', label: t('setup.jeuMaxClassic') },
+        { key: 'on', label: t('setup.jeuMaxOption') },
+      ],
+    },
+    {
+      key: 'variant',
+      label: t('setup.variantLabel'),
+      info: t('setup.variantQuickHint'),
+      value: variant,
+      onChange: (k) => setVariant(k as BluffVariant),
+      options: [
+        { key: 'standard', label: t('setup.variantStandardShort') },
+        { key: 'quick', label: t('setup.variantQuickShort') },
+      ],
+    },
+  ];
 
-  // Same rule picker in both modes — for online it only applies when hosting (guests
-  // inherit the host's rules through the first state broadcast).
-  const rulePicker = (
-    <GlassCard padding={16}>
-      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.jeuMaxLabel')}</Text>
-      <View style={styles.ruleRow}>
-        {ruleChip(!jeuMax, t('setup.jeuMaxClassic'), () => setJeuMax(false), 'classic')}
-        {ruleChip(jeuMax, t('setup.jeuMaxOption'), () => setJeuMax(true), 'jeuMax')}
-      </View>
-      {jeuMax ? (
-        <Text style={[styles.ruleHint, { color: colors.textTertiary }]}>{t('setup.jeuMaxHint')}</Text>
-      ) : null}
-      <Text style={[styles.fieldLabel, styles.fieldLabelSpaced, { color: colors.textSecondary }]}>
-        {t('setup.variantLabel')}
-      </Text>
-      <View style={styles.ruleRow}>
-        {ruleChip(variant === 'standard', t('setup.variantStandard'), () => setVariant('standard'), 'standard')}
-        {ruleChip(variant === 'quick', t('setup.variantQuick'), () => setVariant('quick'), 'quick')}
-      </View>
-      {variant === 'quick' ? (
-        <Text style={[styles.ruleHint, { color: colors.textTertiary }]}>{t('setup.variantQuickHint')}</Text>
-      ) : null}
-    </GlassCard>
+  const feltOptions = (feltWidth: number) => (
+    <FeltOptions gameName={GAME_NAME} rows={ruleRows} width={feltWidth} />
   );
 
   return (
@@ -115,12 +109,15 @@ export default function BluffSetupScreen() {
       </SetupBlock>
 
       {mode === 'passPlay' ? (
-        <>
-          <SetupBlock index={2}>
-            <SeatTableBoard players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_BLUFF_PLAYERS} />
-          </SetupBlock>
-          <SetupBlock index={3}>{rulePicker}</SetupBlock>
-        </>
+        <SetupBlock index={2}>
+          <SeatTableBoard
+            players={players}
+            selected={selected}
+            onChange={setSelected}
+            maxPlayers={MAX_BLUFF_PLAYERS}
+            center={feltOptions}
+          />
+        </SetupBlock>
       ) : (
         <>
           <SetupBlock index={2}>
@@ -150,7 +147,18 @@ export default function BluffSetupScreen() {
               </View>
             </GlassCard>
           </SetupBlock>
-          <SetupBlock index={3}>{rulePicker}</SetupBlock>
+          {/* Hosting: the felt shows the rules the guests will inherit, no roster yet. */}
+          <SetupBlock index={3}>
+            <SeatTableBoard
+              players={players}
+              selected={[]}
+              onChange={() => {}}
+              maxPlayers={MAX_BLUFF_PLAYERS}
+              center={feltOptions}
+              seatsInteractive={false}
+              emptySeatLabel={t('online.waitingSeat')}
+            />
+          </SetupBlock>
         </>
       )}
     </GameSetupScreen>
@@ -164,30 +172,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
-  },
-  fieldLabelSpaced: {
-    marginTop: spacing.base,
-  },
-  ruleRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  ruleChip: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  ruleChipText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-  },
-  ruleHint: {
-    marginTop: spacing.sm,
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.regular,
-    lineHeight: 16,
   },
   joinRow: {
     flexDirection: 'row',

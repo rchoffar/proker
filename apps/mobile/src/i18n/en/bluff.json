@@ -63,7 +63,9 @@
     "variantLabel": "Variant",
     "variantStandard": "Classic (2 cards)",
     "variantQuick": "Quick (1 card)",
-    "variantQuickHint": "Start with 1 card, out at 4 cards — shorter games."
+    "variantQuickHint": "Start with 1 card, out at 4 cards — shorter games.",
+    "variantStandardShort": "Classic",
+    "variantQuickShort": "Quick"
   },
   "game": {
     "roundBadge": "R{{round}}",
@@ -117,7 +119,8 @@
     "jeuMaxEnabled": "Jeu Max rule enabled",
     "jeuMaxDisabledLobby": "Classic rules — no Jeu Max",
     "variantStandard": "Classic variant — 2 cards, out at 5",
-    "variantQuick": "Quick variant — 1 card, out at 4"
+    "variantQuick": "Quick variant — 1 card, out at 4",
+    "waitingSeat": "Waiting…"
   },
   "picker": {
     "title": "Announce",

@@ -45,7 +45,8 @@
     "stackChip_one": "{{count}} chip",
     "stackChip_other": "{{count}} chips",
     "dealCards": "Deal the cards",
-    "createTable": "Create a table"
+    "createTable": "Create a table",
+    "startingStackChips": "Starting stack (chips)"
   },
   "game": {
     "handBadge": "H{{hand}}",
@@ -109,7 +110,8 @@
     "startsWhenHostLaunches": "The game starts as soon as the host launches it",
     "waitingNextHand": "The host starts the next hand…",
     "variant": "Mode: {{mode}}",
-    "quit": "Leave"
+    "quit": "Leave",
+    "waitingSeat": "Waiting…"
   },
   "score": {
     "foul": "Foul",

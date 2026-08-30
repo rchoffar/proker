@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Info } from 'lucide-react-native';
+import { BottomSheet } from '../ui/BottomSheet';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 
@@ -11,9 +13,14 @@ import { useTheme } from '../../design-system/ThemeProvider';
 // with back button, scrollable stack, sticky footer CTA. The per-game content (roster,
 // mode switch, rule pickers, join code) comes in as children — wrap each block in
 // <SetupBlock index={n}> to keep the staggered entrance.
+//
+// The rules blurb used to sit above the content as a three-line paragraph, which is the
+// height the table needed. It lives behind the (!) in the header now: still one tap away for
+// someone meeting the game, out of the way for everyone who has played it before.
 
 interface Props {
   title: string;
+  /** The game's rules, shown by the (!) beside the title. */
   subtitle: string;
   children: ReactNode;
   ctaLabel: string;
@@ -32,6 +39,8 @@ export function SetupBlock({ index, children }: { index: number; children: React
 export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabled = false, onCtaPress }: Props) {
   const { colors } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation('games');
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -45,6 +54,14 @@ export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabl
           <ChevronLeft size={18} color={colors.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.neutralTileBg }]}
+          onPress={() => setRulesOpen(true)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Info size={17} color={colors.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -54,13 +71,14 @@ export function GameSetupScreen({ title, subtitle, children, ctaLabel, ctaDisabl
         automaticallyAdjustKeyboardInsets
       >
         <View style={styles.stack}>
-          <SetupBlock index={0}>
-            <Text style={[styles.subtitle, { color: colors.textTertiary }]}>{subtitle}</Text>
-          </SetupBlock>
           {children}
           <View style={styles.footerSpacer} />
         </View>
       </ScrollView>
+
+      <BottomSheet visible={rulesOpen} onClose={() => setRulesOpen(false)} title={t('setup.howToPlay')}>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+      </BottomSheet>
 
       <View style={styles.footer}>
         <TouchableOpacity
@@ -107,9 +125,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   subtitle: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.base,
     fontFamily: fontFamily.regular,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   footerSpacer: {
     height: 100,

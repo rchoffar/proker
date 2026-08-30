@@ -2,7 +2,8 @@
   "setup": {
     "addPlayer": "Ajouter un joueur",
     "enterName": "Entrer nom…",
-    "validate": "Valider"
+    "validate": "Valider",
+    "howToPlay": "Comment jouer"
   },
   "play": {
     "noPlayers": "Aucun joueur pour cette partie."
@@ -22,7 +23,8 @@
     "losesHand_other": "{{names}} perdent la main",
     "twoNames": "{{a}} et {{b}}",
     "playersCount_one": "{{count}} joueur",
-    "playersCount_other": "{{count}} joueurs"
+    "playersCount_other": "{{count}} joueurs",
+    "gameTypeLabel": "Variante"
   },
   "roulette": {
     "subtitle": "Chaque joueur devient une carte sur la table — la lumière s'arrête sur celui qui paie.",

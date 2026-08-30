@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
-import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
+import { FeltOptions, type FeltOptionRow } from '../../../src/components/games/FeltOptions';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { useFlipDraft } from '../../../src/store/useFlipDraft';
 import type { FlipGameType } from '../../../src/lib/pokerHandEvaluator';
@@ -11,6 +11,8 @@ import type { Player } from '../../../src/types';
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 6;
+// Proper noun — on the do-not-translate glossary, like the wordmark.
+const GAME_NAME = 'Flip';
 
 export default function FlipSetupScreen() {
   const { t } = useTranslation('games');
@@ -22,12 +24,20 @@ export default function FlipSetupScreen() {
   const [gameType, setGameType] = useState<FlipGameType>(flipLastGameType);
 
   // Game-type names are proper nouns — identical in both languages.
-  const gameTypeOptions = useMemo<{ key: FlipGameType; label: string }[]>(
+  const feltRows = useMemo<FeltOptionRow[]>(
     () => [
-      { key: 'holdem', label: "Hold'em" },
-      { key: 'omaha', label: 'Omaha' },
+      {
+        key: 'gameType',
+        label: t('flip.gameTypeLabel'),
+        value: gameType,
+        onChange: (k) => setGameType(k as FlipGameType),
+        options: [
+          { key: 'holdem', label: "Hold'em" },
+          { key: 'omaha', label: 'Omaha' },
+        ],
+      },
     ],
-    [],
+    [t, gameType],
   );
 
   const canDeal = selected.length >= MIN_PLAYERS && selected.length <= MAX_PLAYERS;
@@ -42,17 +52,20 @@ export default function FlipSetupScreen() {
 
   return (
     <GameSetupScreen
-      title="Flip"
+      title={GAME_NAME}
       subtitle={t('flip.subtitle')}
       ctaLabel={t('flip.dealCards')}
       ctaDisabled={!canDeal}
       onCtaPress={handleStart}
     >
       <SetupBlock index={1}>
-        <SegmentedControl options={gameTypeOptions} value={gameType} onChange={setGameType} />
-      </SetupBlock>
-      <SetupBlock index={2}>
-        <SeatTableBoard players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_PLAYERS} />
+        <SeatTableBoard
+          players={players}
+          selected={selected}
+          onChange={setSelected}
+          maxPlayers={MAX_PLAYERS}
+          center={(feltWidth) => <FeltOptions gameName={GAME_NAME} rows={feltRows} width={feltWidth} />}
+        />
       </SetupBlock>
     </GameSetupScreen>
   );

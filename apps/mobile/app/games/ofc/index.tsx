@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-nativ
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
+import { FeltOptions, type FeltOptionRow } from '../../../src/components/games/FeltOptions';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
 import { useAppStore } from '../../../src/store/useAppStore';
@@ -18,6 +19,8 @@ import type { Player } from '../../../src/types';
 type SetupMode = 'passPlay' | 'online';
 
 const STACK_PRESETS = [50, 100, 200, 500];
+// Proper noun — on the do-not-translate glossary, like the wordmark.
+const GAME_NAME = 'OFC';
 
 export default function OfcSetupScreen() {
   const { t } = useTranslation('ofc');
@@ -63,63 +66,32 @@ export default function OfcSetupScreen() {
     router.push('/games/ofc/online');
   };
 
-  const variantPicker = (
-    <GlassCard padding={16}>
-      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.variantLabel')}</Text>
-      <View style={styles.stackRow}>
-        {OFC_VARIANTS.map((value) => {
-          const active = variant === value;
-          return (
-            <TouchableOpacity
-              key={value}
-              style={[
-                styles.stackChip,
-                active
-                  ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
-                  : { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
-              ]}
-              onPress={() => setVariant(value)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.stackChipText, { color: active ? colors.accent : colors.textSecondary }]}>
-                {t(value === 'classic' ? 'setup.variantClassic' : 'setup.variantPineapple')}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Text style={[styles.variantHint, { color: colors.textTertiary }]}>
-        {t(variant === 'classic' ? 'setup.variantClassicHint' : 'setup.variantPineappleHint')}
-      </Text>
-    </GlassCard>
-  );
+  const feltRows: FeltOptionRow[] = [
+    {
+      key: 'variant',
+      label: t('setup.variantLabel'),
+      info: t(variant === 'classic' ? 'setup.variantClassicHint' : 'setup.variantPineappleHint'),
+      value: variant,
+      onChange: (k) => setVariant(k as OfcVariant),
+      options: OFC_VARIANTS.map((value) => ({
+        key: value,
+        // Variant names are proper nouns.
+        label: t(value === 'classic' ? 'setup.variantClassic' : 'setup.variantPineapple'),
+      })),
+    },
+    {
+      key: 'stack',
+      // Four presets across a felt this narrow: the row label carries the unit so the chips
+      // can be bare numbers.
+      label: t('setup.startingStackChips'),
+      value: String(startingStack),
+      onChange: (k) => setStartingStack(Number(k)),
+      options: STACK_PRESETS.map((value) => ({ key: String(value), label: String(value) })),
+    },
+  ];
 
-  const stackPicker = (
-    <GlassCard padding={16}>
-      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('setup.startingStack')}</Text>
-      <View style={styles.stackRow}>
-        {STACK_PRESETS.map((value) => {
-          const active = startingStack === value;
-          return (
-            <TouchableOpacity
-              key={value}
-              style={[
-                styles.stackChip,
-                active
-                  ? { borderColor: colors.accent, backgroundColor: colors.accentTint }
-                  : { borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
-              ]}
-              onPress={() => setStartingStack(value)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.stackChipText, { color: active ? colors.accent : colors.textSecondary }]}>
-                {t('setup.stackChip', { count: value })}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </GlassCard>
+  const feltOptions = (feltWidth: number) => (
+    <FeltOptions gameName={GAME_NAME} rows={feltRows} width={feltWidth} />
   );
 
   return (
@@ -135,13 +107,15 @@ export default function OfcSetupScreen() {
       </SetupBlock>
 
       {mode === 'passPlay' ? (
-        <>
-          <SetupBlock index={2}>
-            <SeatTableBoard players={players} selected={selected} onChange={setSelected} maxPlayers={MAX_OFC_PLAYERS} />
-          </SetupBlock>
-          <SetupBlock index={3}>{variantPicker}</SetupBlock>
-          <SetupBlock index={4}>{stackPicker}</SetupBlock>
-        </>
+        <SetupBlock index={2}>
+          <SeatTableBoard
+            players={players}
+            selected={selected}
+            onChange={setSelected}
+            maxPlayers={MAX_OFC_PLAYERS}
+            center={feltOptions}
+          />
+        </SetupBlock>
       ) : (
         <>
           <SetupBlock index={2}>
@@ -171,8 +145,18 @@ export default function OfcSetupScreen() {
               </View>
             </GlassCard>
           </SetupBlock>
-          <SetupBlock index={3}>{variantPicker}</SetupBlock>
-          <SetupBlock index={4}>{stackPicker}</SetupBlock>
+          {/* Hosting: the felt shows the rules the guests will inherit, no roster yet. */}
+          <SetupBlock index={3}>
+            <SeatTableBoard
+              players={players}
+              selected={[]}
+              onChange={() => {}}
+              maxPlayers={MAX_OFC_PLAYERS}
+              center={feltOptions}
+              seatsInteractive={false}
+              emptySeatLabel={t('online.waitingSeat')}
+            />
+          </SetupBlock>
         </>
       )}
     </GameSetupScreen>
@@ -186,29 +170,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
-  },
-  stackRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  stackChip: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  stackChipText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-  },
-  variantHint: {
-    marginTop: spacing.sm,
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.regular,
-    lineHeight: 16,
   },
   joinRow: {
     flexDirection: 'row',

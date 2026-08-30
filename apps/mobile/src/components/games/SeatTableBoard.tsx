@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet, Dimensions } from 'react-native';
 import { X, Plus } from 'lucide-react-native';
 import { PokerTable, TABLE, seatPoint } from '../hand/PokerTable';
+import { SETUP_TABLE } from '../table/tableSize';
 import { PlayingCard } from '../hand/PlayingCard';
 import { SeatNameBubble } from './SeatNameBubble';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -13,9 +14,15 @@ import type { Player } from '../../types';
 // The flip/bluff/OFC setup roster, per Mathieu's mockup: a vertical poker table whose
 // SEATS are the roster — gold-ringed circles on the rail, "+" when free. Tapping a free
 // seat opens the name bubble right there; a filled seat shows the player's initials with
-// their name plate and a ⊗ to remove. Two face-down cards + the dealer chip dress the felt.
+// their name plate and a ⊗ to remove.
+//
+// The felt centre is the screen's main content, not decoration: callers pass the game name
+// and its options in through `center` (see FeltOptions). Without one it falls back to the
+// face-down deck and dealer chip that used to be all the felt held.
 
 const SEAT_D = 58;
+// The betting line is inset 38pt a side; centre content stays inside it.
+const FELT_INSET = 38;
 
 interface Props {
   // Every known player (store) — the bubble suggests the ones not yet seated.
@@ -23,15 +30,35 @@ interface Props {
   selected: Player[];
   onChange: (selected: Player[]) => void;
   maxPlayers: number;
+  /** Rendered on the felt. Receives the width available inside the betting line. */
+  center?: (feltWidth: number) => ReactNode;
+  /**
+   * False when the roster is not the local player's to fill — hosting online, where the
+   * seats fill as people join. Empty seats then wait instead of inviting a tap.
+   */
+  seatsInteractive?: boolean;
+  /** Label under an empty seat when it is not interactive ("waiting…"). */
+  emptySeatLabel?: string;
 }
 
-export function SeatTableBoard({ players, selected, onChange, maxPlayers }: Props) {
+export function SeatTableBoard({
+  players,
+  selected,
+  onChange,
+  maxPlayers,
+  center,
+  seatsInteractive = true,
+  emptySeatLabel,
+}: Props) {
   const { colors } = useTheme();
   const [addingSeat, setAddingSeat] = useState<number | null>(null);
 
-  const boardW = Dimensions.get('window').width - spacing.base * 2;
+  const boardW = SETUP_TABLE.boardWidth;
   const tableW = boardW - SEAT_D;
-  const tableH = Math.min(Math.round(tableW * 1.35), Math.round(Dimensions.get('window').height * 0.42));
+  const tableH = Math.min(
+    Math.round(tableW * SETUP_TABLE.maxAspect),
+    Math.round(Dimensions.get('window').height * SETUP_TABLE.heightRatio)
+  );
   const boardH = tableH + SEAT_D;
   const pad = SEAT_D / 2; // seats are centered ON the rail, half outside the table box
 
@@ -57,16 +84,22 @@ export function SeatTableBoard({ players, selected, onChange, maxPlayers }: Prop
   return (
     <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
       <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: pad, top: pad }}>
-        {/* Felt dressing: two face-down cards + the dealer chip, purely decorative. */}
-        <View style={styles.feltCenter} pointerEvents="none">
-          <View style={styles.deckPair}>
-            <PlayingCard faceDown size="sm" style={styles.deckLeft} />
-            <PlayingCard faceDown size="sm" style={styles.deckRight} />
+        {center ? (
+          <View style={styles.feltCenter} pointerEvents="box-none">
+            {center(tableW - FELT_INSET * 2)}
           </View>
-          <View style={styles.dealerChip}>
-            <Text style={styles.dealerChipText}>D</Text>
+        ) : (
+          /* Felt dressing when the caller has nothing to put there. */
+          <View style={styles.feltCenter} pointerEvents="none">
+            <View style={styles.deckPair}>
+              <PlayingCard faceDown size="sm" style={styles.deckLeft} />
+              <PlayingCard faceDown size="sm" style={styles.deckRight} />
+            </View>
+            <View style={styles.dealerChip}>
+              <Text style={styles.dealerChipText}>D</Text>
+            </View>
           </View>
-        </View>
+        )}
       </PokerTable>
 
       {Array.from({ length: maxPlayers }, (_, k) => {
@@ -95,7 +128,7 @@ export function SeatTableBoard({ players, selected, onChange, maxPlayers }: Prop
                   <X size={11} color={TABLE.plateText} strokeWidth={2.5} />
                 </TouchableOpacity>
               </>
-            ) : (
+            ) : seatsInteractive ? (
               <TouchableOpacity
                 style={[styles.seat, { backgroundColor: 'rgba(8,12,10,0.72)' }]}
                 onPress={() => setAddingSeat(k)}
@@ -103,6 +136,17 @@ export function SeatTableBoard({ players, selected, onChange, maxPlayers }: Prop
               >
                 <Plus size={26} color={colors.accentBright} strokeWidth={2.5} />
               </TouchableOpacity>
+            ) : (
+              <>
+                <View style={[styles.seat, styles.seatWaiting]} />
+                {emptySeatLabel ? (
+                  <View style={[styles.namePlate, styles.namePlateWaiting]}>
+                    <Text style={[styles.namePlateText, styles.namePlateTextWaiting]} numberOfLines={1}>
+                      {emptySeatLabel}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
             )}
           </View>
         );
@@ -145,6 +189,11 @@ const styles = StyleSheet.create({
   seatFilled: {
     backgroundColor: '#131A16',
   },
+  seatWaiting: {
+    backgroundColor: 'rgba(8,12,10,0.5)',
+    borderStyle: 'dashed',
+    borderColor: 'rgba(231,195,111,0.45)',
+  },
   seatInitials: {
     color: TABLE.plateText,
     fontSize: 16,
@@ -164,6 +213,13 @@ const styles = StyleSheet.create({
     color: TABLE.plateText,
     fontSize: 10,
     fontFamily: fontFamily.semibold,
+  },
+  namePlateWaiting: {
+    backgroundColor: 'rgba(8,12,10,0.55)',
+  },
+  namePlateTextWaiting: {
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: fontFamily.regular,
   },
   removeBadge: {
     position: 'absolute',
