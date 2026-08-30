@@ -222,16 +222,16 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1E1F26',
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: fontSize.sm,
+    fontSize: fontSize.base,
     fontFamily: fontFamily.bold,
   },
 
