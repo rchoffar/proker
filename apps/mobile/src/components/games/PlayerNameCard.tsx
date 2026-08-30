@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-
 import { X } from 'lucide-react-native';
 import { fontFamily, fontSize, radius } from '../../design-system/theme';
 import { TABLE } from '../hand/PokerTable';
+import { CardTexture } from './CardTexture';
 
 // A player as a physical card lying on the felt — the shared visual for game setup
 // rosters and the roulette draw. Fixed "physical object" colors, theme-invariant on
@@ -46,6 +47,7 @@ export function PlayerNameCard({
 
   return (
     <View style={[styles.card, { width, height, backgroundColor: color }, dimmed && styles.dimmed, style]}>
+      <CardTexture width={width} height={height} />
       <Text style={styles.name} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
         {name}
       </Text>
