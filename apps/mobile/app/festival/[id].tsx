@@ -155,32 +155,37 @@ export default function FestivalDetailScreen() {
           {mainEvent && (
             <Animated.View entering={FadeInDown.delay(120).springify().damping(18).stiffness(140)}>
               <TouchableOpacity onPress={() => setSelectedTournament(mainEvent)} activeOpacity={0.85}>
-                <GlassCard padding={20} style={styles.mainEventCard}>
-                  <PokerChip size={70} style={styles.mainEventChip} color={colors.hairline} />
-                  <SectionLabel>Main Event</SectionLabel>
+                <GlassCard variant="dark" padding={20} style={styles.mainEventCard}>
+                  <GlowBlob />
+                  <PokerChip size={70} style={styles.mainEventChip} color={colors.onDarkHairline} />
+                  <SectionLabel tone="dark">Main Event</SectionLabel>
                   <View style={styles.mainEventHeader}>
-                    <Text style={[styles.mainEventName, { color: colors.textPrimary }]}>{mainEvent.name}</Text>
-                    <Text style={[styles.mainEventBuyIn, { color: colors.accent }]}>{formatAmount(mainEvent.buyIn)}</Text>
+                    <Text style={[styles.mainEventName, { color: colors.onDarkPrimary }]}>{mainEvent.name}</Text>
+                    <Text style={[styles.mainEventBuyIn, { color: colors.accentBright }]}>{formatAmount(mainEvent.buyIn)}</Text>
                   </View>
                   {(mainEvent.blindStructure || mainEvent.guaranteed) ? (
                     <View style={styles.mainEventMetaRow}>
                       {mainEvent.blindStructure ? (
                         <View style={styles.mainEventMetaItem}>
-                          <Clock size={12} color={colors.textTertiary} strokeWidth={1.5} />
-                          <Text style={[styles.mainEventMetaText, { color: colors.textTertiary }]}>
+                          <Clock size={12} color={colors.onDarkTertiary} strokeWidth={1.5} />
+                          <Text style={[styles.mainEventMetaText, { color: colors.onDarkTertiary }]}>
                             {tr('festival.perLevel', { duration: formatLevelDuration(mainEvent.blindStructure.levels) })}
                           </Text>
                         </View>
                       ) : null}
                       {mainEvent.guaranteed ? (
-                        <Pill label={tr('festival.guaranteed', { amount: formatAmount(mainEvent.guaranteed) })} tone="accent" />
+                        <Pill
+                          label={tr('festival.guaranteed', { amount: formatAmount(mainEvent.guaranteed) })}
+                          tone="accent"
+                          onDark
+                        />
                       ) : null}
                     </View>
                   ) : null}
                   {mainEvent.blindStructure ? (
                     <View style={styles.mainEventHint}>
-                      <Text style={[styles.mainEventHintText, { color: colors.textTertiary }]}>{tr('festival.viewBlindStructure')}</Text>
-                      <ChevronRight size={14} color={colors.textTertiary} strokeWidth={1.8} />
+                      <Text style={[styles.mainEventHintText, { color: colors.onDarkTertiary }]}>{tr('festival.viewBlindStructure')}</Text>
+                      <ChevronRight size={14} color={colors.onDarkTertiary} strokeWidth={1.8} />
                     </View>
                   ) : null}
                 </GlassCard>
