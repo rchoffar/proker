@@ -40,7 +40,7 @@ const CREAM = '#F1E6C8';
 const CREAM_TEXT = '#1A150F';
 // The cream twin covers the coloured card underneath, so it carries its own monogram — in
 // ink rather than the white the coloured cards use, which cream would swallow.
-const CREAM_MONOGRAM = 'rgba(26, 21, 15, 0.13)';
+const CREAM_MONOGRAM = 'rgba(26, 21, 15, 0.16)';
 const LAND_TYPE = Haptics.NotificationFeedbackType.Success;
 
 function triggerTick() {
