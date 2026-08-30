@@ -14,9 +14,12 @@ const MONOGRAM = 'UPK';
 interface Props {
   width: number;
   height: number;
+  /** Ink for the monogram. Defaults to white, for the coloured cards; the roulette's cream
+   *  winner twin needs a dark one or the pattern vanishes into the card. */
+  color?: string;
 }
 
-export function CardTexture({ width, height }: Props) {
+export function CardTexture({ width, height, color }: Props) {
   const cols = Math.ceil(width / TILE) + 1;
   const rows = Math.ceil(height / TILE) + 1;
 
@@ -26,7 +29,7 @@ export function CardTexture({ width, height }: Props) {
         <View key={r} style={styles.row}>
           {Array.from({ length: cols }, (_, c) => (
             // Alternate rows are offset half a tile, like a brick course.
-            <Text key={c} style={[styles.mark, r % 2 === 1 && styles.markOffset]}>
+            <Text key={c} style={[styles.mark, color ? { color } : null, r % 2 === 1 && styles.markOffset]}>
               {MONOGRAM}
             </Text>
           ))}

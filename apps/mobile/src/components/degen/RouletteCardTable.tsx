@@ -13,6 +13,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { PokerTable, TABLE } from '../hand/PokerTable';
 import { PlayerNameCard } from '../games/PlayerNameCard';
+import { CardTexture } from '../games/CardTexture';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Player } from '../../types';
@@ -37,6 +38,9 @@ const GROW_MS = 650;
 const GROW_SCALE = 2.4;
 const CREAM = '#F1E6C8';
 const CREAM_TEXT = '#1A150F';
+// The cream twin covers the coloured card underneath, so it carries its own monogram — in
+// ink rather than the white the coloured cards use, which cream would swallow.
+const CREAM_MONOGRAM = 'rgba(26, 21, 15, 0.13)';
 const LAND_TYPE = Haptics.NotificationFeedbackType.Success;
 
 function triggerTick() {
@@ -113,6 +117,7 @@ function CardSlot({ index, name, color, width, activeIndex, dimmed }: CardSlotPr
       {/* Cream twin LAST and without zIndex — iOS turns zIndex into layer.zPosition,
           which would poke through full-screen overlays. */}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.litCard, litStyle]}>
+        <CardTexture width={width} height={height} color={CREAM_MONOGRAM} />
         <Text style={styles.litName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
           {name}
         </Text>
@@ -279,6 +284,7 @@ export function RouletteCardTable({
             grownStyle,
           ]}
         >
+          <CardTexture width={cardW} height={cardH} color={CREAM_MONOGRAM} />
           <Text style={styles.litName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
             {players[grownIndex].name}
           </Text>
