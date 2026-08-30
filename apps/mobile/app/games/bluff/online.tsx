@@ -5,17 +5,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, RotateCw, Users, WifiOff } from 'lucide-react-native';
+import { X, RotateCw, WifiOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { BluffTable } from '../../../src/components/bluff/BluffTable';
+import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
+import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
 import { PLAY_TABLE } from '../../../src/components/table/tableSize';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
-import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
@@ -212,43 +213,42 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           <View style={styles.iconBtn} />
         </View>
 
+        {/* The room IS the table: the code sits on the felt and the seats fill as people
+            join, instead of a code card above a list of names. */}
         <View style={styles.lobbyContent}>
-          <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.codeBlock}>
-            <Text style={[styles.codeLabel, { color: colors.onDarkTertiary }]}>{t('online.tableCode')}</Text>
-            <Text style={[styles.codeValue, { color: TABLE.gold }]}>{code}</Text>
-            <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-              {isHost ? t('online.shareCode') : t('online.waitingHostStart')}
-            </Text>
-            {isHost && (
-              <Text style={[styles.mutedText, { color: hostJeuMax ? TABLE.gold : colors.onDarkTertiary }]}>
-                {t(hostJeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby')}
-              </Text>
-            )}
-            {isHost && (
-              <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-                {t(hostVariant === 'quick' ? 'online.variantQuick' : 'online.variantStandard')}
-              </Text>
-            )}
+          <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}>
+            <SeatTableBoard
+              players={[]}
+              selected={members.map((m) => ({
+                id: m.playerId,
+                name: m.playerId === myId ? t('online.youSuffix', { name: m.name }) : m.name,
+              }))}
+              onChange={() => {}}
+              maxPlayers={MAX_BLUFF_PLAYERS}
+              seatsInteractive={false}
+              emptySeatLabel={t('online.waitingSeat')}
+              dimmedIds={members.filter((m) => !m.connected).map((m) => m.playerId)}
+              center={(feltWidth) => (
+                <LobbyFelt
+                  code={code ?? ''}
+                  codeLabel={t('online.tableCode')}
+                  caption={isHost ? t('online.shareCode') : t('online.waitingHostStart')}
+                  rules={
+                    isHost
+                      ? [
+                          t(hostJeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby'),
+                          t(hostVariant === 'quick' ? 'online.variantQuick' : 'online.variantStandard'),
+                        ]
+                      : []
+                  }
+                  width={feltWidth}
+                />
+              )}
+            />
           </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(60).springify().damping(18).stiffness(140)}>
-            <GlassCard padding={16} variant="dark">
-              <View style={styles.membersHeader}>
-                <Users size={16} color={colors.onDarkSecondary} strokeWidth={2} />
-                <Text style={[styles.membersTitle, { color: colors.onDarkSecondary }]}>
-                  {t('online.players', { current: members.length, max: MAX_BLUFF_PLAYERS })}
-                </Text>
-              </View>
-              {members.map((m) => (
-                <View key={m.playerId} style={styles.memberRow}>
-                  <View style={[styles.dot, { backgroundColor: m.connected ? colors.accentBright : colors.onDarkTertiary }]} />
-                  <Text style={[styles.memberName, { color: colors.onDarkPrimary }]}>
-                    {m.playerId === myId ? t('online.youSuffix', { name: m.name }) : m.name}
-                  </Text>
-                </View>
-              ))}
-            </GlassCard>
-          </Animated.View>
+          <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
+            {t('online.players', { current: members.length, max: MAX_BLUFF_PLAYERS })}
+          </Text>
         </View>
 
         <View style={styles.footer}>
@@ -632,50 +632,9 @@ const styles = StyleSheet.create({
   lobbyContent: {
     flex: 1,
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.xl,
-    gap: spacing.lg,
-  },
-  codeBlock: {
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  codeLabel: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.medium,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  codeValue: {
-    fontSize: 56,
-    fontFamily: fontFamily.display,
-    letterSpacing: 12,
-  },
-  membersHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  membersTitle: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  memberName: {
-    fontSize: fontSize.base,
-    fontFamily: fontFamily.medium,
+    gap: spacing.base,
   },
   tableArea: {
     flex: 1,

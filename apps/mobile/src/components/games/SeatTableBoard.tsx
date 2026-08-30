@@ -39,6 +39,8 @@ interface Props {
   seatsInteractive?: boolean;
   /** Label under an empty seat when it is not interactive ("waiting…"). */
   emptySeatLabel?: string;
+  /** Seated players to grey out — an online member who has dropped the connection. */
+  dimmedIds?: string[];
 }
 
 export function SeatTableBoard({
@@ -49,6 +51,7 @@ export function SeatTableBoard({
   center,
   seatsInteractive = true,
   emptySeatLabel,
+  dimmedIds,
 }: Props) {
   const { colors } = useTheme();
   const [addingSeat, setAddingSeat] = useState<number | null>(null);
@@ -111,7 +114,9 @@ export function SeatTableBoard({
           <View key={k} style={[styles.seatWrap, { left: cx - SEAT_D / 2, top: cy - SEAT_D / 2 }]}>
             {player ? (
               <>
-                <View style={[styles.seat, styles.seatFilled]}>
+                <View
+                  style={[styles.seat, styles.seatFilled, dimmedIds?.includes(player.id) && styles.seatDimmed]}
+                >
                   <Text style={styles.seatInitials}>{initials(player.name)}</Text>
                 </View>
                 <View style={styles.namePlate}>
@@ -188,6 +193,9 @@ const styles = StyleSheet.create({
   },
   seatFilled: {
     backgroundColor: '#131A16',
+  },
+  seatDimmed: {
+    opacity: 0.45,
   },
   seatWaiting: {
     backgroundColor: 'rgba(8,12,10,0.5)',
