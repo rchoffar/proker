@@ -87,8 +87,8 @@
   "amountHint": {
     "currentBet": "Mise actuelle : {{amount}}",
     "currentBetMax": "Mise actuelle : {{amount}} — max {{max}}",
-    "minRaise": "Mise actuelle : {{amount}} — relance supérieure à {{amount}}",
-    "minRaiseMax": "Mise actuelle : {{amount}} — relance supérieure à {{amount}} — max {{max}}",
+    "minRaise": "Mise actuelle : {{amount}} — relancez à un total supérieur à {{amount}}",
+    "minRaiseMax": "Mise actuelle : {{amount}} — relancez à un total supérieur à {{amount}} — max {{max}}",
     "maxOnly": "max {{max}}"
   },
   "stack": "Tapis : {{amount}}",
@@ -117,5 +117,8 @@
   },
   "winOverlay": {
     "title": "GAGNÉ"
-  }
+  },
+  "anteEqualsBb": "Ante de {{amount}} par joueur — toucher pour un autre montant.",
+  "postsSb": "{{name}} — petite blinde {{amount}}",
+  "postsBb": "{{name}} — grosse blinde {{amount}}"
 }

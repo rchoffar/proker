@@ -87,8 +87,8 @@
   "amountHint": {
     "currentBet": "Current bet: {{amount}}",
     "currentBetMax": "Current bet: {{amount}} — max {{max}}",
-    "minRaise": "Current bet: {{amount}} — raise above {{amount}}",
-    "minRaiseMax": "Current bet: {{amount}} — raise above {{amount}} — max {{max}}",
+    "minRaise": "Current bet: {{amount}} — raise TO a total above {{amount}}",
+    "minRaiseMax": "Current bet: {{amount}} — raise TO a total above {{amount}} — max {{max}}",
     "maxOnly": "max {{max}}"
   },
   "stack": "Stack: {{amount}}",
@@ -117,5 +117,8 @@
   },
   "winOverlay": {
     "title": "WINNER"
-  }
+  },
+  "anteEqualsBb": "{{amount}} ante per player — tap to set another amount.",
+  "postsSb": "{{name}} — small blind {{amount}}",
+  "postsBb": "{{name}} — big blind {{amount}}"
 }

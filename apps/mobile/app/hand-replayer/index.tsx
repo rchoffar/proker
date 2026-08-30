@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Switch, Dimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -133,6 +133,15 @@ function parsePositiveAmount(raw: string): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/** Heads-up puts the button in the small blind; the badge says so rather than just "BTN". */
+function positionLabel(
+  player: { id: string; position?: string },
+  posting: { sbPosterId?: string }
+): string {
+  if (player.position === 'BTN' && player.id === posting.sbPosterId) return 'BTN/SB';
+  return player.position ?? '';
+}
+
 export default function HandReplayerBuilderScreen() {
   const { t } = useTranslation('replayer');
   const { colors } = useTheme();
@@ -180,6 +189,10 @@ export default function HandReplayerBuilderScreen() {
   // Optional global ante total — one amount for the whole table (posters may include players
   // not entered in the hand), pure dead money: added to the pot, never run through the engine.
   // Defaults to 1 in BB mode — the ante is almost always 1 BB.
+  // Ante is a yes/no in almost every game, and when there is one it is a big blind. The
+  // amount field only appears for the rare table that runs a different ante.
+  const [anteOn, setAnteOn] = useState(false);
+  const [anteCustom, setAnteCustom] = useState(false);
   const [anteInput, setAnteInput] = useState('1');
   const [unitMode, setUnitMode] = useState<UnitMode>('bb');
   // Per-player stack strings; absent/empty = the mode's default (100 BB / 200 chips).
@@ -246,7 +259,10 @@ export default function HandReplayerBuilderScreen() {
     [players, smallBlindValue, bigBlindValue]
   );
   const deadBlinds = blindPosting.deadBlinds;
-  const anteValue = useMemo(() => parsePositiveAmount(anteInput), [anteInput]);
+  const anteValue = useMemo(() => {
+    if (!anteOn) return 0;
+    return anteCustom ? parsePositiveAmount(anteInput) : bigBlindValue;
+  }, [anteOn, anteCustom, anteInput, bigBlindValue]);
 
   // The live pot: everything committed by entered players (blind posts included — they live
   // in the preflop contributions, so never add blinds on top) plus the two dead-money sources.
@@ -620,9 +636,10 @@ export default function HandReplayerBuilderScreen() {
             return (
               <View key={a.id} style={styles.actedRow}>
                 <Text style={[styles.actedText, { color: colors.textSecondary }]}>
-                  {p?.name}
-                  {p?.position ? ` (${p.position})` : ''}
-                  {a.amount ? ` ${formatHandAmount(a.amount, unitMode)}` : ''}
+                  {t(a.playerId === blindPosting.sbPosterId ? 'postsSb' : 'postsBb', {
+                    name: `${p?.name}${p?.position ? ` (${positionLabel(p, blindPosting)})` : ''}`,
+                    amount: a.amount ? formatHandAmount(a.amount, unitMode) : '',
+                  })}
                 </Text>
               </View>
             );
@@ -949,15 +966,37 @@ export default function HandReplayerBuilderScreen() {
             {unitMode === 'chips' && (
               <AmountInput label={t('bigBlindLabel')} value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
             )}
-            <AmountInput
-              label={t('anteLabel')}
-              value={anteInput}
-              onChange={setAnteInput}
-              unit={unitMode === 'bb' ? 'BB' : t('chipsUnit')}
-              allowDecimal
-              placeholder="0"
-            />
-            <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('anteHint')}</Text>
+            <View style={styles.anteRow}>
+              <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('anteLabel')}</Text>
+              <Switch
+                value={anteOn}
+                onValueChange={(v) => {
+                  setAnteOn(v);
+                  if (!v) setAnteCustom(false);
+                }}
+                trackColor={{ true: colors.accentBright, false: colors.surface.fieldBorder }}
+              />
+            </View>
+            {anteOn && !anteCustom && (
+              <TouchableOpacity onPress={() => setAnteCustom(true)} activeOpacity={0.7}>
+                <Text style={[styles.hint, { color: colors.textTertiary }]}>
+                  {t('anteEqualsBb', { amount: formatHandAmount(bigBlindValue, unitMode) })}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {anteOn && anteCustom && (
+              <>
+                <AmountInput
+                  label={t('anteLabel')}
+                  value={anteInput}
+                  onChange={setAnteInput}
+                  unit={unitMode === 'bb' ? 'BB' : t('chipsUnit')}
+                  allowDecimal
+                  placeholder="0"
+                />
+                <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('anteHint')}</Text>
+              </>
+            )}
           </View>
         );
 
@@ -1093,6 +1132,17 @@ const styles = StyleSheet.create({
   },
   stepBody: {
     gap: spacing.base,
+  },
+  anteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  anteLabel: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   hint: {
     fontSize: fontSize.sm,

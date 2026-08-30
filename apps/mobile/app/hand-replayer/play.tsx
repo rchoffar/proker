@@ -15,6 +15,7 @@ import { TABLE, seatPoint } from '../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../src/components/table/SeatedTable';
 import type { SeatSpec } from '../../src/components/table/SeatedTable';
 import { PLAY_TABLE } from '../../src/components/table/tableSize';
+import { TableWordmark } from '../../src/components/table/TableWordmark';
 import { WinCelebration } from '../../src/components/hand/WinCelebration';
 import { GlowBlob } from '../../src/components/ui/GlowBlob';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
@@ -555,6 +556,11 @@ export default function HandReplayerPlayScreen() {
     }
   };
 
+  // In heads-up the button IS the small blind. Nothing on the felt used to say that, so the
+  // button posting half a blind read as a bug.
+  const headsUpButton = hand.players.length === 2 && hand.players.some((p) => p.position === 'BTN');
+  const seatTag = (p: HandPlayer) => (headsUpButton && p.position === 'BTN' ? 'BTN/SB' : p.position);
+
   // Seats for the shared table: villains reveal their hands as fans toward the felt (at
   // showdown or once everyone is all-in), each seat carrying its action bubble and either
   // its stack, its fold status, or its live win chance.
@@ -580,7 +586,7 @@ export default function HandReplayerPlayScreen() {
       ringColor: p.isHero ? TABLE.gold : TABLE.neutralBorder,
       ringWidth: p.isHero ? 2 : 1.5,
       dimmed: folded,
-      tag: p.position,
+      tag: seatTag(p),
       fan: revealed
         ? {
             cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),
@@ -634,12 +640,14 @@ export default function HandReplayerPlayScreen() {
     };
   });
 
-  const renderCaption = () => {
-    if (currentBeat?.kind === 'street') return t(`poker:phases.${currentBeat.street}`);
-    if (currentBeat?.kind === 'showdown') return t('poker:phases.showdown');
-    if (currentBeat?.kind === 'intro') return hand.title ?? t('handStarts');
-    return '';
-  };
+  // The hand's title stays above the table from the first frame to the last; only the street
+  // label below it changes, and that one lives on the felt.
+  const streetLabel =
+    currentBeat?.kind === 'street'
+      ? t(`poker:phases.${currentBeat.street}`)
+      : currentBeat?.kind === 'showdown'
+        ? t('poker:phases.showdown')
+        : null;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -710,9 +718,9 @@ export default function HandReplayerPlayScreen() {
               and progress label below are siblings on purpose: never in the captures. */}
           <View ref={tableShotRef} collapsable={false} style={styles.tableShot}>
             <LayoutAnimationConfig skipEntering={!entranceReady}>
-            <Animated.Text key={`caption-${index}`} entering={FadeInDown.duration(ms(300))} style={styles.caption}>
-              {renderCaption()}
-            </Animated.Text>
+            <Text style={styles.caption} numberOfLines={1}>
+              {hand.title ?? t('handStarts')}
+            </Text>
 
             <SeatedTable
               width={TABLE_W}
@@ -722,6 +730,15 @@ export default function HandReplayerPlayScreen() {
               seats={seatSpecs}
               center={
               <>
+              {streetLabel && (
+                <Animated.Text
+                  key={`street-${index}`}
+                  entering={FadeInDown.duration(ms(300))}
+                  style={styles.streetLabel}
+                >
+                  {streetLabel}
+                </Animated.Text>
+              )}
               {potSoFar > 0 && (
                 <Animated.View key={`pot-${potSoFar}`} entering={ZoomIn.duration(ms(250))} style={styles.potPill}>
                   <Text style={styles.potLabel}>{t('pot')}</Text>
@@ -747,6 +764,7 @@ export default function HandReplayerPlayScreen() {
                   </Animated.View>
                 )}
               </View>
+              <TableWordmark />
               </>
               }
               underSeats={
@@ -791,11 +809,6 @@ export default function HandReplayerPlayScreen() {
           </SeatedTable>
           </LayoutAnimationConfig>
 
-          {/* Branding on every video frame — only while recording, invisible in normal
-              playback. The recap card carries its own wordmark. */}
-          {exportState === 'exporting' && (
-            <Text style={[styles.wordmark, { color: colors.onDarkTertiary }]}>Ultimate Poker Kit</Text>
-          )}
           </View>
 
           {exportState === 'exporting' ? (
@@ -873,12 +886,21 @@ const styles = StyleSheet.create({
     backgroundColor: EXPORT_BG,
   },
   caption: {
+    fontSize: fontSize.md,
+    fontFamily: fontFamily.semibold,
+    textAlign: 'center',
+    color: TABLE.plateText,
+    letterSpacing: 0.5,
+    paddingHorizontal: spacing.base,
+  },
+  streetLabel: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.display,
     textAlign: 'center',
     color: TABLE.gold,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
+    marginBottom: spacing.sm,
   },
   table: {
     marginVertical: 42,
@@ -905,6 +927,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
+    marginBottom: spacing.md,
   },
   potLabel: {
     fontSize: 9,
@@ -941,7 +964,7 @@ const styles = StyleSheet.create({
   heroCardsSide: {
     position: 'absolute',
     bottom: 14,
-    left: TABLE_W / 2 - POD_W / 2 - 54,
+    left: TABLE_W / 2 - POD_W / 2 - 36,
     flexDirection: 'row',
   },
   heroCardLeft: {
@@ -987,15 +1010,6 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
-  },
-  // Same treatment as HandRecapCard's wordmark, on the table frames during export.
-  wordmark: {
-    alignSelf: 'center',
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.semibold,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginTop: -spacing.lg,
   },
   disabledBtn: {
     opacity: 0.4,
