@@ -18,5 +18,6 @@
     "replayTitle": "Replay a hand",
     "replayDesc": "Break down a hand played with friends",
     "myHands": "My hands"
-  }
+  },
+  "openProfile": "Open profile"
 }

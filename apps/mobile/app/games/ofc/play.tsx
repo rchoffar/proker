@@ -156,7 +156,7 @@ export default function OfcPlayScreen() {
     setLocked(true);
   };
 
-  const finish = () => router.dismissTo('/(tabs)/degen');
+  const finish = () => router.dismissTo('/');
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>

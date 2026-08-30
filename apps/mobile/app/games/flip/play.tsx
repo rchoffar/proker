@@ -166,7 +166,7 @@ export default function FlipPlayScreen() {
     );
   }, [statsPhase, outcomeShown, dealt, players, gameType]);
 
-  const finish = () => router.dismissTo('/(tabs)/degen');
+  const finish = () => router.dismissTo('/');
 
   // Street caption above the table; at result the winner/loser banner takes its place.
   const phaseButtonLabels: Record<Phase, string> = {

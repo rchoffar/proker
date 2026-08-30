@@ -194,7 +194,7 @@ export default function BluffPlayScreen() {
     setLocked(true);
   };
 
-  const finish = () => router.dismissTo('/(tabs)/degen');
+  const finish = () => router.dismissTo('/');
 
   const caption =
     v.caption.kind === 'none'

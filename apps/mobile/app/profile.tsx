@@ -4,14 +4,14 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import { useAppStore } from '../../src/store/useAppStore';
-import { useAuthStore } from '../../src/store/useAuthStore';
-import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
-import { initials } from '../../src/lib/format';
-import { useTheme } from '../../src/design-system/ThemeProvider';
-import i18n from '../../src/i18n';
-import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
+import { GlassCard } from '../src/components/ui/GlassCard';
+import { ScreenBackButton } from '../src/components/ui/ScreenBackButton';
+import { useAppStore } from '../src/store/useAppStore';
+import { useAuthStore } from '../src/store/useAuthStore';
+import { initials } from '../src/lib/format';
+import { useTheme } from '../src/design-system/ThemeProvider';
+import i18n from '../src/i18n';
+import { fontFamily, fontSize, spacing } from '../src/design-system/theme';
 
 // Native language names — deliberately NOT translated (a language is always named in itself).
 const LANGUAGE_NAMES: Record<'fr' | 'en', string> = { fr: 'Français', en: 'English' };
@@ -56,7 +56,6 @@ export default function ProfileScreen() {
   const signOut = useAuthStore((s) => s.signOut);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const displayName = authUser?.pseudo ?? user.name;
-  const isActive = useIsActiveTab();
 
   const toggleLanguage = useCallback(() => {
     const next = user.settings.language === 'fr' ? 'en' : 'fr';
@@ -109,7 +108,6 @@ export default function ProfileScreen() {
     );
   }, [resetStore, t]);
 
-  if (!isActive) return <View style={styles.screen} />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -117,6 +115,7 @@ export default function ProfileScreen() {
         <View style={styles.stack}>
 
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
+            <ScreenBackButton />
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
           </Animated.View>
 
@@ -175,7 +174,7 @@ export default function ProfileScreen() {
             </GlassCard>
           </Animated.View>
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 32 }} />
         </View>
       </ScrollView>
     </SafeAreaView>

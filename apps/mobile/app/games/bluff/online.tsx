@@ -160,7 +160,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     );
   }, [view, updateGameStats]);
 
-  const quit = () => router.dismissTo('/(tabs)/degen');
+  const quit = () => router.dismissTo('/');
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 

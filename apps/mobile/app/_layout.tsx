@@ -47,7 +47,10 @@ function RootNavigator() {
             <Stack.Screen name="choose-pseudo" />
           </Stack.Protected>
           <Stack.Protected guard={status === 'signedIn' && hasPseudo}>
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="index" />
+            <Stack.Screen name="replayer" />
+            <Stack.Screen name="stats" />
+            <Stack.Screen name="profile" />
             <Stack.Screen name="festival/[id]" />
             <Stack.Screen name="hand-replayer/index" />
             <Stack.Screen name="hand-replayer/view" />

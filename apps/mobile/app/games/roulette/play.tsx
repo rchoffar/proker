@@ -51,7 +51,7 @@ export default function RoulettePlayScreen() {
     );
   };
 
-  const finish = () => router.dismissTo('/(tabs)/degen');
+  const finish = () => router.dismissTo('/');
 
   if (players.length < 2) {
     return <NoPlayersScreen message={t('play.noPlayers')} onBack={() => router.back()} />;

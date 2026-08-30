@@ -3,11 +3,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BarChart3 } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { Pill } from '../../src/components/ui/Pill';
-import { useAppStore } from '../../src/store/useAppStore';
-import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
+import { GlassCard } from '../src/components/ui/GlassCard';
+import { ScreenBackButton } from '../src/components/ui/ScreenBackButton';
+import { SectionLabel } from '../src/components/ui/SectionLabel';
+import { Pill } from '../src/components/ui/Pill';
+import { useAppStore } from '../src/store/useAppStore';
 import {
   bluffCatchRate,
   bluffChallengeSurvivalRate,
@@ -18,9 +18,9 @@ import {
   rouletteSurvivalRate,
   sortedByGame,
   type PseudoStats,
-} from '../../src/lib/gameStats';
-import { useTheme } from '../../src/design-system/ThemeProvider';
-import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
+} from '../src/lib/gameStats';
+import { useTheme } from '../src/design-system/ThemeProvider';
+import { fontFamily, fontSize, spacing } from '../src/design-system/theme';
 
 const pct = (rate: number): number => Math.round(rate * 100);
 
@@ -103,9 +103,7 @@ export default function StatsScreen() {
   const { t } = useTranslation('stats');
   const { colors } = useTheme();
   const gameStats = useAppStore((s) => s.gameStats);
-  const isActive = useIsActiveTab();
 
-  if (!isActive) return <View style={styles.screen} />;
 
   const flipRows = sortedByGame(gameStats, 'flip').map(([key, p]: [string, PseudoStats], i) => {
     const s = p.flip!;
@@ -183,6 +181,7 @@ export default function StatsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.stack}>
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
+            <ScreenBackButton />
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
           </Animated.View>
 
@@ -205,7 +204,7 @@ export default function StatsScreen() {
             </>
           )}
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 32 }} />
         </View>
       </ScrollView>
     </SafeAreaView>

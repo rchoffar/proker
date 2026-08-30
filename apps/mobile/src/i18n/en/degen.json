@@ -1,8 +1,4 @@
 {
-  "hub": {
-    "title": "Degen Hub",
-    "subtitle": "Mini-games between players, coming soon"
-  },
   "games": {
     "flip": "Flop, turn, river: everyone gets a hand, the best combination takes the pot",
     "bluff": "Bids and raises… who dares to cry liar?",

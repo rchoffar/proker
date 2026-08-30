@@ -11,19 +11,18 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BarChart3, Heart, Coins, Drama, Disc3, Layers, Spade, Diamond } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import { PokerChip } from '../../src/components/ui/PokerChip';
-import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { FestivalHeroCard } from '../../src/components/dashboard/FestivalHeroCard';
-import { ReplayerHeroCard } from '../../src/components/dashboard/ReplayerHeroCard';
-import { GameTile } from '../../src/components/degen/GameTile';
-import { useAppStore } from '../../src/store/useAppStore';
-import { useAuthStore } from '../../src/store/useAuthStore';
-import { useHandHistoryStore } from '../../src/store/useHandHistoryStore';
-import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
-import { isFestivalOngoing, initials } from '../../src/lib/format';
-import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
-import { useTheme } from '../../src/design-system/ThemeProvider';
+import { GlassCard } from '../src/components/ui/GlassCard';
+import { PokerChip } from '../src/components/ui/PokerChip';
+import { SectionLabel } from '../src/components/ui/SectionLabel';
+import { FestivalHeroCard } from '../src/components/dashboard/FestivalHeroCard';
+import { ReplayerHeroCard } from '../src/components/dashboard/ReplayerHeroCard';
+import { GameTile } from '../src/components/degen/GameTile';
+import { useAppStore } from '../src/store/useAppStore';
+import { useAuthStore } from '../src/store/useAuthStore';
+import { useHandHistoryStore } from '../src/store/useHandHistoryStore';
+import { isFestivalOngoing, initials } from '../src/lib/format';
+import { fontFamily, fontSize, spacing } from '../src/design-system/theme';
+import { useTheme } from '../src/design-system/ThemeProvider';
 
 export default function DashboardScreen() {
   const { t } = useTranslation(['dashboard', 'degen']);
@@ -34,7 +33,6 @@ export default function DashboardScreen() {
     likedFestivalIds, toggleLikedFestival,
   } = useAppStore();
   const displayName = useAuthStore((s) => s.user?.pseudo) ?? user.name;
-  const isActive = useIsActiveTab();
   // Home is the first screen after login — sync here too, so the Replayer tab is already
   // current whichever way the user reaches it (same silent pattern as that tab).
   useFocusEffect(
@@ -77,7 +75,6 @@ export default function DashboardScreen() {
       ? ('ongoing' as const)
       : ('liked' as const);
 
-  if (!isActive) return <View style={styles.screen} />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -91,9 +88,15 @@ export default function DashboardScreen() {
           {/* Header */}
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t('title')}</Text>
-            <View style={styles.avatar}>
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={() => router.push('/profile')}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t('openProfile')}
+            >
               <Text style={styles.avatarText}>{initials(displayName)}</Text>
-            </View>
+            </TouchableOpacity>
           </Animated.View>
 
           {/* Festival hero */}
@@ -125,7 +128,7 @@ export default function DashboardScreen() {
           <Animated.View entering={FadeInDown.delay(70).springify().damping(18).stiffness(140)}>
             <ReplayerHeroCard
               onNewHand={() => router.push('/hand-replayer')}
-              onOpenHands={() => router.push('/(tabs)/replayer')}
+              onOpenHands={() => router.push('/replayer')}
             />
           </Animated.View>
 
@@ -185,7 +188,7 @@ export default function DashboardScreen() {
             </View>
           </Animated.View>
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 32 }} />
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -1,8 +1,4 @@
 {
-  "hub": {
-    "title": "Degen Hub",
-    "subtitle": "Mini-jeux entre joueurs, bientôt disponibles"
-  },
   "games": {
     "flip": "Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise",
     "bluff": "Annonces, surenchères… qui ose crier menteur ?",

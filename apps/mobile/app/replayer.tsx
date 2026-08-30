@@ -5,16 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight, History, Plus, Trash2 } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import { SectionLabel } from '../../src/components/ui/SectionLabel';
-import { useHandHistoryStore } from '../../src/store/useHandHistoryStore';
-import { useHandReplayerDraft } from '../../src/store/useHandReplayerDraft';
-import { useIsActiveTab } from '../../src/hooks/useIsActiveTab';
-import { sortHandsNewestFirst } from '../../src/lib/handSync';
-import { formatDateShort } from '../../src/lib/format';
-import { useTheme } from '../../src/design-system/ThemeProvider';
-import { fontFamily, fontSize, spacing } from '../../src/design-system/theme';
-import type { HandHistory } from '../../src/types';
+import { GlassCard } from '../src/components/ui/GlassCard';
+import { ScreenBackButton } from '../src/components/ui/ScreenBackButton';
+import { SectionLabel } from '../src/components/ui/SectionLabel';
+import { useHandHistoryStore } from '../src/store/useHandHistoryStore';
+import { useHandReplayerDraft } from '../src/store/useHandReplayerDraft';
+import { sortHandsNewestFirst } from '../src/lib/handSync';
+import { formatDateShort } from '../src/lib/format';
+import { useTheme } from '../src/design-system/ThemeProvider';
+import { fontFamily, fontSize, spacing } from '../src/design-system/theme';
+import type { HandHistory } from '../src/types';
 
 function Divider() {
   const { colors } = useTheme();
@@ -29,7 +29,6 @@ export default function ReplayerScreen() {
   const removeHand = useHandHistoryStore((s) => s.remove);
   const syncNow = useHandHistoryStore((s) => s.syncNow);
   const setDraft = useHandReplayerDraft((s) => s.setHand);
-  const isActive = useIsActiveTab();
 
   // Opportunistic sync each time the tab gains focus: pushes anything recorded offline and
   // pulls hands saved from another device/reinstall. Silent — failures retry on next focus.
@@ -39,7 +38,6 @@ export default function ReplayerScreen() {
     }, [syncNow])
   );
 
-  if (!isActive) return <View style={styles.screen} />;
 
   const sortedHands = sortHandsNewestFirst(Object.values(hands));
 
@@ -62,6 +60,7 @@ export default function ReplayerScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.stack}>
           <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)} style={styles.header}>
+            <ScreenBackButton />
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t('list.title')}</Text>
           </Animated.View>
 
@@ -128,7 +127,7 @@ export default function ReplayerScreen() {
             </Animated.View>
           )}
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 32 }} />
         </View>
       </ScrollView>
     </SafeAreaView>

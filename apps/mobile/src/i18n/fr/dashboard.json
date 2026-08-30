@@ -18,5 +18,6 @@
     "replayTitle": "Rejouer une main",
     "replayDesc": "Analysez une main jouée avec vos amis",
     "myHands": "Mes mains"
-  }
+  },
+  "openProfile": "Ouvrir le profil"
 }

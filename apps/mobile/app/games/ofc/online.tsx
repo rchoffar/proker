@@ -148,7 +148,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     );
   }, [view, updateGameStats]);
 
-  const quit = () => router.dismissTo('/(tabs)/degen');
+  const quit = () => router.dismissTo('/');
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 

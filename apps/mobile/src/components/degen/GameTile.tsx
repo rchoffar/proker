@@ -31,7 +31,7 @@ export function GameTile({ name, description, icon, comingSoon = true, onPress, 
         >
           {name}
         </Text>
-        <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={1}>{description}</Text>
+        <Text style={[styles.description, { color: colors.textTertiary }]} numberOfLines={2}>{description}</Text>
         {pillLabel ? (
           <Pill label={pillLabel} tone="accent" style={styles.pill} />
         ) : comingSoon ? (
@@ -78,11 +78,11 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
     textAlign: 'center',
-    // One line, fixed height (not minHeight): every tile matches whether its description
-    // fits or not, so the grid rows stay even. Two lines each put the last row of six
-    // games below the fold, which is the whole complaint.
+    // Fixed two-line box (not minHeight): every tile matches whether its description wraps
+    // or not, so the grid rows stay even. One line truncated most of them; dropping the tab
+    // bar gave back the height that cost.
     lineHeight: 15,
-    height: 15,
+    height: 30,
   },
   pill: {
     marginTop: 2,
