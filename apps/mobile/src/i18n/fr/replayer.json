@@ -35,7 +35,7 @@
   "list": {
     "title": "Mains",
     "newHand": "Nouvelle main",
-    "newHandSubtitle": "Reconstituez une main street par street, puis rejouez-la.",
+    "newHandSubtitle": "Reconstituez une main étape par étape, puis rejouez-la.",
     "savedTitle": "Mains enregistrées",
     "rowMetaWithStakes": "{{date}} · {{stakes}}",
     "empty": {
