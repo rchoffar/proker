@@ -13,16 +13,11 @@ import { radius } from '../../design-system/theme';
 
 const TILE = 30;
 const CHIP = 22;
-// PokerChip's geometry, so the watermark and the real chip are the same drawing.
-const OUTER_R = CHIP / 2 - 2;
-const INNER_R = OUTER_R * 0.62;
-const DOT_R = CHIP * 0.055;
-const DOT_ORBIT = OUTER_R * 0.84;
 const EDGE_DOTS = 8;
 
-const DOTS = Array.from({ length: EDGE_DOTS }, (_, i) => {
+const UNIT_DOTS = Array.from({ length: EDGE_DOTS }, (_, i) => {
   const angle = (i / EDGE_DOTS) * Math.PI * 2;
-  return { key: i, dx: DOT_ORBIT * Math.cos(angle), dy: DOT_ORBIT * Math.sin(angle) };
+  return { key: i, cos: Math.cos(angle), sin: Math.sin(angle) };
 });
 
 interface Props {
@@ -31,38 +26,62 @@ interface Props {
   /** Ink for the motif. Defaults to white, for the coloured cards; the roulette's cream
    *  winner twin needs a dark one or the pattern vanishes into the card. */
   color?: string;
+  /**
+   * Draw this many times larger and display it scaled back down. A Skia canvas is a
+   * fixed-size surface, so a card that is later blown up by a transform magnifies those
+   * pixels — the roulette's winner grows 2.4x and its hairline chips washed out. Pass the
+   * factor the card will grow by and it is rasterised for the size it ends at.
+   */
+  superSample?: number;
 }
 
-export function CardTexture({ width, height, color = 'rgba(255,255,255,0.18)' }: Props) {
-  const cols = Math.ceil(width / TILE) + 1;
-  const rows = Math.ceil(height / TILE) + 1;
+export function CardTexture({ width, height, color = 'rgba(255,255,255,0.18)', superSample = 1 }: Props) {
+  const ss = superSample;
+  const canvasW = width * ss;
+  const canvasH = height * ss;
+  const tile = TILE * ss;
+  const outerR = (CHIP * ss) / 2 - 2 * ss;
+  const innerR = outerR * 0.62;
+  const dotR = CHIP * ss * 0.055;
+  const dotOrbit = outerR * 0.84;
 
   const chips = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+  for (let r = 0; r < Math.ceil(canvasH / tile) + 1; r++) {
+    for (let c = 0; c < Math.ceil(canvasW / tile) + 1; c++) {
       // Alternate rows shift half a tile, like a brick course — a square grid reads as a
       // table rather than a pattern.
       chips.push({
         key: `${r}-${c}`,
-        cx: c * TILE + (r % 2 === 1 ? TILE / 2 : 0) - TILE / 4,
-        cy: r * TILE - TILE / 4,
+        cx: c * tile + (r % 2 === 1 ? tile / 2 : 0) - tile / 4,
+        cy: r * tile - tile / 4,
       });
     }
   }
 
   return (
     <View style={styles.layer} pointerEvents="none">
-      <Canvas style={{ width, height }}>
-        {chips.map((chip) => (
-          <Group key={chip.key} transform={[{ translateX: chip.cx }, { translateY: chip.cy }]}>
-            <Circle cx={0} cy={0} r={OUTER_R} color={color} style="stroke" strokeWidth={1.4} />
-            <Circle cx={0} cy={0} r={INNER_R} color={color} style="stroke" strokeWidth={1} />
-            {DOTS.map((d) => (
-              <Circle key={d.key} cx={d.dx} cy={d.dy} r={DOT_R} color={color} />
-            ))}
-          </Group>
-        ))}
-      </Canvas>
+      {/* Centred on the layer, so scaling about its middle lands it exactly on the card. */}
+      <View
+        style={{
+          width: canvasW,
+          height: canvasH,
+          marginLeft: -(canvasW - width) / 2,
+          marginTop: -(canvasH - height) / 2,
+          transform: [{ scale: 1 / ss }],
+        }}
+      >
+        <Canvas style={{ width: canvasW, height: canvasH }}>
+          {chips.map((chip) => (
+            <Group key={chip.key} transform={[{ translateX: chip.cx }, { translateY: chip.cy }]}>
+              <Circle cx={0} cy={0} r={outerR} color={color} style="stroke" strokeWidth={1.4 * ss} />
+              <Circle cx={0} cy={0} r={innerR} color={color} style="stroke" strokeWidth={1 * ss} />
+              {UNIT_DOTS.map((d) => (
+                <Circle key={d.key} cx={d.cos * dotOrbit} cy={d.sin * dotOrbit} r={dotR} color={color} />
+              ))}
+            </Group>
+          ))}
+        </Canvas>
+      </View>
     </View>
   );
 }

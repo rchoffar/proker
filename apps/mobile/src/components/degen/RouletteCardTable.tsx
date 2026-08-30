@@ -284,7 +284,8 @@ export function RouletteCardTable({
             grownStyle,
           ]}
         >
-          <CardTexture width={cardW} height={cardH} color={CREAM_MONOGRAM} />
+          {/* This twin is the one that grows to the middle — draw it for that size. */}
+          <CardTexture width={cardW} height={cardH} color={CREAM_MONOGRAM} superSample={GROW_SCALE} />
           <Text style={styles.litName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
             {players[grownIndex].name}
           </Text>
