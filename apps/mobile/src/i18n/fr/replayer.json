@@ -120,5 +120,6 @@
   },
   "anteEqualsBb": "Ante de {{amount}} par joueur — toucher pour un autre montant.",
   "postsSb": "{{name}} — petite blinde {{amount}}",
-  "postsBb": "{{name}} — grosse blinde {{amount}}"
+  "postsBb": "{{name}} — grosse blinde {{amount}}",
+  "boardEditHint": "Touchez une carte du board pour la corriger."
 }

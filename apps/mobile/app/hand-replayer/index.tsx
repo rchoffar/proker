@@ -198,6 +198,10 @@ export default function HandReplayerBuilderScreen() {
   // Per-player stack strings; absent/empty = the mode's default (100 BB / 200 chips).
   const [stackOverrides, setStackOverrides] = useState<Record<string, string>>({});
   const [editingBoard, setEditingBoard] = useState(false);
+  // Set while re-picking an earlier street's card: the phase the cursor was on, to restore
+  // once the correction is made. Without it, editing the flop from the river strands you
+  // there — the reason a mistyped flop used to be unfixable.
+  const [resumePhase, setResumePhase] = useState<'flop' | 'turn' | 'river' | null>(null);
   const [editingOpponentId, setEditingOpponentId] = useState<string | null>(null);
 
   // In BB mode the blinds are the unit itself: SB = 0.5, BB = 1, nothing to type.
@@ -349,6 +353,11 @@ export default function HandReplayerBuilderScreen() {
       else setRiverCard(next[0]);
       if (!next.every(Boolean)) return;
       setEditingBoard(false);
+      if (resumePhase) {
+        setBoardPhase(resumePhase);
+        setResumePhase(null);
+        return;
+      }
       // All-in run-out: no betting round will happen on this phase, so jump to the next one
       // in the same commit. Leaving it to the effects paints the phase's full-size card row
       // for a frame before it collapses into the small completed row — a visible flash.
@@ -357,7 +366,7 @@ export default function HandReplayerBuilderScreen() {
         setBoardPhase(boardPhase === 'flop' ? 'turn' : 'river');
       }
     },
-    [boardPhase, playersWithStatus, allInIds]
+    [boardPhase, playersWithStatus, allInIds, resumePhase]
   );
 
   const handleOpponentCardsChange = useCallback((playerId: string, next: (Card | undefined)[]) => {
@@ -439,13 +448,14 @@ export default function HandReplayerBuilderScreen() {
   // derived, so there's nothing to start: this only moves the card-picking cursor.
   useEffect(() => {
     if (step !== 3) return;
+    if (editingBoard) return;
     if (!boardPhaseCardsReady(boardPhase)) return;
     if (!derived.completedStreets.includes(boardPhase)) return;
     if (boardPhase === 'flop') setBoardPhase('turn');
     else if (boardPhase === 'turn') setBoardPhase('river');
     else return;
     setEditingBoard(false);
-  }, [step, boardPhase, boardPhaseCardsReady, derived]);
+  }, [step, boardPhase, boardPhaseCardsReady, derived, editingBoard]);
 
   const goNext = () => setStep((s) => s + 1);
   const goBack = () => (step > 0 ? setStep((s) => s - 1) : router.back());
@@ -679,22 +689,28 @@ export default function HandReplayerBuilderScreen() {
       ...(phaseIndex >= 1 ? [turnCard] : []),
       ...(phaseIndex >= 2 ? [riverCard] : []),
     ];
+    // Which street a slot in the row belongs to, so tapping the card reopens the right picker.
+    const phaseOfSlot = (i: number): 'flop' | 'turn' | 'river' => (i < 3 ? 'flop' : i === 3 ? 'turn' : 'river');
+    const editPhase = (phase: 'flop' | 'turn' | 'river') => {
+      if (phase !== boardPhase) setResumePhase(boardPhase);
+      setBoardPhase(phase);
+      setEditingBoard(true);
+    };
+
     return (
       <View style={styles.stepBody}>
+        <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('boardEditHint')}</Text>
         <View style={styles.boardCardsRow}>
           {boardSlots.map((c, i) =>
             c ? (
               <Animated.View key={cardKey(c)} entering={FadeInDown.springify().damping(18).stiffness(140)}>
-                <PlayingCard card={c} width={BOARD_CARD_WIDTH} />
+                <TouchableOpacity onPress={() => editPhase(phaseOfSlot(i))} activeOpacity={0.7}>
+                  <PlayingCard card={c} width={BOARD_CARD_WIDTH} />
+                </TouchableOpacity>
               </Animated.View>
             ) : (
               <PlayingCard key={`slot-${i}`} placeholder width={BOARD_CARD_WIDTH} />
             )
-          )}
-          {boardPhaseCardsReady(boardPhase) && !editingBoard && (
-            <TouchableOpacity onPress={() => setEditingBoard(true)} activeOpacity={0.7} style={styles.editCardsBtn}>
-              <Text style={[styles.editCardsText, { color: colors.textTertiary }]}>{t('common:edit')}</Text>
-            </TouchableOpacity>
           )}
         </View>
 
@@ -1219,15 +1235,6 @@ const styles = StyleSheet.create({
   stackUnit: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
-  },
-  editCardsBtn: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  editCardsText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-    textDecorationLine: 'underline',
   },
   actionsList: {
     gap: spacing.xs,

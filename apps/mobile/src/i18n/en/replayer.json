@@ -120,5 +120,6 @@
   },
   "anteEqualsBb": "{{amount}} ante per player — tap to set another amount.",
   "postsSb": "{{name}} — small blind {{amount}}",
-  "postsBb": "{{name}} — big blind {{amount}}"
+  "postsBb": "{{name}} — big blind {{amount}}",
+  "boardEditHint": "Tap a board card to fix it."
 }
