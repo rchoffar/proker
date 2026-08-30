@@ -53,13 +53,13 @@ export const SETUP_SQUEEZE_X = 0.84;
  * from setup into the hand does not resize the table under you. It used to be a seat
  * narrower than the play felt, and the roulette a whole seat wider than both.
  *
- * `offeredH` is the height the parent measured for it; null before the first layout pass, or
- * when the board is not filling.
+ * `availableH` is the room left for the FELT, with whatever the caller's seats hang past it
+ * already taken off; null before the first layout pass, or when the board is not filling.
  */
-export function setupTableSize(offeredH: number | null): { width: number; height: number } {
+export function setupTableSize(availableH: number | null): { width: number; height: number } {
   const width = PLAY_TABLE.width;
-  const height = offeredH
-    ? clamp(SETUP_TABLE.minHeight, offeredH - SEAT_D, Math.round(width * SETUP_TABLE.fillMaxAspect))
+  const height = availableH
+    ? clamp(SETUP_TABLE.minHeight, availableH, Math.round(width * SETUP_TABLE.fillMaxAspect))
     : Math.min(Math.round(width * SETUP_TABLE.maxAspect), Math.round(SCREEN_HEIGHT * SETUP_TABLE.heightRatio));
   return { width, height };
 }

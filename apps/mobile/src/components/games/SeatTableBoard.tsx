@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-nativ
 import { X, Plus } from 'lucide-react-native';
 import { PokerTable, TABLE, seatPoint } from '../hand/PokerTable';
 import { SETUP_SQUEEZE_X, SETUP_TABLE, setupTableSize } from '../table/tableSize';
-import { fillHeight, useSetupViewport } from './setupViewport';
+import { fillHeight, subtract, useSetupViewport } from './setupViewport';
 import { PlayingCard } from '../hand/PlayingCard';
 import { SeatNameBubble } from './SeatNameBubble';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -69,18 +69,38 @@ export function SeatTableBoard({
   const viewportH = useSetupViewport();
 
   const boardW = SETUP_TABLE.boardWidth;
-  const { width: tableW, height: tableH } = setupTableSize(fill ? fillHeight(offeredH, viewportH) : null);
-  const boardH = tableH + SEAT_D;
-  // Seats sit ON the rail, half outside the felt: full clearance vertically, and horizontally
-  // whatever the content area has left over the felt — the squeeze below covers the rest.
+
+  // Seats sit ON the rail, half outside the felt — but only where a seat actually is. Three
+  // players put nobody at the top of the oval (the ring is bottom, upper-left, upper-right),
+  // and the half-seat reserved up there was a gap under the header, which is what OFC showed.
+  // The fractions are the seat ring's shape, so they hold at any table height.
+  const seatYFractions = Array.from({ length: maxPlayers }, (_, k) => seatPoint(k, maxPlayers, 1, 1).y);
+  const topmost = Math.min(...seatYFractions);
+  const bottommost = Math.max(...seatYFractions);
+  const overhang = (fraction: number) => Math.max(0, Math.round(SEAT_D / 2 - fraction));
+
+  // Padding and felt height depend on each other; two passes settle it, since each pad is
+  // either the full half-seat or nothing.
+  let padTop = SEAT_D / 2;
+  let padBottom = SEAT_D / 2;
+  let size = setupTableSize(fill ? subtract(fillHeight(offeredH, viewportH), padTop + padBottom) : null);
+  for (let pass = 0; pass < 2; pass++) {
+    padTop = overhang(topmost * size.height);
+    padBottom = overhang((1 - bottommost) * size.height);
+    size = setupTableSize(fill ? subtract(fillHeight(offeredH, viewportH), padTop + padBottom) : null);
+  }
+  const tableW = size.width;
+  const tableH = size.height;
+  const boardH = padTop + tableH + padBottom;
+  // Horizontally, whatever the content area has left over the felt — the squeeze below
+  // covers the rest.
   const padX = Math.max(0, Math.round((boardW - tableW) / 2));
-  const padY = SEAT_D / 2;
 
   // A seat's place on the rail, pulled in from the horizontal extremes so its circle and name
   // plate stay on screen — the same trick SeatedTable plays with the play table's pods.
   const seatCenter = (k: number) => {
     const { x, y } = seatPoint(k, maxPlayers, tableW, tableH);
-    return { cx: tableW / 2 + (x - tableW / 2) * SETUP_SQUEEZE_X + padX, cy: y + padY };
+    return { cx: tableW / 2 + (x - tableW / 2) * SETUP_SQUEEZE_X + padX, cy: y + padTop };
   };
 
   // The account pseudo always leads the suggestions: playing pass&play under it is what
@@ -104,7 +124,7 @@ export function SeatTableBoard({
 
   const board = (
     <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
-      <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: padX, top: padY }}>
+      <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: padX, top: padTop }}>
         {center ? (
           <View style={styles.feltCenter} pointerEvents="box-none">
             {center(tableW - FELT_INSET * 2)}
@@ -179,7 +199,7 @@ export function SeatTableBoard({
           <SeatNameBubble
             anchor={(() => {
               const { cx, cy } = seatCenter(addingSeat);
-              return { x: cx, y: cy, below: cy - padY < tableH / 2 };
+              return { x: cx, y: cy, below: cy - padTop < tableH / 2 };
             })()}
             boardWidth={boardW}
             suggestions={suggestions}

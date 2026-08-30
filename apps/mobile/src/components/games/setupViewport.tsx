@@ -25,3 +25,8 @@ export function fillHeight(selfMeasured: number | null, viewport: number | null)
   if (viewport === null) return selfMeasured;
   return Math.min(selfMeasured, viewport);
 }
+
+/** `available` less the chrome around the felt, keeping the null "not measured yet". */
+export function subtract(available: number | null, chrome: number): number | null {
+  return available === null ? null : available - chrome;
+}
