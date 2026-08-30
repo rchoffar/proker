@@ -1,6 +1,6 @@
 import { View, Image, Text, StyleSheet } from 'react-native';
 import { initials } from '../../lib/format';
-import { fontFamily, fontSize } from '../../design-system/theme';
+import { fontFamily } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import type { Organizer } from '../../types';
 

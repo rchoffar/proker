@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform, type LayoutChangeEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
@@ -62,12 +61,11 @@ export function FloatingTabBar({ state, descriptors, navigation }: FloatingTabBa
   const routeCount = state.routes.length;
   const activeIndex = useDerivedValue(() => withSpring(state.index, DOT_SPRING), [state.index]);
 
-  const onTabsLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      containerWidth.value = event.nativeEvent.layout.width;
-    },
-    [containerWidth]
-  );
+  // Not memoised: the plain View below isn't, so a stable identity buys nothing — and
+  // listing the shared value as a dep is what react-hooks/immutability rejects.
+  const onTabsLayout = (event: LayoutChangeEvent) => {
+    containerWidth.value = event.nativeEvent.layout.width;
+  };
 
   const dotStyle = useAnimatedStyle(() => {
     const tabWidth = containerWidth.value / routeCount;

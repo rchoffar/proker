@@ -219,6 +219,9 @@ export function RouletteCardTable({
     },
     (index, previous) => {
       if (index !== -1 && index !== previous) {
+        // Writing a shared value from a reaction worklet is the Reanimated API; the rule
+        // models plain React values only.
+        // eslint-disable-next-line react-hooks/immutability
         activeIndex.value = index;
         runOnJS(triggerTick)();
       }

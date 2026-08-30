@@ -12,12 +12,7 @@ interface FlipDraftStore {
 // bridge to carry the confirmed player list + game type from the setup screen to the play
 // screen without serializing it into router params.
 export const useFlipDraft = create<FlipDraftStore>((set) => ({
-  // TEMP-DEBUG: seeded players for simulator inspection — revert before commit
-  players: [
-    { id: 'dbg-1', name: 'Alice' },
-    { id: 'dbg-2', name: 'Bob' },
-    { id: 'dbg-3', name: 'Carol' },
-  ],
+  players: [],
   gameType: 'holdem',
   setDraft: (players, gameType) => set({ players, gameType }),
 }));
