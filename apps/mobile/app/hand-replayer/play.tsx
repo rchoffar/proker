@@ -6,9 +6,6 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
-// The function-style API moved to /legacy in SDK 56 — importing it from the package root
-// logs a deprecation warning on every call (the export loop makes many).
-import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { useKeepAwake } from 'expo-keep-awake';
 import FrameVideoEncoder from '../../modules/frame-video-encoder';
@@ -29,16 +26,25 @@ import { evaluateBestHandHoldem, type HandScore } from '../../src/lib/pokerHandE
 import { strengthColor, winningCardKeys } from '../../src/lib/handStrength';
 import { estimateEquity, hashSeed, seededRng } from '../../src/lib/equity';
 import { cardKey } from '../../src/types';
+import {
+  ACTION_STAGGER,
+  RIVER_FLIP_DELAY,
+  RIVER_FLIP_DURATION,
+  animWindowMsFor,
+  animatedActions,
+  buildBeats,
+  cardLeadMs,
+  committedBy,
+  contributionsFrom,
+  holdMsFor,
+  revealedActionsUpTo,
+  totalContributed,
+  type Beat,
+} from '../../src/lib/handReplay';
 import type { Card, HandAction, HandHistory, HandPlayer, Street } from '../../src/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AUTOPLAY_INTERVAL = 1800;
-// The river is the money card — it flips in slow, after a suspense pause.
-const RIVER_FLIP_DELAY = 400;
-const RIVER_FLIP_DURATION = 1000;
-// Readable gap between an action landing and the response to it — chained actions used to
-// blur past at 200ms.
-const ACTION_STAGGER = 700;
 // A winner at or below this pre-river equity makes the river a staged bad-beat moment.
 const BAD_BEAT_EQUITY_PCT = 30;
 
@@ -66,11 +72,6 @@ const HOLD_KEEPALIVE_MS = 500;
 // Icon-button tile that works on the black background, same as the bluff screen's.
 const DARK_TILE = 'rgba(255, 255, 255, 0.08)';
 
-type Beat =
-  | { kind: 'intro' }
-  | { kind: 'street'; street: Street; revealsCards: boolean; actions: HandAction[] }
-  | { kind: 'showdown' };
-
 // Short action tag for the bubble that pops over a player's seat — standalone badge
 // register (fr "Se couche"/"Relance", en "Folds"/"Raises"), distinct from poker:actions
 // which reads inline after a player's name.
@@ -79,64 +80,9 @@ function bubbleLabel(a: HandAction, unitMode: HandHistory['unitMode'], t: TFunct
   return a.amount && a.type !== 'fold' && a.type !== 'check' ? `${label} ${formatHandAmount(a.amount, unitMode)}` : label;
 }
 
-// One beat per street: a single tap reveals the street's card(s) AND its actions (the old
-// two-tap card-then-actions rhythm doubled the clicks for nothing). Hero cards show from
-// the intro — no dedicated beat. A full river hand is 7 beats: intro, 4 streets, showdown,
-// result.
-function buildBeats(hand: HandHistory): Beat[] {
-  const beats: Beat[] = [{ kind: 'intro' }];
-  const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
-  streets.forEach((street) => {
-    const revealsCards =
-      (street === 'flop' && !!hand.board.flop) ||
-      (street === 'turn' && !!hand.board.turn) ||
-      (street === 'river' && !!hand.board.river);
-    const actions = hand.actions.filter((a) => a.street === street).sort((a, b) => a.order - b.order);
-    if (revealsCards || actions.length > 0) beats.push({ kind: 'street', street, revealsCards, actions });
-  });
-  // A showdown moment on the table (villain reveal + winning-hand highlight) only when
-  // there is something to show — a full run-out or at least one known villain hand;
-  // pure fold-outs go straight to the recap.
-  const hasShowdown =
-    !!hand.board.river || hand.players.some((p) => !p.isHero && !p.isFolded && p.cardsKnown && !!p.holeCards);
-  if (hasShowdown) beats.push({ kind: 'showdown' });
-  return beats;
-}
-
 // Double-rAF fence: resolves once a state update's render is committed and at least one
 // frame has been presented — only then is waiting out the entering animations meaningful.
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-
-// Within a merged street beat, the actions start writing only after the card flips land.
-function cardLeadMs(beat: Beat): number {
-  if (beat.kind !== 'street' || !beat.revealsCards) return 0;
-  return beat.street === 'river' ? RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 400 : 1000;
-}
-
-// How long a beat's entering animations run, in 1×-speed video time: card flips first
-// (cardLeadMs), then action lines/bubbles staggered ACTION_STAGGER apart. Windows also
-// cover the lagged stats refresh below (delay + a render), so the settling frames include
-// the updated numbers. The export captures continuously for the whole window (times
-// EXPORT_SLOWMO on the wall clock).
-function animWindowMsFor(beat: Beat): number {
-  if (beat.kind === 'street') {
-    const actionsMs = beat.actions.length > 0 ? (beat.actions.length - 1) * ACTION_STAGGER + 220 + 100 : 0;
-    return Math.max(cardLeadMs(beat) + actionsMs, 500);
-  }
-  // Villain fans flip in per seat (k*120 + 450) — cover a full 9-max table.
-  if (beat.kind === 'showdown') return 1800;
-  return 500;
-}
-
-// How long the settled frame then dwells on screen, in video time — mirrors the autoplay
-// pacing (AUTOPLAY_INTERVAL minus the animation part; the river and the closing recap
-// breathe longer). Holds cost no wall time: they are pure PTS bookkeeping.
-function holdMsFor(beat: Beat): number {
-  if (beat.kind === 'street' && beat.street === 'river' && beat.revealsCards) return 1600;
-  // The video closes on the showdown — give it room to land before the cut.
-  if (beat.kind === 'showdown') return 2600;
-  return 900;
-}
 
 export default function HandReplayerPlayScreen() {
   // The video export auto-steps through the whole hand (~20-25s in slow motion) — the
@@ -182,6 +128,27 @@ export default function HandReplayerPlayScreen() {
   // trails the beat cursor, catching up only after the beat's animations (the river's
   // suspense flip included), and the equity below is computed from it. The delays stay
   // under animWindowMsFor's per-beat windows so settled frames include the refreshed stats.
+  // A street is one tap, but its actions play out inside that beat one at a time — the pot,
+  // the stacks and the bubbles all follow this cursor. Folding a whole street in at once was
+  // why stacks emptied before the bet that emptied them, and why a check that a later bet
+  // overwrote never appeared at all.
+  //
+  // Tagged with the beat it belongs to instead of being reset in an effect, so the render
+  // where `index` moves already sees a cursor of 0.
+  const [reveal, setReveal] = useState({ beat: -1, count: 0 });
+  const revealCount = reveal.beat === index ? reveal.count : 0;
+  useEffect(() => {
+    const beat = beats[index];
+    const total = animatedActions(beat).length;
+    if (total === 0) return;
+    const lead = beat ? cardLeadMs(beat) : 0;
+    const timers = Array.from({ length: total }, (_, i) =>
+      setTimeout(() => setReveal({ beat: index, count: i + 1 }), ms(lead + i * ACTION_STAGGER))
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ms is derived from K
+  }, [index, beats, K]);
+
   const [statsIndex, setStatsIndex] = useState(-1);
   useEffect(() => {
     const beat = beats[index];
@@ -306,13 +273,6 @@ export default function HandReplayerPlayScreen() {
   // only the finished video reaches the photo library.
   const runExport = async () => {
     if (exportState !== 'idle' || beats.length === 0) return;
-    // Write-only grant is enough for saveToLibraryAsync and triggers the lighter
-    // "Add Photos Only" prompt on iOS.
-    const perm = await MediaLibrary.requestPermissionsAsync(true);
-    if (!perm.granted) {
-      showMessage('error', perm.canAskAgain === false ? t('export.permissionSettings') : t('export.permissionRequired'));
-      return;
-    }
     const run = ++exportRunRef.current;
     const cancelled = () => exportRunRef.current !== run;
     setExportState('exporting');
@@ -322,13 +282,32 @@ export default function HandReplayerPlayScreen() {
     // capture loop keeps its cadence; the first error is kept and re-thrown after the walk.
     let encodeError: unknown = null;
     let chain: Promise<void> = Promise.resolve();
+    // …but "without awaiting" has to stop somewhere: every unawaited append holds a
+    // full-resolution JPEG in the cache and a decode buffer in flight, and a long hand puts
+    // hundreds through. Beyond this many outstanding frames the loop waits for the encoder
+    // to catch up before capturing another.
+    const MAX_FRAMES_IN_FLIGHT = 8;
+    let inFlight = 0;
+    let framesAppended = 0;
     const appendFrame = (uri: string, ptsMs: number) => {
+      inFlight++;
       chain = chain
         .then(() => FrameVideoEncoder.appendFrame(uri, ptsMs))
+        .then(() => {
+          framesAppended++;
+        })
         .catch((e: unknown) => {
           encodeError = encodeError ?? e;
         })
-        .finally(() => releaseCapture(uri));
+        // Release only once the encoder is done with the file: dropping it from under a
+        // decode still in progress is a prime suspect for the mid-export white screen.
+        .finally(() => {
+          inFlight--;
+          releaseCapture(uri);
+        });
+    };
+    const drainTo = async (limit: number) => {
+      while (inFlight > limit && !encodeError && !cancelled()) await chain;
     };
     const repeatFrame = (ptsMs: number) => {
       chain = chain
@@ -368,6 +347,7 @@ export default function HandReplayerPlayScreen() {
         const windowMs = animWindowMsFor(beat);
         const start = Date.now();
         while (Date.now() - start < windowMs * EXPORT_SLOWMO) {
+          await drainTo(MAX_FRAMES_IN_FLIGHT);
           if (cancelled()) throw new Error('cancelled');
           if (encodeError) throw encodeError;
           const tCapture = Date.now() - start;
@@ -393,17 +373,26 @@ export default function HandReplayerPlayScreen() {
       await chain;
       if (encodeError) throw encodeError;
       if (cancelled()) throw new Error('cancelled');
+      // Muxing a session that never took a frame produces a file no player will open.
+      if (framesAppended === 0) throw new Error('no frames captured');
       const videoUri = await FrameVideoEncoder.finish(basePts);
       if (cancelled()) throw new Error('cancelled');
-      await MediaLibrary.saveToLibraryAsync(videoUri);
       reportProgress(1);
-      showMessage('success', t('export.videoSaved'));
+      showMessage('success', t('export.videoReady'));
       setExportState('idle');
-      // Straight into the share sheet — publishing the story is the point of the export.
+      // Straight into the share sheet — publishing the story is the point of the export,
+      // and the sheet's own "Save to Photos" is the save. Writing to the library here too
+      // meant the video was already in Photos when the sheet offered to put it there.
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(videoUri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4' });
       }
-    } catch {
+    } catch (e) {
+      console.warn('[replayer] video export failed', {
+        framesAppended,
+        inFlight,
+        beats: beats.length,
+        error: e,
+      });
       await FrameVideoEncoder.abort().catch(() => {});
       if (!cancelled()) showMessage('error', t('export.saveFailed'));
     } finally {
@@ -515,14 +504,11 @@ export default function HandReplayerPlayScreen() {
     );
   }
 
-  const foldedIds = new Set(
-    beats
-      .slice(0, index + 1)
-      .filter((b): b is Extract<Beat, { kind: 'street' }> => b.kind === 'street')
-      .flatMap((b) => b.actions)
-      .filter((a) => a.type === 'fold')
-      .map((a) => a.playerId)
-  );
+  // Everything the viewer has actually seen — the beats already walked, plus this beat's
+  // actions up to the intra-beat cursor.
+  const revealedActions = revealedActionsUpTo(beats, index, revealCount);
+
+  const foldedIds = new Set(revealedActions.filter((a) => a.type === 'fold').map((a) => a.playerId));
 
   const streetRevealed = (street: Street) =>
     beats.slice(0, index + 1).some((b) => b.kind === 'street' && b.street === street && b.revealsCards);
@@ -539,36 +525,24 @@ export default function HandReplayerPlayScreen() {
   const heroIdx = sortedPlayers.findIndex((p) => p.isHero);
   const orderedPlayers: HandPlayer[] = heroIdx <= 0 ? sortedPlayers : [...sortedPlayers.slice(heroIdx), ...sortedPlayers.slice(0, heroIdx)];
 
-  // Latest contribution per player per street, across the street beats revealed so far —
-  // same "raise to" convention as the builder, so summing gives the live pot and per-player
-  // committed totals as the replay advances.
-  const revealedContribs: Record<string, Record<string, number>> = {};
-  beats.slice(0, index + 1).forEach((b) => {
-    if (b.kind !== 'street') return;
-    const perPlayer = revealedContribs[b.street] ?? {};
-    b.actions.forEach((a) => {
-      if (a.amount !== undefined) perPlayer[a.playerId] = a.amount;
-    });
-    revealedContribs[b.street] = perPlayer;
-  });
-  // Dead money (absent SB/BB blinds + the global ante) hits the pot with the preflop action,
-  // like real posts would.
-  const deadMoneySoFar = revealedContribs['preflop'] ? roundAmount((hand.deadBlinds ?? 0) + (hand.ante ?? 0)) : 0;
-  const potSoFar = roundAmount(
-    Object.values(revealedContribs)
-      .flatMap((perPlayer) => Object.values(perPlayer))
-      .reduce((sum, v) => sum + v, 0) + deadMoneySoFar
-  );
-  const committedFor = (playerId: string) =>
-    roundAmount(Object.values(revealedContribs).reduce((sum, perPlayer) => sum + (perPlayer[playerId] ?? 0), 0));
+  // Latest contribution per player per street, over the actions revealed so far — same
+  // "raise to" convention as the builder (an amount is a total, not an increment), so
+  // summing gives the live pot and per-player committed totals as the replay advances.
+  const revealedContribs = contributionsFrom(revealedActions);
+  // Dead money (absent SB/BB blinds + the global ante) is on the felt as soon as preflop
+  // opens, like the posts beside it — not held back until someone with a stack acts.
+  const preflopReached = beats.slice(0, index + 1).some((b) => b.kind === 'street' && b.street === 'preflop');
+  const deadMoneySoFar = preflopReached ? roundAmount((hand.deadBlinds ?? 0) + (hand.ante ?? 0)) : 0;
+  const potSoFar = roundAmount(totalContributed(revealedContribs) + deadMoneySoFar);
+  const committedFor = (playerId: string) => roundAmount(committedBy(revealedContribs, playerId));
 
-  // During a street beat, each player's latest action pops as a bubble on their seat,
-  // staggered in true action order — starting after the street's card flips land.
-  const bubbles = new Map<string, { action: HandAction; orderIdx: number }>();
-  if (currentBeat?.kind === 'street') {
-    currentBeat.actions.forEach((a, i) => bubbles.set(a.playerId, { action: a, orderIdx: i }));
-  }
-  const actionLead = currentBeat ? cardLeadMs(currentBeat) : 0;
+  // Each seat shows its latest REVEALED action, so a player who checks and then bets shows
+  // the check first and the bet in its place — the cursor, not an animation delay, decides
+  // when. Keyed by action id below so the swap re-pops the bubble.
+  const bubbles = new Map<string, HandAction>();
+  animatedActions(currentBeat)
+    .slice(0, revealCount)
+    .forEach((a) => bubbles.set(a.playerId, a));
 
   const handleTap = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
     if (exportState === 'exporting') return; // the export loop owns the cursor
@@ -596,7 +570,7 @@ export default function HandReplayerPlayScreen() {
     // from the lagged statsIndex: the previous beat's number stays up while cards flip.
     const statsActive = allInRevealed && knownCards;
     const equityPct = statsActive ? equity?.get(p.id) : undefined;
-    const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.action.type) : false;
+    const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.type) : false;
     const revealed = !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards;
 
     return {
@@ -633,8 +607,8 @@ export default function HandReplayerPlayScreen() {
             : null,
       extras: bubble ? (
         <Animated.View
-          key={bubble.action.id}
-          entering={ZoomIn.duration(ms(220)).delay(ms(actionLead + bubble.orderIdx * ACTION_STAGGER))}
+          key={bubble.id}
+          entering={ZoomIn.duration(ms(220))}
           style={[styles.bubble, bubbleBelow ? styles.bubbleBelow : styles.bubbleAbove]}
         >
           <View
@@ -642,17 +616,17 @@ export default function HandReplayerPlayScreen() {
               styles.bubblePill,
               {
                 borderColor:
-                  bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
+                  bubble.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
               },
             ]}
           >
             <Text
               style={[
                 styles.bubbleText,
-                { color: bubble.action.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
+                { color: bubble.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
               ]}
             >
-              {bubbleLabel(bubble.action, hand.unitMode, t)}
+              {bubbleLabel(bubble, hand.unitMode, t)}
             </Text>
           </View>
         </Animated.View>

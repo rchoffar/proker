@@ -111,10 +111,8 @@
   "handOver": "Hand over",
   "untitledHand": "A hand worth telling",
   "export": {
-    "permissionSettings": "Allow photo access in Settings to save the video.",
-    "permissionRequired": "Permission needed to save the video.",
     "saveFailed": "Export failed. Try again.",
-    "videoSaved": "Video saved to your photos.",
+    "videoReady": "Video ready — choose where to share it.",
     "generating": "Generating video…"
   },
   "winOverlay": {

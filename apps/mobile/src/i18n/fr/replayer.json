@@ -111,10 +111,8 @@
   "handOver": "Main terminée",
   "untitledHand": "Une main à raconter",
   "export": {
-    "permissionSettings": "Autorisez les photos dans les réglages pour enregistrer la vidéo.",
-    "permissionRequired": "Autorisation requise pour enregistrer la vidéo.",
     "saveFailed": "L'export a échoué. Réessayez.",
-    "videoSaved": "Vidéo enregistrée dans vos photos.",
+    "videoReady": "Vidéo prête — choisissez où la partager.",
     "generating": "Génération de la vidéo…"
   },
   "winOverlay": {
