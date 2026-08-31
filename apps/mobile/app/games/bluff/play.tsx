@@ -68,7 +68,7 @@ export default function BluffPlayScreen() {
   const [state, setState] = useState<BluffState | null>(() =>
     players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })) : null,
   );
-  useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+  const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
 
   // Handoff lock: the phone must reach the right player before their cards can be peeked.
   const [locked, setLocked] = useState(true);
@@ -194,7 +194,9 @@ export default function BluffPlayScreen() {
     setLocked(true);
   };
 
-  const finish = () => router.dismissTo('/');
+  const finish = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   const caption =
     v.caption.kind === 'none'
@@ -224,7 +226,7 @@ export default function BluffPlayScreen() {
             {reveal.kind === 'jeuMax' ? (
               <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
                 {reveal.jeuMaxSuccess
-                  ? t(reveal.jeuMaxWinsGame ? 'game.jeuMaxWin' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                  ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
                   : reveal.holds
                     ? t('game.jeuMaxFailHigher', {
                         name: catcher?.name,

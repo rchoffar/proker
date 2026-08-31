@@ -35,6 +35,10 @@ import { GameOverActions } from '../../../src/components/games/GameOverActions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// How long the scoresheet stays up before the host's device rolls the next hand on its
+// own. Long enough to read a full foul + royalties breakdown without feeling stuck.
+const SCORESHEET_HOLD_MS = 6000;
+
 // Server/protocol disconnect enums → ofc namespace keys, translated at render.
 const DISCONNECT_KEYS = {
   host_left: 'games:disconnect.host_left',
@@ -87,7 +91,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   const router = useRouter();
   const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
 
-  useConfirmQuitGame(status === 'playing' && view?.phase !== 'gameOver');
+  // The host holds the room: their exit closes it for everyone, so it needs confirming in
+  // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
+  const gameLive = status === 'playing' && view?.phase !== 'gameOver';
+  const hostHoldsRoom = isHost && (status === 'lobby' || gameLive);
+  const confirmQuit = useConfirmQuitGame(hostHoldsRoom || gameLive, hostHoldsRoom ? 'closesTable' : 'progress');
 
   const [celebrating, setCelebrating] = useState(false);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -133,6 +141,26 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     );
   }, [view, updateGameStats]);
 
+  // The host used to have to press "next hand" for everyone. Nobody wants that button —
+  // the scoresheet is the only reason to pause, so hold it long enough to read and move on.
+  // It is also what declares a finished game over, so it must fire even when the host is
+  // the player who just busted (the engine now accepts table actions from an eliminated
+  // caller; without both halves a busted host froze the table for good).
+  const autoAdvancedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isHost || view?.phase !== 'scoring') {
+      if (view && view.phase !== 'scoring') autoAdvancedRef.current = null;
+      return;
+    }
+    if (autoAdvancedRef.current === view.handNumber) return;
+    const hand = view.handNumber;
+    const timer = setTimeout(() => {
+      autoAdvancedRef.current = hand;
+      sendAction({ type: 'nextHand', playerId: myId! });
+    }, SCORESHEET_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [isHost, view, myId, sendAction]);
+
   const gameOverRecordedRef = useRef(false);
   useEffect(() => {
     if (view?.phase !== 'gameOver') {
@@ -148,7 +176,9 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
     );
   }, [view, updateGameStats]);
 
-  const quit = () => router.dismissTo('/');
+  const quit = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 
@@ -273,10 +303,6 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
 
   const caption = v.caption.kind === 'none' ? '' : t(v.caption.key, v.caption.params);
 
-  const handleNextHand = () => {
-    sendAction({ type: 'nextHand', playerId: myId });
-  };
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
@@ -354,16 +380,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           </Animated.Text>
         )}
 
-        {phase === 'scoring' &&
-          (isHost ? (
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={handleNextHand} activeOpacity={0.85}>
-              <Text style={styles.primaryBtnText}>{t('game.nextHand')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('online.waitingNextHand')}
-            </Text>
-          ))}
+        {phase === 'scoring' && (
+          <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
+            {t('online.advancing')}
+          </Text>
+        )}
 
         {phase === 'gameOver' && (
           <GameOverActions

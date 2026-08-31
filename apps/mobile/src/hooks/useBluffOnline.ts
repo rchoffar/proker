@@ -15,7 +15,7 @@ import type {
   MemberInfo,
   RedactedState,
 } from '../lib/bluff/protocol';
-import { getBluffSocket } from '../lib/bluff/socket';
+import { getBluffSocket, leaveRoomAndDisconnect } from '../lib/bluff/socket';
 import type { Player } from '../types';
 
 export type OnlineStatus = 'connecting' | 'lobby' | 'playing' | 'closed' | 'error';
@@ -157,12 +157,11 @@ export function useBluffHost(
     return () => {
       const payload: HostToGuest = { kind: 'gameEnded', reason: 'hostQuit' };
       socket.emit('game:broadcast', { payload });
-      socket.emit('room:leave');
       socket.off('connect', handleConnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromPlayer', handleFromPlayer);
       socket.off('room:closed', handleClosed);
-      socket.disconnect();
+      leaveRoomAndDisconnect(socket);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);
@@ -295,12 +294,11 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
     socket.connect();
 
     return () => {
-      socket.emit('room:leave');
       socket.off('connect', handleConnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromHost', handleFromHost);
       socket.off('room:closed', handleClosed);
-      socket.disconnect();
+      leaveRoomAndDisconnect(socket);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);

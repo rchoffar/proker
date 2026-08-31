@@ -411,7 +411,7 @@ describe('jeu max', () => {
     expect(reveal.holds).toBe(true);
     expect(reveal.loserId).toBeNull();
     expect(reveal.higherClaim).toBeNull();
-    expect(reveal.jeuMaxWinsGame).toBe(false);
+    expect(reveal.jeuMaxShedsLast).toBe(false);
     const callerAfterReveal = state.players.find((p) => p.id === caller)!;
     expect(callerAfterReveal.jeuMaxAttempts).toBe(1);
     expect(callerAfterReveal.jeuMaxSuccesses).toBe(1);
@@ -472,17 +472,49 @@ describe('jeu max', () => {
     expect(state.reveal!.eliminatesLoser).toBe(true);
   });
 
-  it('succeeding at 1 card wins the game', () => {
+  // Shedding the last card is announced but does NOT win: quick starts everyone at one
+  // card, so the old rule ended the game on the very first hand.
+  it('succeeding at 1 card sheds it and plays on at 0 cards', () => {
     let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
     state = claimPairAces(state);
     const caller = state.turnId;
     state = { ...state, players: state.players.map((p) => (p.id === caller ? { ...p, cardCount: 1 } : p)) };
     state = reduce(state, { type: 'jeuMax', playerId: caller });
-    expect(state.reveal!.jeuMaxWinsGame).toBe(true);
+    expect(state.reveal!.jeuMaxShedsLast).toBe(true);
     state = reduce(state, { type: 'confirmReveal', playerId: caller });
     state = reduce(state, { type: 'nextRound', playerId: caller });
-    expect(state.phase).toBe('gameOver');
-    expect(state.winnerId).toBe(caller);
+    expect(state.phase).toBe('dealing');
+    expect(state.winnerId).toBeNull();
+    expect(state.players.find((p) => p.id === caller)!.cardCount).toBe(0);
+    expect(state.players.find((p) => p.id === caller)!.eliminated).toBe(false);
+  });
+
+  it('deals a 0-card player an empty hand and lets them keep announcing', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = claimPairAces(state);
+    const caller = state.turnId;
+    state = { ...state, players: state.players.map((p) => (p.id === caller ? { ...p, cardCount: 1 } : p)) };
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    state = reduce(state, { type: 'confirmReveal', playerId: caller });
+    state = reduce(state, { type: 'nextRound', playerId: caller });
+
+    const deal = createRoundDeal(state, mulberry32(7));
+    expect(deal.deal.hands[caller]).toEqual([]);
+    expect(validateAction(state, deal).ok).toBe(true);
+    state = reduce(state, deal);
+    state = reduce(state, { type: 'chooseBoard', playerId: state.starterId, faceUpCount: 3, faceDownCount: 0 });
+    expect(state.turnId).toBe(caller);
+    expect(validateAction(state, { type: 'claim', playerId: caller, claim: { category: 'pair', rank: '2' } }).ok).toBe(true);
+  });
+
+  it('a 0-card player cannot shed below zero', () => {
+    let state = craftedBidding({ hands: MAX_HANDS, stock: NEUTRAL_STOCK });
+    state = claimPairAces(state);
+    const caller = state.turnId;
+    state = { ...state, players: state.players.map((p) => (p.id === caller ? { ...p, cardCount: 0 } : p)) };
+    state = reduce(state, { type: 'jeuMax', playerId: caller });
+    state = reduce(state, { type: 'confirmReveal', playerId: caller });
+    state = reduce(state, { type: 'nextRound', playerId: caller });
     expect(state.players.find((p) => p.id === caller)!.cardCount).toBe(0);
   });
 

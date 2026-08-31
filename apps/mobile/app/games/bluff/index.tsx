@@ -82,7 +82,7 @@ export default function BluffSetupScreen() {
     {
       key: 'variant',
       label: t('setup.variantLabel'),
-      info: t('setup.variantQuickHint'),
+      info: t(variant === 'quick' ? 'setup.variantQuickHint' : 'setup.variantStandardHint'),
       value: variant,
       onChange: (k) => setVariant(k as BluffVariant),
       options: [

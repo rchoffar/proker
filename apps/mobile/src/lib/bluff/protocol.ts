@@ -37,7 +37,7 @@ export interface ClientToServerEvents {
     payload: { code: string; playerId: string; sessionToken: string },
     ack: (res: RejoinAck) => void,
   ) => void;
-  'room:leave': () => void;
+  'room:leave': (ack?: () => void) => void;
   'game:toHost': (payload: { payload: unknown }) => void;
   'game:toPlayer': (payload: { playerId: string; payload: unknown }) => void;
   'game:broadcast': (payload: { payload: unknown }) => void;

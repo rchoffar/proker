@@ -130,8 +130,11 @@ io.on('connection', (socket: BluffSocket) => {
     broadcastMembers(room);
   });
 
-  socket.on('room:leave', () => {
+  // Acked: the client disconnects right after leaving, and a socket.disconnect() racing
+  // an in-flight emit can drop it — so the client waits for this callback.
+  socket.on('room:leave', (ack) => {
     leaveCurrentRoom(socket, true);
+    ack?.();
   });
 
   // Guest action → host. The server stamps the sender identity: the host must NEVER

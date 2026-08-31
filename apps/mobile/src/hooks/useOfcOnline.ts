@@ -5,7 +5,7 @@ import type { OfcAction, OfcState, OfcVariant } from '../lib/ofc';
 import { redactFor } from '../lib/ofc/protocol';
 import type { OfcGuestToHost, OfcHostToGuest, RedactedOfcState } from '../lib/ofc/protocol';
 import type { MemberInfo } from '../lib/bluff/protocol';
-import { getBluffSocket } from '../lib/bluff/socket';
+import { getBluffSocket, leaveRoomAndDisconnect } from '../lib/bluff/socket';
 import type { Player } from '../types';
 
 // Host-authoritative OFC over the same game-agnostic relay as Bluff (rooms, 4-digit
@@ -152,12 +152,11 @@ export function useOfcHost(
     return () => {
       const payload: OfcHostToGuest = { kind: 'gameEnded', reason: 'hostQuit' };
       socket.emit('game:broadcast', { payload });
-      socket.emit('room:leave');
       socket.off('connect', handleConnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromPlayer', handleFromPlayer);
       socket.off('room:closed', handleClosed);
-      socket.disconnect();
+      leaveRoomAndDisconnect(socket);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);
@@ -291,12 +290,11 @@ export function useOfcGuest(pseudo: string, joinCode: string): OfcOnlineCommon {
     socket.connect();
 
     return () => {
-      socket.emit('room:leave');
       socket.off('connect', handleConnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromHost', handleFromHost);
       socket.off('room:closed', handleClosed);
-      socket.disconnect();
+      leaveRoomAndDisconnect(socket);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);

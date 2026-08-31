@@ -33,6 +33,10 @@ import type { BluffVariant, Claim } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
+// How long a reveal stays up before the host's device rolls the next round on its own.
+// Longer than OFC's scoresheet hold: a reveal has the caught hand and the pool to read.
+const REVEAL_HOLD_MS = 7000;
+
 const TABLE_W = PLAY_TABLE.width;
 const TABLE_H = PLAY_TABLE.height;
 
@@ -100,7 +104,11 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   const router = useRouter();
   const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
 
-  useConfirmQuitGame(status === 'playing' && view?.phase !== 'gameOver');
+  // The host holds the room: their exit closes it for everyone, so it needs confirming in
+  // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
+  const gameLive = status === 'playing' && view?.phase !== 'gameOver';
+  const hostHoldsRoom = isHost && (status === 'lobby' || gameLive);
+  const confirmQuit = useConfirmQuitGame(hostHoldsRoom || gameLive, hostHoldsRoom ? 'closesTable' : 'progress');
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [faceUpCount, setFaceUpCount] = useState(3);
@@ -145,6 +153,27 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     );
   }, [view, updateGameStats]);
 
+  // Nobody wants to press "next round" for the whole table — the reveal is the only reason
+  // to pause, so hold it long enough to read and move on. It is also what declares a
+  // finished game over, so it must fire even when the host is the player who just got
+  // knocked out (the engine now accepts table actions from an eliminated caller).
+  const autoAdvancedRef = useRef<number | null>(null);
+  useEffect(() => {
+    const phase = view?.phase;
+    if (!isHost || !view || (phase !== 'reveal' && phase !== 'roundEnd')) {
+      if (view && phase !== 'reveal' && phase !== 'roundEnd') autoAdvancedRef.current = null;
+      return;
+    }
+    if (autoAdvancedRef.current === view.round) return;
+    const round = view.round;
+    const timer = setTimeout(() => {
+      autoAdvancedRef.current = round;
+      if (phase === 'reveal') sendAction({ type: 'confirmReveal', playerId: myId! });
+      sendAction({ type: 'nextRound', playerId: myId! });
+    }, REVEAL_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [isHost, view, myId, sendAction]);
+
   const gameOverRecordedRef = useRef(false);
   useEffect(() => {
     if (view?.phase !== 'gameOver') {
@@ -160,7 +189,9 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     );
   }, [view, updateGameStats]);
 
-  const quit = () => router.dismissTo('/');
+  const quit = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 
@@ -305,11 +336,6 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     sendAction({ type: 'jeuMax', playerId: myId });
   };
 
-  const handleNextRound = () => {
-    sendAction({ type: 'confirmReveal', playerId: myId });
-    sendAction({ type: 'nextRound', playerId: myId });
-  };
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
@@ -328,7 +354,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             {reveal.kind === 'jeuMax' ? (
               <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
                 {reveal.jeuMaxSuccess
-                  ? t(reveal.jeuMaxWinsGame ? 'game.jeuMaxWin' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                  ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
                   : reveal.holds
                     ? t('game.jeuMaxFailHigher', {
                         name: catcher?.name,
@@ -513,16 +539,11 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             </Text>
           ))}
 
-        {(phase === 'reveal' || phase === 'roundEnd') &&
-          (isHost ? (
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]} onPress={handleNextRound} activeOpacity={0.85}>
-              <Text style={styles.primaryBtnText}>{t('game.nextRound')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('online.waitingNextRound')}
-            </Text>
-          ))}
+        {(phase === 'reveal' || phase === 'roundEnd') && (
+          <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
+            {t('online.advancing')}
+          </Text>
+        )}
 
         {phase === 'gameOver' && (
           <GameOverActions

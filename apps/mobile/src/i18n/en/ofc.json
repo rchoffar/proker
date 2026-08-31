@@ -77,7 +77,7 @@
   "online": {
     "title": "Online OFC",
     "headerCode": "OFC · {{code}}",
-    "waitingNextHand": "The host starts the next hand…",
+    "advancing": "Moving on…",
     "variant": "Mode: {{mode}}"
   },
   "score": {

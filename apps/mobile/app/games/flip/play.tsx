@@ -132,7 +132,7 @@ export default function FlipPlayScreen() {
     return () => clearTimeout(timer);
   }, [phase, handToken, ready, players.length, holeCount]);
 
-  useConfirmQuitGame(players.length >= 2 && phase !== 'result');
+  const confirmQuit = useConfirmQuitGame(players.length >= 2 && phase !== 'result');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- handToken is a cache-busting trigger for "Rejouer", not a data input
   const dealt = useMemo(() => dealNewHand(players, holeCount), [handToken, players, holeCount]);
@@ -166,7 +166,9 @@ export default function FlipPlayScreen() {
     );
   }, [statsPhase, outcomeShown, dealt, players, gameType]);
 
-  const finish = () => router.dismissTo('/');
+  const finish = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   // Street caption above the table; at result the winner/loser banner takes its place.
   const phaseButtonLabels: Record<Phase, string> = {

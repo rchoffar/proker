@@ -4,13 +4,14 @@ import { estimateEquity, hashSeed, seededRng } from './equity';
 import type { Beat } from './handReplay';
 import type { Card, HandHistory } from '../types';
 
-// The replayer's showdown analysis: who wins, which cards win it, whether the run-out is
-// live, and whether the river was a bad beat worth staging. All pure and seeded, so the
-// same hand always produces the same numbers — and so it can be tested, which none of it
-// could be while it lived in useMemos inside app/hand-replayer/play.tsx.
-
-/** A winner at or below this pre-river equity makes the river a staged bad-beat moment. */
-export const BAD_BEAT_EQUITY_PCT = 30;
+// The replayer's showdown analysis: who wins, which cards win it, and whether the run-out
+// is live. All pure and seeded, so the same hand always produces the same numbers — and so
+// it can be tested, which none of it could be while it lived in useMemos inside
+// app/hand-replayer/play.tsx.
+//
+// A `detectBadBeat` used to live here, staging a "he was only at 13%" burst on the river.
+// Mathieu asked for it gone: that kind of animation belongs to Flip, not to a hand you are
+// narrating. Removed with its overlay rather than left unused (30/08 feedback).
 
 export interface ShowdownEval {
   scores: Map<string, HandScore>;
@@ -101,39 +102,3 @@ export function equityForKey(hand: HandHistory, key: string): Map<string, number
   return estimateEquity(contenders, board, 'holdem', seededRng(hashSeed(`${hand.id}|${key}`)));
 }
 
-export interface BadBeat {
-  name: string;
-  percent: number;
-}
-
-/**
- * A staged bad-beat river: the pot reached a river showdown and the sole winner (with
- * known cards) was a heavy underdog when the river hit. Runs its own seeded Monte-Carlo on
- * the TURN board — deliberately a second, independent simulation from the live readout,
- * because it asks a different question at a different point in the hand.
- */
-export function detectBadBeat(hand: HandHistory, threshold = BAD_BEAT_EQUITY_PCT): BadBeat | null {
-  const { flop, turn, river } = hand.board;
-  if (!flop || !turn || !river) return null;
-  const winnerIds = hand.winnerIds ?? [];
-  if (winnerIds.length !== 1) return null;
-  const winner = hand.players.find((p) => p.id === winnerIds[0]);
-  if (!winner?.cardsKnown || !winner.holeCards) return null;
-  const foldedBefore = new Set(
-    hand.actions.filter((a) => a.type === 'fold' && a.street !== 'river').map((a) => a.playerId)
-  );
-  if (foldedBefore.has(winner.id)) return null;
-  const contenders = hand.players
-    .filter((p) => !foldedBefore.has(p.id))
-    .map((p) => ({ id: p.id, holeCards: p.cardsKnown && p.holeCards ? p.holeCards : null }));
-  if (contenders.length < 2) return null;
-  const equities = estimateEquity(
-    contenders,
-    [...flop, turn],
-    'holdem',
-    seededRng(hashSeed(`${hand.id}|badbeat`))
-  );
-  const winnerEquity = equities.get(winner.id);
-  if (winnerEquity === undefined || winnerEquity > threshold) return null;
-  return { name: winner.name, percent: Math.max(1, Math.round(winnerEquity)) };
-}

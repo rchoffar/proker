@@ -51,7 +51,7 @@ export default function OfcPlayScreen() {
   const [state, setState] = useState<OfcState | null>(() =>
     players.length >= 2 ? withAutoDeal(initGame(players, startingStack, variant)) : null,
   );
-  useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+  const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
 
   // Handoff lock: the phone must reach the right player before private cards can show.
   const [locked, setLocked] = useState(true);
@@ -156,7 +156,9 @@ export default function OfcPlayScreen() {
     setLocked(true);
   };
 
-  const finish = () => router.dismissTo('/');
+  const finish = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>

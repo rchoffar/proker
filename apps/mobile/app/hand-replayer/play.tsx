@@ -28,7 +28,6 @@ import { formatHandAmount, roundAmount } from '../../src/lib/format';
 import { strengthColor } from '../../src/lib/handStrength';
 import {
   allInRevealIndex,
-  detectBadBeat,
   equityCacheKey,
   equityForKey,
   evaluateShowdown,
@@ -154,12 +153,15 @@ export default function HandReplayerPlayScreen() {
     [hand, equityKey]
   );
   const [playing, setPlaying] = useState(false);
-  // A staged bad-beat river — see detectBadBeat for what qualifies.
-  const badBeat = useMemo(() => (hand ? detectBadBeat(hand) : null), [hand]);
-  const [badBeatVisible, setBadBeatVisible] = useState(false);
-  // The hero taking the pot gets a staged celebration burst at showdown (see effect below).
+  // The hero taking the pot ALONE gets a staged celebration burst at showdown (see effect
+  // below). A chop deliberately gets none: the overlay can only say "X wins the hand", and
+  // saying that over a split pot is a lie — the banner under the table says "share the pot"
+  // correctly, and that is the one that stays.
   const heroWins = useMemo(
-    () => !!hand && hand.players.some((p) => p.isHero && (hand.winnerIds ?? []).includes(p.id)),
+    () =>
+      !!hand &&
+      (hand.winnerIds ?? []).length === 1 &&
+      hand.players.some((p) => p.isHero && hand.winnerIds![0] === p.id),
     [hand]
   );
   const [winVisible, setWinVisible] = useState(false);
@@ -172,31 +174,17 @@ export default function HandReplayerPlayScreen() {
   useEffect(() => {
     if (!isPlaying) return;
     // Autoplay gives every beat its full animation window plus breathing room — merged
-    // street beats vary a lot in length now. The river keeps extra air for the bad-beat
-    // burst, the showdown for the hero-win celebration.
+    // street beats vary a lot in length now. The showdown keeps extra air for the hero-win
+    // celebration.
     const beat = beats[index];
-    const isRiverReveal = beat?.kind === 'street' && beat.street === 'river' && beat.revealsCards;
-    const extra = isRiverReveal && badBeat ? 3400 : beat?.kind === 'showdown' && heroWins ? 3400 : 900;
+    const extra = beat?.kind === 'showdown' && heroWins ? 3400 : 900;
     const interval = Math.max(AUTOPLAY_INTERVAL, (beat ? animWindowMsFor(beat) : 0) + extra);
     const timer = setTimeout(() => setIndex((i) => Math.min(i + 1, lastIndex)), interval);
     return () => clearTimeout(timer);
-  }, [isPlaying, index, lastIndex, beats, badBeat, heroWins]);
+  }, [isPlaying, index, lastIndex, beats, heroWins]);
 
-  useEffect(() => {
-    // Stage the bad-beat burst once the slow river flip has landed. Suppressed while
-    // exporting: captured frames must show the table, not the overlay.
-    const beat = beats[index];
-    const onRiverReveal = beat?.kind === 'street' && beat.street === 'river' && beat.revealsCards;
-    if (!onRiverReveal || !badBeat || exportState === 'exporting') return;
-    const timer = setTimeout(() => setBadBeatVisible(true), RIVER_FLIP_DELAY + RIVER_FLIP_DURATION + 200);
-    return () => {
-      clearTimeout(timer);
-      setBadBeatVisible(false);
-    };
-  }, [beats, index, badBeat, exportState]);
-
-  // The hero taking the pot deserves the same staged burst at showdown, once the villain
-  // flips have landed. Suppressed while exporting, like the bad beat.
+  // The hero taking the pot gets a staged burst at showdown, once the villain flips have
+  // landed. Suppressed while exporting: captured frames must show the table, not an overlay.
   useEffect(() => {
     if (beats[index]?.kind !== 'showdown' || !heroWins || exportState === 'exporting') return;
     const timer = setTimeout(() => setWinVisible(true), 1300);
@@ -521,15 +509,6 @@ export default function HandReplayerPlayScreen() {
               </>
               }
             >
-            {badBeatVisible && badBeat && (
-              <WinCelebration
-                width={TABLE_W}
-                height={TABLE_H}
-                title={t('badBeatOverlay.title')}
-                subtitle={t('badBeatOverlay.subtitle', { name: badBeat.name, percent: badBeat.percent })}
-                onDone={() => setBadBeatVisible(false)}
-              />
-            )}
             {winVisible && hero && (
               <WinCelebration
                 width={TABLE_W}

@@ -61,10 +61,12 @@ export interface RevealResult {
   eliminatesLoser: boolean; // loser was already at 5 cards
   // Jeu Max resolution only:
   jeuMaxSuccess?: boolean;
+  // The caller is shedding their LAST card. Worth announcing, but it does not win the
+  // game — see the `nextRound` comment.
+  jeuMaxShedsLast?: boolean;
   higherClaim?: Claim | null; // smallest strictly-higher claim that holds — the failure proof
   higherWitness?: Card[] | null;
   bestClaim?: Claim | null; // the actual jeu max in the pool — what should have been called
-  jeuMaxWinsGame?: boolean; // the caller shed their last card
 }
 
 export interface RoundDeal {
@@ -209,10 +211,18 @@ export interface BluffValidationError {
 
 export type BluffValidationResult = { ok: true } | ({ ok: false } & BluffValidationError);
 
+// TABLE actions, not player actions: they advance the shared round rather than doing
+// something with a player's cards. Rejecting them because the caller is eliminated froze
+// the table for good — online they carry the host's id, and once the host busts out nobody
+// else may send them (the OFC twin of this bug is what Mathieu hit on 30/08).
+const TABLE_ACTIONS = new Set<BluffAction['type']>(['deal', 'confirmReveal', 'nextRound']);
+
 export function validateAction(state: BluffState, action: BluffAction): BluffValidationResult {
   const player = state.players.find((p) => p.id === action.playerId);
   if (!player) return { ok: false, code: 'unknownPlayer' };
-  if (player.eliminated) return { ok: false, code: 'eliminated' };
+  if (player.eliminated && !TABLE_ACTIONS.has(action.type)) {
+    return { ok: false, code: 'eliminated' };
+  }
 
   switch (action.type) {
     case 'deal': {
@@ -387,10 +397,10 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
           witness: holds ? findClaimWitness(lastClaim.claim, pool) : null,
           eliminatesLoser: !success && caller.cardCount === eliminationCardCount(state.config),
           jeuMaxSuccess: success,
+          jeuMaxShedsLast: success && caller.cardCount === 1,
           higherClaim: higher?.claim ?? null,
           higherWitness: higher?.witness ?? null,
           bestClaim: best?.claim ?? null,
-          jeuMaxWinsGame: success && caller.cardCount === 1,
         },
         version: state.version + 1,
       };
@@ -401,25 +411,16 @@ export function reduce(state: BluffState, action: BluffAction): BluffState {
     case 'nextRound': {
       const reveal = state.reveal!;
       if (reveal.loserId === null) {
-        // Successful Jeu Max: nobody loses — the caller sheds a card instead, and
-        // shedding the last one wins the game outright.
+        // Successful Jeu Max: nobody loses — the caller sheds a card instead. Shedding the
+        // last one does NOT win: a player at 0 cards keeps playing, contributing nothing to
+        // the resolution pool, and the game still ends only by elimination. The old rule
+        // ("0 cards wins") ended a quick-variant game on the very first hand, since quick
+        // deals a single card — Mathieu hit exactly that on 30/08.
         const players = state.players.map((p) =>
           p.id === reveal.catcherId
-            ? { ...p, hand: [], cardCount: p.cardCount - 1 }
+            ? { ...p, hand: [], cardCount: Math.max(0, p.cardCount - 1) }
             : { ...p, hand: [] },
         );
-        if (players.find((p) => p.id === reveal.catcherId)!.cardCount === 0) {
-          return {
-            ...state,
-            phase: 'gameOver',
-            players,
-            winnerId: reveal.catcherId,
-            boardStock: [],
-            currentClaim: null,
-            claimHistory: [],
-            version: state.version + 1,
-          };
-        }
         // The successful caller opens the next round (rule decision).
         return {
           ...state,

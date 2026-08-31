@@ -21,6 +21,7 @@
   "quitGame": {
     "title": "Leave the game?",
     "message": "The game isn't finished. Your progress will be lost.",
+    "closesTable": "You are the host: leaving ends the game for everyone.",
     "confirm": "Leave"
   }
 }

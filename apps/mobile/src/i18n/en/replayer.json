@@ -104,10 +104,6 @@
   "splitWins": "{{names}} split the pot",
   "splitWinsAmount": "{{names}} split {{amount}}",
   "finalPot": "Final pot: {{amount}}",
-  "badBeatOverlay": {
-    "title": "BAD BEAT",
-    "subtitle": "{{name}} was down to {{percent}}% before the river"
-  },
   "handOver": "Hand over",
   "untitledHand": "A hand worth telling",
   "export": {

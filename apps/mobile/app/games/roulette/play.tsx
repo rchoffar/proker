@@ -31,7 +31,7 @@ export default function RoulettePlayScreen() {
   const [winner, setWinner] = useState<Player | null>(null);
 
   // Only a draw in flight is worth guarding — a shown verdict or an idle table loses nothing.
-  useConfirmQuitGame(spinning);
+  const confirmQuit = useConfirmQuitGame(spinning);
 
   const spin = () => {
     setWinner(null);
@@ -51,7 +51,9 @@ export default function RoulettePlayScreen() {
     );
   };
 
-  const finish = () => router.dismissTo('/');
+  const finish = async () => {
+    if (await confirmQuit()) router.dismissTo('/');
+  };
 
   if (players.length < 2) {
     return <NoPlayersScreen message={t('play.noPlayers')} onBack={() => router.back()} />;

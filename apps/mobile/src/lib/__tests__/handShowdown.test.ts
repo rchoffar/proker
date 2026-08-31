@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { allInRevealIndex, detectBadBeat, equityCacheKey, equityForKey, evaluateShowdown } from '../handShowdown';
+import { allInRevealIndex, equityCacheKey, equityForKey, evaluateShowdown } from '../handShowdown';
 import { buildBeats } from '../handReplay';
 import type { Card, HandAction, HandHistory, HandPlayer, Street } from '../../types';
 
 // None of this was reachable from a test while it lived in useMemos inside
-// app/hand-replayer/play.tsx — including detectBadBeat, which runs its own Monte-Carlo and
-// decides whether the river gets a staged celebration.
+// app/hand-replayer/play.tsx.
 
 let order = 0;
 const act = (street: Street, playerId: string, type: HandAction['type'], amount?: number): HandAction => ({
@@ -105,53 +104,6 @@ describe('evaluateShowdown', () => {
   });
 });
 
-describe('detectBadBeat', () => {
-  it('flags a heavy underdog who rivered the winning hand', () => {
-    // Villain is drawing to a heart flush on the turn — well under the 30% threshold.
-    const bad = detectBadBeat(riverHand({ winnerIds: ['villain'] }));
-    expect(bad).not.toBeNull();
-    expect(bad!.name).toBe('villain');
-    expect(bad!.percent).toBeGreaterThanOrEqual(1);
-    expect(bad!.percent).toBeLessThanOrEqual(30);
-  });
-
-  it('is deterministic for a given hand id', () => {
-    const hand = riverHand({ winnerIds: ['villain'] });
-    expect(detectBadBeat(hand)).toEqual(detectBadBeat(hand));
-  });
-
-  it('is not a bad beat when the favourite held up', () => {
-    // Hero had the set on the turn and is recorded as the winner.
-    expect(detectBadBeat(riverHand({ winnerIds: ['hero'] }))).toBeNull();
-  });
-
-  it('needs a single winner — a split pot is not a bad beat', () => {
-    expect(detectBadBeat(riverHand({ winnerIds: ['hero', 'villain'] }))).toBeNull();
-  });
-
-  it('needs the winner’s cards to be known', () => {
-    expect(detectBadBeat(riverHand({ winnerIds: ['villain'], villainKnown: false }))).toBeNull();
-  });
-
-  it('needs a completed board', () => {
-    const hand = riverHand({ winnerIds: ['villain'] });
-    expect(detectBadBeat({ ...hand, board: { flop: hand.board.flop, turn: hand.board.turn } })).toBeNull();
-  });
-
-  it('ignores a "winner" who folded before the river', () => {
-    const hand = riverHand({
-      winnerIds: ['villain'],
-      extraActions: [act('turn', 'villain', 'fold')],
-    });
-    expect(detectBadBeat(hand)).toBeNull();
-  });
-
-  it('respects a custom threshold', () => {
-    const hand = riverHand({ winnerIds: ['villain'] });
-    expect(detectBadBeat(hand, 0)).toBeNull(); // nothing is ever below 0%
-    expect(detectBadBeat(hand, 100)).not.toBeNull();
-  });
-});
 
 describe('allInRevealIndex', () => {
   it('is null when the hand is decided by betting on the last street', () => {

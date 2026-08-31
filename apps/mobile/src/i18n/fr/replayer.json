@@ -104,10 +104,6 @@
   "splitWins": "{{names}} se partagent le pot",
   "splitWinsAmount": "{{names}} se partagent {{amount}}",
   "finalPot": "Pot final : {{amount}}",
-  "badBeatOverlay": {
-    "title": "BAD BEAT",
-    "subtitle": "{{name}} n'était qu'à {{percent}}% avant la river"
-  },
   "handOver": "Main terminée",
   "untitledHand": "Une main à raconter",
   "export": {

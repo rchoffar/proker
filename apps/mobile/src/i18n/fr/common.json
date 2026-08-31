@@ -21,6 +21,7 @@
   "quitGame": {
     "title": "Quitter la partie ?",
     "message": "La partie n'est pas terminée. Votre progression sera perdue.",
+    "closesTable": "Vous êtes l’hôte : si vous quittez, la partie se termine pour tout le monde.",
     "confirm": "Quitter"
   }
 }

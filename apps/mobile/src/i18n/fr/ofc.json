@@ -77,7 +77,7 @@
   "online": {
     "title": "OFC en ligne",
     "headerCode": "OFC · {{code}}",
-    "waitingNextHand": "L'hôte lance la manche suivante…",
+    "advancing": "On enchaîne…",
     "variant": "Mode : {{mode}}"
   },
   "score": {

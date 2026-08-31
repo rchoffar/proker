@@ -380,6 +380,43 @@ describe('scoring and next hand', () => {
       validateAction(dealt, { type: 'placeDraw', playerId: 'b', placements: [] }),
     ).toMatchObject({ ok: false, code: 'eliminated' });
   });
+
+  // `deal` and `nextHand` advance the shared hand, so they must survive their caller being
+  // eliminated: online they carry the HOST's id, and a busted host used to freeze the table
+  // for everyone with no way out (Mathieu, 30/08).
+  it('lets an eliminated caller still deal and advance the hand', () => {
+    const three = initGame(
+      [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+        { id: 'c', name: 'C' },
+      ],
+      100,
+      'classic',
+      () => 0,
+    );
+    const withDead: OfcState = {
+      ...three,
+      players: three.players.map((p) => (p.id === 'b' ? { ...p, eliminated: true, chips: 0 } : p)),
+    };
+    const deal = createHandDeal(withDead, mulberry32(3));
+    expect(validateAction(withDead, { ...deal, playerId: 'b' }).ok).toBe(true);
+
+    const scoring: OfcState = { ...withDead, phase: 'scoring' };
+    expect(validateAction(scoring, { type: 'nextHand', playerId: 'b' }).ok).toBe(true);
+  });
+
+  it('ends the game when only one player is left, even from an eliminated caller', () => {
+    const two = initGame([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], 100, 'classic', () => 0);
+    const busted: OfcState = {
+      ...two,
+      phase: 'scoring',
+      players: two.players.map((p) => (p.id === 'b' ? { ...p, eliminated: true, chips: 0 } : p)),
+    };
+    const over = reduce(busted, { type: 'nextHand', playerId: 'b' });
+    expect(over.phase).toBe('gameOver');
+    expect(over.winnerId).toBe('a');
+  });
 });
 
 describe('scripted fixture sanity', () => {

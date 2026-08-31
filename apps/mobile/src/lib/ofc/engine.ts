@@ -255,10 +255,18 @@ function checkRowCapacity(grid: OfcGrid, placements: OfcPlacement[]): OfcValidat
   return { ok: true };
 }
 
+// `deal` and `nextHand` are TABLE actions, not player actions: they advance the shared
+// hand rather than doing something with a player's cards. Rejecting them because the
+// caller is eliminated froze the table for good — online they carry the host's id, and
+// once the host busts out nobody else may send them (see the 30/08 feedback).
+const TABLE_ACTIONS = new Set<OfcAction['type']>(['deal', 'nextHand']);
+
 export function validateAction(state: OfcState, action: OfcAction): OfcValidationResult {
   const player = state.players.find((p) => p.id === action.playerId);
   if (!player) return { ok: false, code: 'unknownPlayer' };
-  if (player.eliminated) return { ok: false, code: 'eliminated' };
+  if (player.eliminated && !TABLE_ACTIONS.has(action.type)) {
+    return { ok: false, code: 'eliminated' };
+  }
 
   switch (action.type) {
     case 'deal': {
