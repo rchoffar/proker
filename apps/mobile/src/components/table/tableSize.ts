@@ -17,10 +17,30 @@ const clamp = (min: number, value: number, max: number) => Math.min(max, Math.ma
 // The height floor is not cosmetic: seat pods and card fans are fixed-size, so below roughly
 // 420pt a full ring has nowhere to put its cards that is not the board. seatLayout.test.ts
 // pins that floor — lower it and the 5-player fans land back on the community cards.
+const PLAY_TABLE_MIN_HEIGHT = 420;
+
 export const PLAY_TABLE = {
   width: SCREEN_WIDTH - 40,
-  height: clamp(420, Math.round(SCREEN_HEIGHT * 0.56), 560),
+  height: clamp(PLAY_TABLE_MIN_HEIGHT, Math.round(SCREEN_HEIGHT * 0.56), 560),
 };
+
+/**
+ * The play felt fitted to the room a screen actually has, rather than to a fraction of the
+ * whole window. `PLAY_TABLE.height` is a guess at what will be left over, and on bluff it
+ * guessed high: header + announcement + felt + hand zone + footer + safe areas came to more
+ * than the screen, and since the felt's height is fixed while its container only has
+ * `flex: 1`, the overflow went into the felt's own top and bottom — cutting the seat pods
+ * off, which is what "agrandis la table" was really about.
+ *
+ * `availableH` is what the felt's container measured, with the table's own margins already
+ * taken off; null before the first layout pass. The floor is PLAY_TABLE's own: seat pods and
+ * fans are fixed-size, and below it a full ring has nowhere to put its cards but the board
+ * (pinned by seatLayout.test.ts).
+ */
+export function playTableHeight(availableH: number | null): number {
+  if (availableH === null) return PLAY_TABLE.height;
+  return clamp(PLAY_TABLE_MIN_HEIGHT, Math.round(availableH), PLAY_TABLE.height);
+}
 
 // Setup boards straddle their seats on the rail, so the outer box is wider and taller than
 // the felt by half a seat on each side.

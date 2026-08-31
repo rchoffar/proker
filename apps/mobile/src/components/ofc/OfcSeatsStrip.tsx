@@ -29,7 +29,9 @@ interface Props {
   activeId: string | null;
 }
 
-const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
+// The seats sit on green felt now, so they need the felt's own dark plate rather than the
+// translucent white that read as a slightly lighter panel on the old black screen.
+const DARK_CARD_BG = TABLE.plateBg;
 
 export function OfcSeatsStrip({ seats, activeId }: Props) {
   const { t } = useTranslation('ofc');
@@ -83,11 +85,13 @@ export function OfcSeatsStrip({ seats, activeId }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // A column, not a row: on the felt these are the boards laid out across the table, and a
+  // seat card is about 184pt wide (five sm slots plus padding), so two of them never fit
+  // side by side inside an oval. Stacked, they read as "your board / my board" facing each
+  // other, which is how the game is actually played.
   strip: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
     gap: spacing.sm,
-    flexWrap: 'wrap',
   },
   seat: {
     borderWidth: 1,

@@ -13,6 +13,7 @@ import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { OfcActorPanel } from '../../../src/components/ofc/OfcActorPanel';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
+import { OfcTableFelt } from '../../../src/components/ofc/OfcTableFelt';
 import { OfcSeatsStrip } from '../../../src/components/ofc/OfcSeatsStrip';
 import type { OfcSeatVM } from '../../../src/components/ofc/OfcSeatsStrip';
 import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
@@ -320,7 +321,9 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           {caption}
         </Animated.Text>
 
-        <OfcSeatsStrip seats={stripSeats} activeId={phase === 'placing' ? view.turnId : null} />
+        <OfcTableFelt>
+          <OfcSeatsStrip seats={stripSeats} activeId={phase === 'placing' ? view.turnId : null} />
+        </OfcTableFelt>
 
         {(myFantasyTurn || myInitialTurn) && me?.hand && (
           <Animated.View entering={FadeIn.duration(200)}>

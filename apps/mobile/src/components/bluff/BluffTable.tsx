@@ -5,7 +5,9 @@ import Animated, { FlipInEasyY, ZoomIn } from 'react-native-reanimated';
 import { PlayingCard } from '../hand/PlayingCard';
 import { TABLE } from '../hand/PokerTable';
 import { SeatedTable } from '../table/SeatedTable';
+import { TableWordmark } from '../table/TableWordmark';
 import type { RevealResult } from '../../lib/bluff';
+import { spacing } from '../../design-system/theme';
 import { cardKey } from '../../types';
 import type { Card } from '../../types';
 
@@ -36,12 +38,23 @@ interface Props {
   reveal: RevealResult | null;
   // Re-fires entering animations when a new round deals (same trick as flip's handToken).
   roundToken: number;
+  // The standing call, or the round's result — ON the felt, above the board. It used to sit
+  // above the table, where it ran into the header title and pushed the felt off the bottom
+  // of the screen ("met les annonces au milieu de la table").
+  announcement?: ReactNode;
   children?: ReactNode;
 }
 
 const POD_W = 84;
 
-export function BluffTable({ width, height, players, board, hiddenCount, hiddenBoard, turnId, reveal, roundToken, children }: Props) {
+/**
+ * Vertical margin the felt keeps for its seat pods: they are anchored 42pt above their point
+ * on the ellipse (plus the card fan for bottom-half seats). Exported because a screen sizing
+ * the felt to its measured space has to take this off first — it is clearance, not felt.
+ */
+export const BLUFF_TABLE_MARGIN_Y = 52;
+
+export function BluffTable({ width, height, players, board, hiddenCount, hiddenBoard, turnId, reveal, roundToken, announcement, children }: Props) {
   const { t } = useTranslation('bluff');
   const witnessKeys = new Set((reveal?.witness ?? []).map(cardKey));
   // A failed Jeu Max's counter-example: the smallest higher combination that exists.
@@ -122,7 +135,9 @@ export function BluffTable({ width, height, players, board, hiddenCount, hiddenB
         };
       })}
       center={
-        <View style={styles.boardRow}>
+        <View style={styles.feltCenter}>
+          {announcement}
+          <View style={styles.boardRow}>
           {board.map((card, i) => (
             <Animated.View key={`board-${roundToken}-${cardKey(card)}`} entering={FlipInEasyY.duration(450).delay(i * 100)}>
               {highlight(card, <PlayingCard card={card} size="md" />)}
@@ -145,6 +160,8 @@ export function BluffTable({ width, height, players, board, hiddenCount, hiddenB
                   <PlayingCard faceDown size="md" />
                 </Animated.View>
               ))}
+          </View>
+          <TableWordmark />
         </View>
       }
     >
@@ -156,10 +173,11 @@ export function BluffTable({ width, height, players, board, hiddenCount, hiddenB
 const styles = StyleSheet.create({
   table: {
     alignSelf: 'center',
-    // Seat pods are anchored 42px above their ellipse point (plus the card fan for
-    // bottom-half seats) — reserve clearance so the top seat never overlaps the caption,
-    // same trick as flip's play screen.
-    marginVertical: 52,
+    marginVertical: BLUFF_TABLE_MARGIN_Y,
+  },
+  feltCenter: {
+    alignItems: 'center',
+    gap: spacing.base,
   },
   boardRow: {
     flexDirection: 'row',

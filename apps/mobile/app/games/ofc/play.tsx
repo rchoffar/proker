@@ -10,6 +10,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { OfcActorPanel } from '../../../src/components/ofc/OfcActorPanel';
+import { OfcTableFelt } from '../../../src/components/ofc/OfcTableFelt';
 import { OfcSeatsStrip } from '../../../src/components/ofc/OfcSeatsStrip';
 import type { OfcSeatVM } from '../../../src/components/ofc/OfcSeatsStrip';
 import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
@@ -177,7 +178,9 @@ export default function OfcPlayScreen() {
           {caption}
         </Animated.Text>
 
-        <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} />
+        <OfcTableFelt>
+          <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} />
+        </OfcTableFelt>
 
         {/* Multi-card arrangement (initial 5 open, Fantasy Land 13 behind the lock). */}
         {phase === 'placing' && actor && arranging && (!fantasyArranging || !locked) && (

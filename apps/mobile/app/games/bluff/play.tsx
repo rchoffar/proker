@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable , type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,8 +11,8 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
-import { BluffTable } from '../../../src/components/bluff/BluffTable';
-import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { BluffTable, BLUFF_TABLE_MARGIN_Y } from '../../../src/components/bluff/BluffTable';
+import { PLAY_TABLE, playTableHeight } from '../../../src/components/table/tableSize';
 import { DARK_CARD_BG, LOSS_ON_DARK, SCREEN_BG } from '../../../src/components/games/gameSurface';
 import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
 import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
@@ -40,7 +40,6 @@ import { fontFamily, fontSize, radius, spacing } from '../../../src/design-syste
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 
 const TABLE_W = PLAY_TABLE.width;
-const TABLE_H = PLAY_TABLE.height;
 
 const HAND_FAN_ANGLES: Record<number, number[]> = {
   1: [0],
@@ -77,6 +76,18 @@ export default function BluffPlayScreen() {
   const [faceUpCount, setFaceUpCount] = useState(3);
   const [faceDownCount, setFaceDownCount] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
+
+  // The felt is fitted to the room this screen actually has, not to a fraction of the window:
+  // with a fixed height inside a `flex: 1` container the overflow went into the felt's own
+  // top and bottom and sliced the seat pods off. BluffTable's own vertical margin (pod
+  // clearance) is not room the felt can use, so it comes off the measurement.
+  const [areaH, setAreaH] = useState<number | null>(null);
+  const onTableAreaLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height) - BLUFF_TABLE_MARGIN_Y * 2;
+    if (next > 0 && next !== areaH) setAreaH(next);
+  };
+  const tableH = playTableHeight(areaH);
+
 
   const dispatch = (action: BluffAction) => {
     setPeeking(false); // never leave cards exposed past the action that ends the look
@@ -220,63 +231,10 @@ export default function BluffPlayScreen() {
         }
       />
 
-      <View style={styles.tableArea}>
-        {reveal ? (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
-            {reveal.kind === 'jeuMax' ? (
-              <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
-                {reveal.jeuMaxSuccess
-                  ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
-                  : reveal.holds
-                    ? t('game.jeuMaxFailHigher', {
-                        name: catcher?.name,
-                        best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
-                      })
-                    : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
-              </Text>
-            ) : (
-              <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
-                {reveal.holds
-                  ? t('game.revealHolds', { name: catcher?.name })
-                  : t('game.revealBluff', { name: claimer?.name })}
-              </Text>
-            )}
-            <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-              {reveal.eliminatesLoser
-                ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
-                : claimLabel(reveal.claim, t)}
-            </Text>
-            {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
-              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-                {t('game.jeuMaxStatLine', {
-                  name: catcher.name,
-                  successes: catcher.jeuMaxSuccesses,
-                  attempts: catcher.jeuMaxAttempts,
-                })}
-              </Text>
-            )}
-            {phase === 'gameOver' &&
-              state.players
-                .filter((p) => p.jeuMaxAttempts > 0)
-                .map((p) => (
-                  <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-                    {t('game.jeuMaxStatLine', {
-                      name: p.name,
-                      successes: p.jeuMaxSuccesses,
-                      attempts: p.jeuMaxAttempts,
-                    })}
-                  </Text>
-                ))}
-          </Animated.View>
-        ) : (
-          <Animated.Text key={`caption-${state.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
-            {caption}
-          </Animated.Text>
-        )}
-
+      <View style={styles.tableArea} onLayout={onTableAreaLayout}>
         <BluffTable
           width={TABLE_W}
-          height={TABLE_H}
+          height={tableH}
           players={seats}
           board={state.board}
           hiddenCount={view.hiddenBoardCount}
@@ -284,11 +242,65 @@ export default function BluffPlayScreen() {
           turnId={phase === 'bidding' ? state.turnId : null}
           reveal={reveal}
           roundToken={state.round}
+          announcement={
+            reveal ? (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
+              {reveal.kind === 'jeuMax' ? (
+                <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
+                  {reveal.jeuMaxSuccess
+                    ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                    : reveal.holds
+                      ? t('game.jeuMaxFailHigher', {
+                          name: catcher?.name,
+                          best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
+                        })
+                      : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
+                </Text>
+              ) : (
+                <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
+                  {reveal.holds
+                    ? t('game.revealHolds', { name: catcher?.name })
+                    : t('game.revealBluff', { name: claimer?.name })}
+                </Text>
+              )}
+              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                {reveal.eliminatesLoser
+                  ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
+                  : claimLabel(reveal.claim, t)}
+              </Text>
+              {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
+                <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                  {t('game.jeuMaxStatLine', {
+                    name: catcher.name,
+                    successes: catcher.jeuMaxSuccesses,
+                    attempts: catcher.jeuMaxAttempts,
+                  })}
+                </Text>
+              )}
+              {phase === 'gameOver' &&
+                state.players
+                  .filter((p) => p.jeuMaxAttempts > 0)
+                  .map((p) => (
+                    <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                      {t('game.jeuMaxStatLine', {
+                        name: p.name,
+                        successes: p.jeuMaxSuccesses,
+                        attempts: p.jeuMaxAttempts,
+                      })}
+                    </Text>
+                  ))}
+            </Animated.View>
+          ) : (
+            <Animated.Text key={`caption-${state.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
+              {caption}
+            </Animated.Text>
+            )
+          }
         >
           {celebrating && winner && (
             <WinCelebration
               width={TABLE_W}
-              height={TABLE_H}
+              height={tableH}
               title={t('games:game.victory')}
               subtitle={t('game.winnerSub', { name: winner.name })}
               onDone={() => setCelebrating(false)}

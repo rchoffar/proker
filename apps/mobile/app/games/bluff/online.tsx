@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator , type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,10 +11,10 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
-import { BluffTable } from '../../../src/components/bluff/BluffTable';
+import { BluffTable, BLUFF_TABLE_MARGIN_Y } from '../../../src/components/bluff/BluffTable';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
-import { PLAY_TABLE } from '../../../src/components/table/tableSize';
+import { PLAY_TABLE, playTableHeight } from '../../../src/components/table/tableSize';
 import { DARK_CARD_BG, DARK_TILE, LOSS_ON_DARK, SCREEN_BG } from '../../../src/components/games/gameSurface';
 import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
 import { GameOverActions } from '../../../src/components/games/GameOverActions';
@@ -38,7 +38,6 @@ import { useTheme } from '../../../src/design-system/ThemeProvider';
 const REVEAL_HOLD_MS = 7000;
 
 const TABLE_W = PLAY_TABLE.width;
-const TABLE_H = PLAY_TABLE.height;
 
 const HAND_FAN_ANGLES: Record<number, number[]> = {
   1: [0],
@@ -114,6 +113,18 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   const [faceUpCount, setFaceUpCount] = useState(3);
   const [faceDownCount, setFaceDownCount] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
+
+  // The felt is fitted to the room this screen actually has, not to a fraction of the window:
+  // with a fixed height inside a `flex: 1` container the overflow went into the felt's own
+  // top and bottom and sliced the seat pods off. BluffTable's own vertical margin (pod
+  // clearance) is not room the felt can use, so it comes off the measurement.
+  const [areaH, setAreaH] = useState<number | null>(null);
+  const onTableAreaLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height) - BLUFF_TABLE_MARGIN_Y * 2;
+    if (next > 0 && next !== areaH) setAreaH(next);
+  };
+  const tableH = playTableHeight(areaH);
+
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   // Action errors from the host surface as a transient toast (auto-dismissed).
@@ -307,9 +318,11 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   const catcher = reveal ? view.players.find((p) => p.id === reveal.catcherId) : null;
   const claimer = reveal ? view.players.find((p) => p.id === reveal.claimerId) : null;
 
-  const seats: BluffSeatVM[] = bluffSeatData(v, (p) =>
-    p.id === myId ? t('games:online.youSuffix', { name: p.name }) : p.name
-  );
+  // No "(you)" suffix on the felt: online seats you at the bottom of the table, so the seat
+  // is already unmistakably yours. It also fed a decorated name to the pod's avatar, whose
+  // initials are the first letter of the first two words — "mathieuchfd (toi)" came out as
+  // "M(", which is what Mathieu was asking about.
+  const seats: BluffSeatVM[] = bluffSeatData(v, (p) => p.name);
 
   const myHand = v.viewer?.hand ?? [];
   const fanAngles = HAND_FAN_ANGLES[myHand.length] ?? HAND_FAN_ANGLES[2];
@@ -348,63 +361,10 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
         }
       />
 
-      <View style={styles.tableArea}>
-        {reveal ? (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
-            {reveal.kind === 'jeuMax' ? (
-              <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
-                {reveal.jeuMaxSuccess
-                  ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
-                  : reveal.holds
-                    ? t('game.jeuMaxFailHigher', {
-                        name: catcher?.name,
-                        best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
-                      })
-                    : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
-              </Text>
-            ) : (
-              <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
-                {reveal.holds
-                  ? t('game.revealHolds', { name: catcher?.name })
-                  : t('game.revealBluff', { name: claimer?.name })}
-              </Text>
-            )}
-            <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-              {reveal.eliminatesLoser
-                ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
-                : claimLabel(reveal.claim, t)}
-            </Text>
-            {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
-              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-                {t('game.jeuMaxStatLine', {
-                  name: catcher.name,
-                  successes: catcher.jeuMaxSuccesses,
-                  attempts: catcher.jeuMaxAttempts,
-                })}
-              </Text>
-            )}
-            {phase === 'gameOver' &&
-              view.players
-                .filter((p) => p.jeuMaxAttempts > 0)
-                .map((p) => (
-                  <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
-                    {t('game.jeuMaxStatLine', {
-                      name: p.name,
-                      successes: p.jeuMaxSuccesses,
-                      attempts: p.jeuMaxAttempts,
-                    })}
-                  </Text>
-                ))}
-          </Animated.View>
-        ) : (
-          <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
-            {caption}
-          </Animated.Text>
-        )}
-
+      <View style={styles.tableArea} onLayout={onTableAreaLayout}>
         <BluffTable
           width={TABLE_W}
-          height={TABLE_H}
+          height={tableH}
           players={seats}
           board={view.board}
           hiddenCount={view.hiddenBoardCount}
@@ -412,11 +372,65 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           turnId={phase === 'bidding' ? view.turnId : null}
           reveal={reveal}
           roundToken={view.round}
+          announcement={
+            reveal ? (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
+              {reveal.kind === 'jeuMax' ? (
+                <Text style={[styles.resultBanner, { color: reveal.jeuMaxSuccess ? TABLE.gold : LOSS_ON_DARK }]}>
+                  {reveal.jeuMaxSuccess
+                    ? t(reveal.jeuMaxShedsLast ? 'game.jeuMaxLastCard' : 'game.jeuMaxSuccess', { name: catcher?.name })
+                    : reveal.holds
+                      ? t('game.jeuMaxFailHigher', {
+                          name: catcher?.name,
+                          best: reveal.bestClaim ? claimLabel(reveal.bestClaim, t) : '',
+                        })
+                      : t('game.jeuMaxFailNotHeld', { name: catcher?.name })}
+                </Text>
+              ) : (
+                <Text style={[styles.resultBanner, { color: reveal.holds ? TABLE.gold : LOSS_ON_DARK }]}>
+                  {reveal.holds
+                    ? t('game.revealHolds', { name: catcher?.name })
+                    : t('game.revealBluff', { name: claimer?.name })}
+                </Text>
+              )}
+              <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                {reveal.eliminatesLoser
+                  ? t('game.revealSubEliminated', { claim: claimLabel(reveal.claim, t), name: loser?.name })
+                  : claimLabel(reveal.claim, t)}
+              </Text>
+              {reveal.kind === 'jeuMax' && catcher && phase !== 'gameOver' && (
+                <Text style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                  {t('game.jeuMaxStatLine', {
+                    name: catcher.name,
+                    successes: catcher.jeuMaxSuccesses,
+                    attempts: catcher.jeuMaxAttempts,
+                  })}
+                </Text>
+              )}
+              {phase === 'gameOver' &&
+                view.players
+                  .filter((p) => p.jeuMaxAttempts > 0)
+                  .map((p) => (
+                    <Text key={p.id} style={[styles.resultSub, { color: colors.onDarkTertiary }]}>
+                      {t('game.jeuMaxStatLine', {
+                        name: p.name,
+                        successes: p.jeuMaxSuccesses,
+                        attempts: p.jeuMaxAttempts,
+                      })}
+                    </Text>
+                  ))}
+            </Animated.View>
+          ) : (
+            <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
+              {caption}
+            </Animated.Text>
+            )
+          }
         >
           {celebrating && winner && (
             <WinCelebration
               width={TABLE_W}
-              height={TABLE_H}
+              height={tableH}
               title={t('games:game.victory')}
               subtitle={t('game.winnerSub', { name: winner.name })}
               onDone={() => setCelebrating(false)}

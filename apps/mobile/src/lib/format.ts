@@ -70,12 +70,19 @@ export function formatLevelDuration(levels: { durationMinutes: number }[]): stri
   return min === max ? `${min} min` : `${min}–${max} min`;
 }
 
+/**
+ * Avatar initials: the first letter of the first two words. Words that do not START with a
+ * letter are skipped, because callers hand this display names rather than raw pseudos — an
+ * online seat labelled "mathieuchfd (toi)" was coming out as "M(". Falls back to the raw
+ * split when nothing starts with a letter, so an emoji pseudo still shows something —
+ * indexed by code point, since `w[0]` cuts a surrogate pair in half.
+ */
 export function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
+  const words = name.split(' ').filter(Boolean);
+  const lettered = words.filter((w) => /^\p{L}/u.test(w));
+  return (lettered.length > 0 ? lettered : words)
     .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
+    .map((w) => [...w][0]?.toUpperCase())
     .join('');
 }
 
