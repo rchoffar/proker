@@ -15,6 +15,13 @@ export interface Room {
   createdAt: number;
   lastActivity: number;
   hostGraceTimer: NodeJS.Timeout | null;
+  /**
+   * Set by the host when it deals the first hand. The relay itself has no idea what a game
+   * is — the engine runs on the host's phone — but it has to know this much to stop letting
+   * people in afterwards: the host snapshots the member list when it starts, so a late
+   * joiner is in the room and not in the game, and their screen had nothing to render.
+   */
+  started: boolean;
 }
 
 export const MAX_MEMBERS = 6;
@@ -47,6 +54,7 @@ export function createRoom(hostName: string, hostSocketId: string): { room: Room
     createdAt: Date.now(),
     lastActivity: Date.now(),
     hostGraceTimer: null,
+    started: false,
   };
   rooms.set(code, room);
   return { room, host };

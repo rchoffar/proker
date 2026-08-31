@@ -24,7 +24,7 @@ export type CreateAck =
 
 export type JoinAck =
   | { ok: true; playerId: string; sessionToken: string; members: MemberInfo[]; hostPlayerId: string }
-  | { ok: false; reason: 'not_found' | 'full' };
+  | { ok: false; reason: 'not_found' | 'full' | 'started' };
 
 export type RejoinAck = { ok: true } | { ok: false; reason: 'not_found' | 'bad_token' };
 
@@ -36,6 +36,8 @@ export interface ClientToServerEvents {
     payload: { code: string; playerId: string; sessionToken: string },
     ack: (res: RejoinAck) => void,
   ) => void;
+  // Host-only: the game has been dealt, stop admitting newcomers. Idempotent.
+  'room:lock': () => void;
   'room:leave': (ack?: () => void) => void;
   'game:toHost': (payload: { payload: unknown }) => void;
   'game:toPlayer': (payload: { playerId: string; payload: unknown }) => void;

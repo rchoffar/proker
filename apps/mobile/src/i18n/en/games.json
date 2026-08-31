@@ -44,6 +44,7 @@
   "connection": {
     "bad_token": "Session expired",
     "full": "The table is full",
+    "started": "The game has already started",
     "not_found": "Table not found — check the code",
     "unavailable": "Server unavailable, try again"
   },
@@ -61,6 +62,10 @@
     "connecting": "Connecting to the server…",
     "players": "Players ({{current}}/{{max}})",
     "quit": "Leave",
+    "invite": "Invite",
+    "joiningGame": "Joining the game…",
+    "inviteMessage": "Join my {{game}} table on Ultimate Poker Kit — code {{code}}",
+    "waitingHostReplay": "The host may start another game…",
     "shareCode": "Share this code with the other players",
     "startGame": "Start the game",
     "startsWhenHostLaunches": "The game starts as soon as the host launches it",

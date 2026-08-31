@@ -13,6 +13,7 @@ import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { OfcActorPanel } from '../../../src/components/ofc/OfcActorPanel';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
+import { shareTableCode } from '../../../src/lib/shareTableCode';
 import { OfcTableFelt } from '../../../src/components/ofc/OfcTableFelt';
 import { OfcSeatsStrip } from '../../../src/components/ofc/OfcSeatsStrip';
 import type { OfcSeatVM } from '../../../src/components/ofc/OfcSeatsStrip';
@@ -240,6 +241,12 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
                   code={code ?? ''}
                   codeLabel={t('games:online.tableCode')}
                   caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
+                  inviteLabel={t('games:online.invite')}
+                  onInvite={
+                    isHost && code
+                      ? () => shareTableCode(t('games:online.inviteMessage', { game: t('degen:names.ofc'), code }))
+                      : undefined
+                  }
                   rules={
                     isHost && hostVariant
                       ? [
@@ -284,7 +291,22 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
 
   // ── Playing ──────────────────────────────────────────────────────────────────
 
-  if (!view || !myId) return null;
+  // Playing, but this device has no state to draw yet — normally the beat between the host
+  // dealing and its first broadcast reaching us. It used to `return null`, which is a fully
+  // black screen with no way out, and a late joiner could sit in it indefinitely (the relay
+  // now refuses them outright, but a silent hole is still the wrong thing to render).
+  if (!view || !myId) {
+    return (
+      <SafeAreaView style={[styles.screen, styles.centered]}>
+        <StatusBar style="light" />
+        <ActivityIndicator color={colors.accentBright} />
+        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('games:online.joiningGame')}</Text>
+        <TouchableOpacity onPress={quit} style={[styles.secondaryBtn, { backgroundColor: DARK_TILE }]}>
+          <Text style={[styles.secondaryBtnText, { color: colors.onDarkPrimary }]}>{t('games:online.quit')}</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   const { phase } = view;
   // Online, "the actor" and "the viewer" are the same person, so the one redacted state
@@ -393,6 +415,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           <GameOverActions
             finishLabel={t('games:online.quit')}
             replayLabel={t('games:game.replay')}
+            waitingLabel={t('games:online.waitingHostReplay')}
             onFinish={quit}
             onReplay={
               isHost

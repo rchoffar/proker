@@ -34,6 +34,7 @@ const JOIN_ERROR_KEYS = {
   full: 'games:connection.full',
   unavailable: 'games:connection.unavailable',
   bad_token: 'games:connection.bad_token',
+  started: 'games:connection.started',
 } as const;
 
 function withAutoDeal(state: OfcState): OfcState {
@@ -171,6 +172,9 @@ export function useOfcHost(
       // Keep versions monotonic across replays so guests' stale-drop never eats a fresh game.
       gameRef.current = { ...fresh, version: previousVersion + fresh.version + 1 };
       setStatus('playing');
+      // Tell the relay to stop admitting newcomers: this snapshotted the member list, so
+      // anybody let in now would hold a seat in the room and none in the game.
+      getBluffSocket().emit('room:lock');
       broadcast();
     },
     [broadcast],

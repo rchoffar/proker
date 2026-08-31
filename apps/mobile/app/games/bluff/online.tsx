@@ -14,6 +14,7 @@ import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { BluffTable, BLUFF_TABLE_MARGIN_Y } from '../../../src/components/bluff/BluffTable';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { LobbyFelt } from '../../../src/components/games/LobbyFelt';
+import { shareTableCode } from '../../../src/lib/shareTableCode';
 import { PLAY_TABLE, playTableHeight } from '../../../src/components/table/tableSize';
 import { DARK_CARD_BG, DARK_TILE, LOSS_ON_DARK, SCREEN_BG } from '../../../src/components/games/gameSurface';
 import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
@@ -263,6 +264,12 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
                   code={code ?? ''}
                   codeLabel={t('games:online.tableCode')}
                   caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
+                  inviteLabel={t('games:online.invite')}
+                  onInvite={
+                    isHost && code
+                      ? () => shareTableCode(t('games:online.inviteMessage', { game: t('degen:names.bluff'), code }))
+                      : undefined
+                  }
                   rules={
                     isHost
                       ? [
@@ -306,7 +313,22 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
 
   // ── Playing ──────────────────────────────────────────────────────────────────
 
-  if (!view || !myId) return null;
+  // Playing, but this device has no state to draw yet — normally the beat between the host
+  // dealing and its first broadcast reaching us. It used to `return null`, which is a fully
+  // black screen with no way out, and a late joiner could sit in it indefinitely (the relay
+  // now refuses them outright, but a silent hole is still the wrong thing to render).
+  if (!view || !myId) {
+    return (
+      <SafeAreaView style={[styles.screen, styles.centered]}>
+        <StatusBar style="light" />
+        <ActivityIndicator color={colors.accentBright} />
+        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('games:online.joiningGame')}</Text>
+        <TouchableOpacity onPress={quit} style={[styles.secondaryBtn, { backgroundColor: DARK_TILE }]}>
+          <Text style={[styles.secondaryBtnText, { color: colors.onDarkPrimary }]}>{t('games:online.quit')}</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   const { phase, reveal } = view;
   // Seat 0 = me, at bottom center, and my plate says "(you)" — the two things that make
@@ -563,6 +585,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           <GameOverActions
             finishLabel={t('games:online.quit')}
             replayLabel={t('games:game.replay')}
+            waitingLabel={t('games:online.waitingHostReplay')}
             onFinish={quit}
             onReplay={
               isHost

@@ -9,8 +9,9 @@ import { DARK_TILE } from './gameSurface';
 // down to the same 16pt RotateCw — and each named the replay button's inner row
 // differently (`replayContent` here, `relancerContent` in flip and roulette).
 //
-// Online gates the replay on being the host, so `onReplay` is optional: without it the
-// row shows only the quit button, which is what a guest may do.
+// Online gates the replay on being the host, so `onReplay` is optional. A guest used to get
+// a lone "Quit" button with nothing saying the host could still run it back, so they might
+// leave a beat before the rematch — hence the optional `waitingLabel` that takes its place.
 
 interface Props {
   finishLabel: string;
@@ -18,15 +19,25 @@ interface Props {
   onFinish: () => void;
   /** Omitted for a guest — only the host may restart an online table. */
   onReplay?: () => void;
+  /** Shown to a guest in place of the replay button, so "Quit" is not the only thing on the
+   *  screen when the host may still be about to run it back. */
+  waitingLabel?: string;
 }
 
-export function GameOverActions({ finishLabel, replayLabel, onFinish, onReplay }: Props) {
+export function GameOverActions({ finishLabel, replayLabel, onFinish, onReplay, waitingLabel }: Props) {
   const { colors } = useTheme();
   return (
     <View style={styles.actionRow}>
       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: DARK_TILE }]} onPress={onFinish} activeOpacity={0.85}>
         <Text style={[styles.actionBtnText, { color: colors.onDarkPrimary }]}>{finishLabel}</Text>
       </TouchableOpacity>
+      {!onReplay && waitingLabel && (
+        <View style={styles.waiting}>
+          <Text style={[styles.waitingText, { color: colors.onDarkTertiary }]} numberOfLines={2}>
+            {waitingLabel}
+          </Text>
+        </View>
+      )}
       {onReplay && (
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: colors.accentBright }]}
@@ -67,5 +78,14 @@ const styles = StyleSheet.create({
     color: '#0A0A0F',
     fontSize: fontSize.md,
     fontFamily: fontFamily.bold,
+  },
+  waiting: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  waitingText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+    textAlign: 'center',
   },
 });

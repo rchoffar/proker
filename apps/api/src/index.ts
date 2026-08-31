@@ -88,6 +88,14 @@ io.on('connection', (socket: BluffSocket) => {
       ack({ ok: false, reason: 'not_found' });
       return;
     }
+    // A room whose game has been dealt is closed to newcomers: the host snapshotted its
+    // player list when it started, so somebody let in now would hold a seat in the room and
+    // none in the game, and their screen would have nothing to draw. A rejoin is a different
+    // event and stays open — see room:rejoin.
+    if (room.started) {
+      ack({ ok: false, reason: 'started' });
+      return;
+    }
     const member = addMember(room, String(name).slice(0, 20), socket.id);
     if (member === 'full') {
       ack({ ok: false, reason: 'full' });
@@ -132,6 +140,13 @@ io.on('connection', (socket: BluffSocket) => {
 
   // Acked: the client disconnects right after leaving, and a socket.disconnect() racing
   // an in-flight emit can drop it — so the client waits for this callback.
+  socket.on('room:lock', () => {
+    const room = socket.data.code ? getRoom(socket.data.code) : null;
+    if (!room || room.hostPlayerId !== socket.data.playerId) return;
+    room.started = true;
+    touch(room);
+  });
+
   socket.on('room:leave', (ack) => {
     leaveCurrentRoom(socket, true);
     ack?.();
