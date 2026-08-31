@@ -33,7 +33,7 @@ function allowedCardKeys(state: OfcState, viewerId: string): Set<string> {
     if (p.id === viewerId) {
       for (const card of [...p.hand, ...p.discards]) keys.add(cardKey(card));
     }
-    if (gridVisibleTo(p, viewerId, state.phase)) {
+    if (gridVisibleTo(p, state.players.find((v) => v.id === viewerId), state.phase)) {
       for (const card of [...p.grid.top, ...p.grid.middle, ...p.grid.bottom]) keys.add(cardKey(card));
     }
   }
@@ -143,6 +143,48 @@ describe('redactFor', () => {
     }
     expect(state.phase).toBe('scoring');
     expect(redactFor(state, 'p2').players.find((p) => p.id === 'p1')!.grid).toBeDefined();
+  });
+
+  // The other direction, which is what Mathieu actually caught: the Fantasy Land player sets
+  // all thirteen cards in one move, so being able to watch the opponent's board fill up
+  // first would hand them the hand.
+  it('hides opponents from the Fantasy Land player until they have placed', () => {
+    const scored = playScriptedHand(100).at(-1)!;
+    let state = reduce(scored, { type: 'nextHand', playerId: 'p1' });
+    state = reduce(state, createHandDeal(state, mulberry32(42)));
+
+    // p2 puts their opening five down in the open while p1 still holds a whole FL hand.
+    const p2Hand = state.players.find((p) => p.id === 'p2')!.hand;
+    state = reduce(state, {
+      type: 'placeInitial',
+      playerId: 'p2',
+      placements: p2Hand.map((card, i) => ({
+        card,
+        row: i < 2 ? ('top' as const) : i < 4 ? ('middle' as const) : ('bottom' as const),
+      })),
+    });
+
+    const p1 = state.players.find((p) => p.id === 'p1')!;
+    expect(p1.inFantasyLand).toBe(true);
+    expect(p1.fantasyPlaced).toBe(false);
+    const p2ForP1 = redactFor(state, 'p1').players.find((p) => p.id === 'p2')!;
+    expect(p2ForP1.grid).toBeUndefined();
+    // Counts stay public — knowing how many cards are down is not knowing which.
+    expect(p2ForP1.gridCounts).toEqual({ top: 2, middle: 2, bottom: 1 });
+    // And p1 still gets their own cards, which is the whole point of the redaction.
+    expect(redactFor(state, 'p1').players.find((p) => p.id === 'p1')!.hand).toEqual(p1.hand);
+
+    // Once p1 has committed, the opponent's open board is theirs to see again.
+    const p1Hand = state.players.find((p) => p.id === 'p1')!.hand;
+    state = reduce(state, {
+      type: 'placeFantasy',
+      playerId: 'p1',
+      placements: p1Hand.slice(0, 13).map((card, i) => ({
+        card,
+        row: i < 3 ? ('top' as const) : i < 8 ? ('middle' as const) : ('bottom' as const),
+      })),
+    });
+    expect(redactFor(state, 'p1').players.find((p) => p.id === 'p2')!.grid).toBeDefined();
   });
 
   it('marks disconnected players', () => {

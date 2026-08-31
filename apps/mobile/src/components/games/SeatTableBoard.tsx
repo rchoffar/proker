@@ -22,6 +22,10 @@ import type { Player } from '../../types';
 // face-down deck and dealer chip that used to be all the felt held.
 
 const SEAT_D = SETUP_TABLE.seatDiameter;
+
+// How far a filled seat's name plate reaches below its circle: a ~19pt plate (10pt text,
+// 2pt padding, 1pt border) pulled up by styles.namePlate's marginTop of -6.
+const PLATE_BELOW_SEAT = 14;
 // The betting line is inset 38pt a side; centre content stays inside it.
 const FELT_INSET = 38;
 
@@ -77,16 +81,19 @@ export function SeatTableBoard({
   const seatYFractions = Array.from({ length: maxPlayers }, (_, k) => seatPoint(k, maxPlayers, 1, 1).y);
   const topmost = Math.min(...seatYFractions);
   const bottommost = Math.max(...seatYFractions);
-  const overhang = (fraction: number) => Math.max(0, Math.round(SEAT_D / 2 - fraction));
+  // `extra` is whatever hangs below the seat circle on top of the circle itself. Only the
+  // bottom of the board has any: a seat's name plate sits under it, and reserving just the
+  // half circle left the plate to fall under the sticky CTA — "le pseudo en bas disparaît".
+  const overhang = (fraction: number, extra = 0) => Math.max(0, Math.round(SEAT_D / 2 + extra - fraction));
 
   // Padding and felt height depend on each other; two passes settle it, since each pad is
-  // either the full half-seat or nothing.
+  // either the full overhang or nothing.
   let padTop = SEAT_D / 2;
-  let padBottom = SEAT_D / 2;
+  let padBottom = SEAT_D / 2 + PLATE_BELOW_SEAT;
   let size = setupTableSize(fill ? subtract(fillHeight(offeredH, viewportH), padTop + padBottom) : null);
   for (let pass = 0; pass < 2; pass++) {
     padTop = overhang(topmost * size.height);
-    padBottom = overhang((1 - bottommost) * size.height);
+    padBottom = overhang((1 - bottommost) * size.height, PLATE_BELOW_SEAT);
     size = setupTableSize(fill ? subtract(fillHeight(offeredH, viewportH), padTop + padBottom) : null);
   }
   const tableW = size.width;

@@ -157,6 +157,7 @@ export default function OfcSetupScreen() {
               center={feltOptions}
               seatsInteractive={false}
               emptySeatLabel={t('games:online.waitingSeat')}
+              fill
             />
           </SetupBlock>
         </>

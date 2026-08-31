@@ -47,16 +47,35 @@ export interface RedactedOfcState extends Omit<OfcState, 'players' | 'deck' | 'p
 const REVEAL_PHASES = new Set<OfcPhase>(['scoring', 'gameOver']);
 
 /**
- * Whether `viewerId` may see this player's committed grid. Shared by redactFor AND the
- * Pass & Play screen so both modes agree on Fantasy Land secrecy: non-FL placements are
- * open information, an FL grid stays face-down until the scoring reveal.
+ * Whether the viewer may see this player's committed grid. The single rule both modes go
+ * through, and Fantasy Land secrecy runs BOTH ways during a fantasy hand:
+ *
+ * - a Fantasy Land grid stays face-down to everyone else until the scoring reveal;
+ * - and the Fantasy Land player is equally blind to the others until they have set their
+ *   own board. They receive all thirteen cards at once and place them in a single move,
+ *   after the others have been placing in the open — letting them watch those boards fill
+ *   up first would hand them the whole hand. Mathieu, who plays this for real, flagged it
+ *   as a rule violation rather than a display choice (30/08).
+ *
+ * Everything is revealed at scoring, so the asymmetry only lasts while it matters.
+ *
+ * The second rule deliberately does NOT apply on a shared phone: `TABLE_VIEWER` is not a
+ * player, so `viewer` is undefined and the strip keeps showing every open grid. That is
+ * correct — one phone means one table, where the others' boards are open information to
+ * everybody in the room, exactly as they are face-up on a real table. It also keeps
+ * ADR-014's invariant intact: the strip is drawn from the TABLE redaction precisely so it
+ * can never show more than the room may see, and reaching for the actor's own redaction to
+ * draw seats is the mistake that puts their hand on the table.
  */
 export function gridVisibleTo(
   player: Pick<OfcPlayerState, 'id' | 'inFantasyLand'>,
-  viewerId: string,
+  viewer: Pick<OfcPlayerState, 'id' | 'inFantasyLand' | 'fantasyPlaced'> | undefined,
   phase: OfcPhase,
 ): boolean {
-  return player.id === viewerId || !player.inFantasyLand || REVEAL_PHASES.has(phase);
+  if (player.id === viewer?.id) return true;
+  if (REVEAL_PHASES.has(phase)) return true;
+  if (player.inFantasyLand) return false;
+  return !(viewer?.inFantasyLand && !viewer.fantasyPlaced);
 }
 
 /**
@@ -69,6 +88,7 @@ export function redactFor(
   connectedById?: Map<string, boolean>,
 ): RedactedOfcState {
   const { deck: _deck, players, pending, ...rest } = state;
+  const viewer = players.find((p) => p.id === viewerId);
   const pendingVisible =
     pending !== null && (state.variant === 'classic' || pending.playerId === viewerId);
   return {
@@ -89,7 +109,7 @@ export function redactFor(
       handCount: p.hand.length,
       gridCounts: { top: p.grid.top.length, middle: p.grid.middle.length, bottom: p.grid.bottom.length },
       ...(p.id === viewerId ? { hand: p.hand, discards: p.discards } : {}),
-      ...(gridVisibleTo(p, viewerId, state.phase) ? { grid: p.grid } : {}),
+      ...(gridVisibleTo(p, viewer, state.phase) ? { grid: p.grid } : {}),
     })),
   };
 }

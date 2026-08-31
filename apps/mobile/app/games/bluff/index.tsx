@@ -159,6 +159,7 @@ export default function BluffSetupScreen() {
               center={feltOptions}
               seatsInteractive={false}
               emptySeatLabel={t('games:online.waitingSeat')}
+              fill
             />
           </SetupBlock>
         </>
