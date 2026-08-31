@@ -24,6 +24,7 @@ import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useActionInFlight } from '../../../src/hooks/useActionInFlight';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
 import { useBluffGuest, useBluffHost } from '../../../src/hooks/useBluffOnline';
@@ -102,7 +103,13 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const router = useRouter();
-  const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
+  const { status, code, myId, members, view, errorMsg, closedReason, reconnecting, sendAction, leave } = online;
+
+  // Committing does nothing visible until the host's state comes back, which on a slow
+  // connection reads as a freeze. Player actions report themselves as in flight; the host's
+  // own auto-advance timer does NOT go through this, or the wrapper would swallow it.
+  const { inFlight, send } = useActionInFlight(view?.version);
+  const sendPlay = send(sendAction);
 
   // The host holds the room: their exit closes it for everyone, so it needs confirming in
   // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
@@ -202,7 +209,11 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   }, [view, updateGameStats]);
 
   const quit = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
+    if (!(await confirmQuit())) return;
+    // Deliberate exit: give the seat up (and close the room, if we host it). Every other way
+    // off this screen keeps the seat, so coming back reclaims it instead of taking a new one.
+    leave();
+    router.dismissTo('/');
   };
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
@@ -358,17 +369,17 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
 
   const handleClaim = (claim: Claim) => {
     setPickerOpen(false);
-    sendAction({ type: 'claim', playerId: myId, claim });
+    sendPlay({ type: 'claim', playerId: myId, claim });
   };
 
   const handleCatch = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    sendAction({ type: 'catch', playerId: myId });
+    sendPlay({ type: 'catch', playerId: myId });
   };
 
   const handleJeuMax = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    sendAction({ type: 'jeuMax', playerId: myId });
+    sendPlay({ type: 'jeuMax', playerId: myId });
   };
 
   return (
@@ -382,6 +393,12 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: view.round })}</Text>
         }
       />
+      {reconnecting && (
+        <View style={styles.reconnectBar}>
+          <WifiOff size={13} color={TABLE.gold} strokeWidth={2} />
+          <Text style={styles.reconnectText}>{t('games:online.reconnecting')}</Text>
+        </View>
+      )}
 
       <View style={styles.tableArea} onLayout={onTableAreaLayout}>
         <BluffTable
@@ -494,7 +511,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             // sits right here next to the steppers). Other players keep their hand.
             <TouchableOpacity
               style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}
-              onPress={() => sendAction({ type: 'chooseBoard', playerId: myId, faceUpCount, faceDownCount })}
+              onPress={() => sendPlay({ type: 'chooseBoard', playerId: myId, faceUpCount, faceDownCount })}
               activeOpacity={0.85}
             >
               <Text style={styles.primaryBtnText}>{t('game.revealBoard')}</Text>
@@ -575,6 +592,12 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             </Text>
           ))}
 
+        {inFlight && (
+          <View style={styles.sending}>
+            <ActivityIndicator size="small" color={colors.onDarkTertiary} />
+            <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('games:online.sending')}</Text>
+          </View>
+        )}
         {(phase === 'reveal' || phase === 'roundEnd') && (
           <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
             {t('online.advancing')}
@@ -619,6 +642,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.base,
+  },
+  // The table stays on screen while the socket is down — without this it looked perfectly
+  // alive, and nothing said why an action was going nowhere.
+  sending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  reconnectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    backgroundColor: 'rgba(231, 195, 111, 0.12)',
+  },
+  reconnectText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.semibold,
+    color: TABLE.gold,
   },
   roundBadge: {
     fontSize: fontSize.xs,

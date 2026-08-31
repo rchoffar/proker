@@ -62,6 +62,8 @@
     "connecting": "Connexion au serveur…",
     "players": "Joueurs ({{current}}/{{max}})",
     "quit": "Quitter",
+    "reconnecting": "Reconnexion…",
+    "sending": "Envoi…",
     "invite": "Inviter",
     "joiningGame": "On rejoint la partie…",
     "inviteMessage": "Rejoins ma table {{game}} sur Ultimate Poker Kit — code {{code}}",

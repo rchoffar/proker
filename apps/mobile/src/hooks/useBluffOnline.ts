@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_BLUFF_CONFIG,
@@ -16,6 +16,7 @@ import type {
   RedactedState,
 } from '../lib/bluff/protocol';
 import { getBluffSocket, leaveRoomAndDisconnect } from '../lib/bluff/socket';
+import { clearSession, loadHostSnapshot, loadSession, saveHostSnapshot, saveSession } from '../lib/online/session';
 import type { Player } from '../types';
 
 export type OnlineStatus = 'connecting' | 'lobby' | 'playing' | 'closed' | 'error';
@@ -30,6 +31,8 @@ export interface BluffOnlineCommon {
   view: RedactedState | null;
   errorMsg: string | null;
   closedReason: 'host_left' | 'expired' | 'hostQuit' | null;
+  /** Socket is down and retrying. The table stays on screen, but nothing is getting through. */
+  reconnecting: boolean;
   sendAction: (action: BluffAction) => void;
   leave: () => void;
 }
@@ -53,18 +56,38 @@ export function useBluffHost(
   pseudo: string,
 ): BluffOnlineCommon & { startGame: (config: BluffConfig) => void; replay: () => void } {
   const { t } = useTranslation('bluff');
-  const [status, setStatus] = useState<OnlineStatus>('connecting');
-  const [code, setCode] = useState<string | null>(null);
-  const [myId, setMyId] = useState<string | null>(null);
+  // Read once, before any state exists: a table we were hosting and did not deliberately
+  // leave is resumed rather than replaced by a new one. Seeding the initial state beats
+  // setting it from inside the socket effect, which is a cascading render.
+  const resumed = useMemo(() => {
+    const session = loadSession('bluff');
+    if (session?.role !== 'host') return null;
+    return { session, snapshot: loadHostSnapshot<BluffState>('bluff', session.code) };
+  }, []);
+
+  const [status, setStatus] = useState<OnlineStatus>(resumed?.snapshot ? 'playing' : 'connecting');
+  const [code, setCode] = useState<string | null>(resumed?.session.code ?? null);
+  const [myId, setMyId] = useState<string | null>(resumed?.session.playerId ?? null);
   const [members, setMembers] = useState<MemberInfo[]>([]);
   const [view, setView] = useState<RedactedState | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [closedReason, setClosedReason] = useState<BluffOnlineCommon['closedReason']>(null);
 
-  const gameRef = useRef<BluffState | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+
+  const gameRef = useRef<BluffState | null>(resumed?.snapshot ?? null);
   const configRef = useRef<BluffConfig>(DEFAULT_BLUFF_CONFIG);
   const membersRef = useRef<MemberInfo[]>([]);
-  const sessionRef = useRef<{ code: string; playerId: string; sessionToken: string } | null>(null);
+  const sessionRef = useRef<{ code: string; playerId: string; sessionToken: string } | null>(resumed?.session ?? null);
+  /** Set by `leave()`: tells the unmount cleanup to give the seat up rather than keep it. */
+  const leavingRef = useRef(false);
+
+  // The engine state is the room, so it outlives a screen unmount alongside the session.
+  const remember = useCallback((state: BluffState) => {
+    gameRef.current = state;
+    const session = sessionRef.current;
+    if (session) saveHostSnapshot('bluff', session.code, state);
+  }, []);
 
   const broadcast = useCallback(() => {
     const state = gameRef.current;
@@ -93,16 +116,17 @@ export function useBluffHost(
         }
         return;
       }
-      gameRef.current = withAutoDeal(reduce(state, action));
+      remember(withAutoDeal(reduce(state, action)));
       broadcast();
     },
-    [broadcast],
+    [broadcast, remember],
   );
 
   useEffect(() => {
     const socket = getBluffSocket();
 
     const handleConnect = () => {
+      setReconnecting(false);
       const session = sessionRef.current;
       if (!session) {
         socket.emit('room:create', { name: pseudo }, (res) => {
@@ -112,16 +136,28 @@ export function useBluffHost(
             return;
           }
           sessionRef.current = { code: res.code, playerId: res.playerId, sessionToken: res.sessionToken };
+          saveSession('bluff', { ...sessionRef.current, role: 'host' });
           setCode(res.code);
           setMyId(res.playerId);
           setStatus('lobby');
         });
       } else {
         socket.emit('room:rejoin', { ...session }, (res) => {
-          if (res.ok) broadcast();
+          if (res.ok) {
+            broadcast();
+            return;
+          }
+          // Used to be silent: a host whose room had expired sat on a live-looking table
+          // forever while its guests were correctly told the room was gone.
+          clearSession('bluff');
+          sessionRef.current = null;
+          setErrorMsg(t(JOIN_ERROR_KEYS[res.reason]));
+          setStatus('error');
         });
       }
     };
+
+    const handleDisconnect = () => setReconnecting(true);
 
     const handleMembers = ({ members: list }: { members: MemberInfo[] }) => {
       membersRef.current = list;
@@ -145,24 +181,36 @@ export function useBluffHost(
     };
 
     const handleClosed = ({ reason }: { reason: 'host_left' | 'expired' }) => {
+      // The room is gone for good, so the seat is not worth keeping: without this the next
+      // mount would try to resume a dead table and only find out from a failed rejoin.
+      clearSession('bluff');
       setClosedReason(reason);
       setStatus('closed');
     };
 
     socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleDisconnect);
     socket.on('room:members', handleMembers);
     socket.on('game:fromPlayer', handleFromPlayer);
     socket.on('room:closed', handleClosed);
     socket.connect();
 
     return () => {
-      const payload: HostToGuest = { kind: 'gameEnded', reason: 'hostQuit' };
-      socket.emit('game:broadcast', { payload });
       socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleDisconnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromPlayer', handleFromPlayer);
       socket.off('room:closed', handleClosed);
-      leaveRoomAndDisconnect(socket);
+      // Leaving the screen is NOT leaving the table — see the OFC host for the full story.
+      if (leavingRef.current) {
+        const payload: HostToGuest = { kind: 'gameEnded', reason: 'hostQuit' };
+        socket.emit('game:broadcast', { payload });
+        leaveRoomAndDisconnect(socket);
+      } else {
+        socket.disconnect();
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);
@@ -174,14 +222,14 @@ export function useBluffHost(
       const previousVersion = gameRef.current?.version ?? 0;
       const fresh = withAutoDeal(initGame(players, Math.random, config));
       // Keep versions monotonic across replays so guests' stale-drop never eats a fresh game.
-      gameRef.current = { ...fresh, version: previousVersion + fresh.version + 1 };
+      remember({ ...fresh, version: previousVersion + fresh.version + 1 });
       setStatus('playing');
       // Tell the relay to stop admitting newcomers: this snapshotted the member list, so
       // anybody let in now would hold a seat in the room and none in the game.
       getBluffSocket().emit('room:lock');
       broadcast();
     },
-    [broadcast],
+    [broadcast, remember],
   );
 
   const replay = useCallback(() => startGame(configRef.current), [startGame]);
@@ -196,12 +244,15 @@ export function useBluffHost(
   );
 
   const leave = useCallback(() => {
-    // Actual teardown happens in the effect cleanup on unmount.
+    // Deliberate: forget the seat so the unmount cleanup gives it up and closes the room.
+    leavingRef.current = true;
+    clearSession('bluff');
     setStatus('closed');
   }, []);
 
   return {
     status,
+    reconnecting,
     code,
     myId,
     members,
@@ -228,13 +279,21 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [closedReason, setClosedReason] = useState<BluffOnlineCommon['closedReason']>(null);
 
+  const [reconnecting, setReconnecting] = useState(false);
+
   const sessionRef = useRef<{ code: string; playerId: string; sessionToken: string } | null>(null);
   const lastVersionRef = useRef(-1);
+  const leavingRef = useRef(false);
 
   useEffect(() => {
     const socket = getBluffSocket();
+    // Typing the code of a table we already have a seat at reclaims THAT seat instead of
+    // taking a new one — the difference between playing and watching yourself at the table.
+    const resumed = loadSession('bluff');
+    if (resumed?.role === 'guest' && resumed.code === joinCode) sessionRef.current = resumed;
 
     const handleConnect = () => {
+      setReconnecting(false);
       const session = sessionRef.current;
       if (!session) {
         socket.emit('room:join', { code: joinCode, name: pseudo }, (res) => {
@@ -244,6 +303,7 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
             return;
           }
           sessionRef.current = { code: joinCode, playerId: res.playerId, sessionToken: res.sessionToken };
+          saveSession('bluff', { ...sessionRef.current, role: 'guest' });
           setMyId(res.playerId);
           setHostId(res.hostPlayerId);
           setMembers(res.members);
@@ -252,9 +312,14 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
       } else {
         socket.emit('room:rejoin', { ...session }, (res) => {
           if (res.ok) {
+            setMyId(session.playerId);
             const payload: GuestToHost = { kind: 'requestState' };
             socket.emit('game:toHost', { payload });
           } else {
+            // The seat is gone (room closed, or expired) — forget it so the next attempt
+            // joins fresh instead of retrying a dead token forever.
+            clearSession('bluff');
+            sessionRef.current = null;
             setErrorMsg(t(JOIN_ERROR_KEYS[res.reason]));
             setStatus('error');
           }
@@ -281,17 +346,25 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
         return;
       }
       if (msg?.kind === 'gameEnded') {
+        clearSession('bluff');
         setClosedReason('hostQuit');
         setStatus('closed');
       }
     };
 
     const handleClosed = ({ reason }: { reason: 'host_left' | 'expired' }) => {
+      // The room is gone for good, so the seat is not worth keeping: without this the next
+      // mount would try to resume a dead table and only find out from a failed rejoin.
+      clearSession('bluff');
       setClosedReason(reason);
       setStatus('closed');
     };
 
+    const handleDisconnect = () => setReconnecting(true);
+
     socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleDisconnect);
     socket.on('room:members', handleMembers);
     socket.on('game:fromHost', handleFromHost);
     socket.on('room:closed', handleClosed);
@@ -299,10 +372,14 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
 
     return () => {
       socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleDisconnect);
       socket.off('room:members', handleMembers);
       socket.off('game:fromHost', handleFromHost);
       socket.off('room:closed', handleClosed);
-      leaveRoomAndDisconnect(socket);
+      // Keep the seat unless the exit was deliberate — see the host's cleanup.
+      if (leavingRef.current) leaveRoomAndDisconnect(socket);
+      else socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one socket lifecycle per screen mount
   }, []);
@@ -313,8 +390,10 @@ export function useBluffGuest(pseudo: string, joinCode: string): BluffOnlineComm
   }, []);
 
   const leave = useCallback(() => {
+    leavingRef.current = true;
+    clearSession('bluff');
     setStatus('closed');
   }, []);
 
-  return { status, code: joinCode, myId, members, hostId, view, errorMsg, closedReason, sendAction, leave };
+  return { status, reconnecting, code: joinCode, myId, members, hostId, view, errorMsg, closedReason, sendAction, leave };
 }

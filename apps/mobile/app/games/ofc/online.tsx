@@ -22,6 +22,7 @@ import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useActionInFlight } from '../../../src/hooks/useActionInFlight';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
 import { useOfcGuest, useOfcHost } from '../../../src/hooks/useOfcOnline';
@@ -91,7 +92,13 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const router = useRouter();
-  const { status, code, myId, members, view, errorMsg, closedReason, sendAction } = online;
+  const { status, code, myId, members, view, errorMsg, closedReason, reconnecting, sendAction, leave } = online;
+
+  // Committing does nothing visible until the host's state comes back, which on a slow
+  // connection reads as a freeze. Player actions report themselves as in flight; the host's
+  // own auto-advance timer does NOT go through this, or the wrapper would swallow it.
+  const { inFlight, send } = useActionInFlight(view?.version);
+  const sendPlay = send(sendAction);
 
   // The host holds the room: their exit closes it for everyone, so it needs confirming in
   // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
@@ -179,7 +186,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   }, [view, updateGameStats]);
 
   const quit = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
+    if (!(await confirmQuit())) return;
+    // Deliberate exit: give the seat up (and close the room, if we host it). Every other way
+    // off this screen keeps the seat, so coming back reclaims it instead of taking a new one.
+    leave();
+    router.dismissTo('/');
   };
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
@@ -337,6 +348,12 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           <Text style={[styles.handBadge, { color: colors.onDarkTertiary }]}>{t('game.handBadge', { hand: view.handNumber })}</Text>
         }
       />
+      {reconnecting && (
+        <View style={styles.reconnectBar}>
+          <WifiOff size={13} color={TABLE.gold} strokeWidth={2} />
+          <Text style={styles.reconnectText}>{t('games:online.reconnecting')}</Text>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
@@ -361,7 +378,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
                 discards={myFantasyTurn ? Math.max(0, me.hand.length - GRID_SIZE) : 0}
                 commitLabel={t('game.commit')}
                 onCommit={(placements) => {
-                  sendAction(
+                  sendPlay(
                     myFantasyTurn
                       ? { type: 'placeFantasy', playerId: myId, placements }
                       : { type: 'placeInitial', playerId: myId, placements },
@@ -384,7 +401,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               placeCount={VARIANT_CONFIG[view.variant].placeCount}
               grid={me.grid}
               discards={me.discards}
-              onCommit={(placements) => sendAction({ type: 'placeDraw', playerId: myId, placements })}
+              onCommit={(placements) => sendPlay({ type: 'placeDraw', playerId: myId, placements })}
             />
           </OfcActorPanel>
         )}
@@ -405,6 +422,12 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           </Animated.Text>
         )}
 
+        {inFlight && (
+          <View style={styles.sending}>
+            <ActivityIndicator size="small" color={colors.onDarkTertiary} />
+            <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('games:online.sending')}</Text>
+          </View>
+        )}
         {phase === 'scoring' && (
           <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
             {t('online.advancing')}
@@ -454,6 +477,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.base,
+  },
+  // The table stays on screen while the socket is down — without this it looked perfectly
+  // alive, and nothing said why an action was going nowhere.
+  sending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  reconnectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    backgroundColor: 'rgba(231, 195, 111, 0.12)',
+  },
+  reconnectText: {
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.semibold,
+    color: TABLE.gold,
   },
   handBadge: {
     fontSize: fontSize.xs,
