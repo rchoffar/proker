@@ -16,8 +16,11 @@ import { fontFamily, fontSize, radius, spacing } from '../../../src/design-syste
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
 
-// Proper noun — on the do-not-translate glossary, like the wordmark.
-const GAME_NAME = 'Roulette';
+// Not a proper noun any more: the game stopped being a wheel when it became a card draw, so
+// the user-facing name is "Tirage" / "Draw" and it is translated like any other label. The
+// internal identifiers stay `roulette` on purpose — GameKey, rouletteLastPlayers and
+// PseudoStats.roulette are persisted storage keys, and renaming them would need a migration
+// for nothing.
 
 export default function RoulettePlayScreen() {
   const { t } = useTranslation('games');
@@ -61,7 +64,7 @@ export default function RoulettePlayScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <GamePlayHeader title={GAME_NAME} onClose={finish} />
+      <GamePlayHeader title={t('degen:names.roulette')} onClose={finish} />
 
       <View style={styles.body}>
         <RouletteCardTable players={players} spinToken={spinToken} onResult={handleResult} />

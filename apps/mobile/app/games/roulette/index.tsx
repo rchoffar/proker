@@ -27,7 +27,7 @@ export default function RouletteSetupScreen() {
 
   return (
     <GameSetupScreen
-      title="Roulette"
+      title={t('degen:names.roulette')}
       subtitle={t('roulette.subtitle')}
       ctaLabel={t('roulette.start')}
       ctaDisabled={!canSpin}

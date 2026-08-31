@@ -1,4 +1,12 @@
 {
+  "names": {
+    "flip": "Flip",
+    "bluff": "Bluff",
+    "roulette": "Draw",
+    "ofc": "OFC",
+    "poker": "Poker",
+    "blackjack": "Blackjack"
+  },
   "games": {
     "flip": "Flop, turn, river: everyone gets a hand, the best combination takes the pot",
     "bluff": "Bids and raises… who dares to cry liar?",

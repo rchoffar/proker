@@ -2,11 +2,11 @@
   "title": "Stats",
   "empty": {
     "title": "No stats yet",
-    "subtitle": "Play a mini-game from the Games tab — every result lands here automatically."
+    "subtitle": "Play a mini-game from the home screen — every result lands here automatically."
   },
   "games": {
     "flip": "Flip",
-    "roulette": "Roulette",
+    "roulette": "Draw",
     "bluff": "Bluff",
     "ofc": "OFC"
   },
@@ -17,8 +17,8 @@
     "winRate": "{{value}}% wins"
   },
   "roulette": {
-    "spins_one": "{{count}} spin",
-    "spins_other": "{{count}} spins",
+    "spins_one": "{{count}} draw",
+    "spins_other": "{{count}} draws",
     "picked_one": "picked {{count}} time",
     "picked_other": "picked {{count}} times",
     "survival": "{{value}}% survival"

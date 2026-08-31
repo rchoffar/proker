@@ -39,7 +39,7 @@ UPK (Ultimate Poker Kit) is a collection of free poker card games to play with y
 PLAY WITH YOUR FRIENDS
 • Bluff — a fast-paced bluffing card game. Call out your friends' lies in pass-and-play, or create a private room and play online.
 • OFC — Open Face Chinese poker, the grinders' favorite. Pass-and-play or online with friends.
-• Flip & roulette — instant coin-flip style games to settle any debate at the table.
+• Flip & draw — instant games to settle any debate at the table.
 
 All games are purely recreational: no real-money wagering, no chips to buy, no payouts.
 
@@ -89,7 +89,7 @@ UPK (Ultimate Poker Kit) est une collection de jeux de cartes poker gratuits à 
 JOUEZ AVEC VOS AMIS
 • Bluff — un jeu de cartes de bluff nerveux. Démasquez les mensonges de vos amis en pass-and-play, ou créez un salon privé et jouez en ligne.
 • OFC — l'Open Face Chinese poker, le chouchou des grinders. En pass-and-play ou en ligne entre amis.
-• Flip & roulette — des jeux instantanés façon pile ou face pour départager n'importe quel débat à la table.
+• Flip & tirage — des jeux instantanés pour départager n'importe quel débat à la table.
 
 Tous les jeux sont purement récréatifs : aucune mise en argent réel, aucun jeton à acheter, aucun gain.
 

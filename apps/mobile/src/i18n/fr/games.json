@@ -27,8 +27,6 @@
     "victory": "VICTOIRE",
     "winsHand_one": "{{names}} remporte la main",
     "winsHand_other": "{{names}} remportent la main",
-    "losesHand_one": "{{names}} perd la main",
-    "losesHand_other": "{{names}} perdent la main",
     "twoNames": "{{a}} et {{b}}",
     "playersCount_one": "{{count}} joueur",
     "playersCount_other": "{{count}} joueurs",
@@ -36,10 +34,10 @@
   },
   "roulette": {
     "subtitle": "Chaque joueur devient une carte sur la table — la lumière s'arrête sur celui qui paie.",
-    "start": "Lancer la roulette",
-    "spinWheel": "Lancer la roulette",
+    "start": "Lancer le tirage",
+    "spinWheel": "Lancer le tirage",
     "spinning": "Tirage…",
-    "spinAgain": "Relancer",
+    "spinAgain": "Relancer le tirage",
     "paysTheBill": "paie l’addition 🍻",
     "lost": "{{name}} a perdu !"
   },

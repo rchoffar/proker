@@ -188,14 +188,14 @@ export default function FlipPlayScreen() {
 
   // Whole-sentence variants so verb agreement works in both languages (n=2 joins the
   // two names, n>2 falls back to a "N players" subject).
-  const groupMessage = (names: string[], kind: 'wins' | 'loses'): string => {
+  const winnerMessage = (names: string[]): string => {
     const subject =
       names.length === 1
         ? names[0]
         : names.length === 2
           ? t('flip.twoNames', { a: names[0], b: names[1] })
           : t('flip.playersCount', { count: names.length });
-    return t(kind === 'wins' ? 'flip.winsHand' : 'flip.losesHand', { names: subject, count: names.length });
+    return t('flip.winsHand', { names: subject, count: names.length });
   };
 
   const handleButtonPress = () => {
@@ -245,7 +245,6 @@ export default function FlipPlayScreen() {
   }
 
   const boardVisibleCount = BOARD_VISIBLE_COUNT[phase];
-  const loserNames = results ? players.filter((p) => results.loserIds.has(p.id)).map((p) => p.name) : [];
   const winnerNames = results ? players.filter((p) => results.winnerIds.has(p.id)).map((p) => p.name) : [];
   const firstWinner = results ? players.find((p) => results.winnerIds.has(p.id)) : undefined;
   const winnerCategoryId = firstWinner ? results?.byId.get(firstWinner.id)?.categoryId : undefined;
@@ -257,12 +256,13 @@ export default function FlipPlayScreen() {
       <View style={styles.tableArea}>
         <LayoutAnimationConfig skipEntering={!ready}>
         {results && outcomeShown ? (
+          // The winner, and only the winner. A second banner naming the weakest hand read
+          // as the complement of the first — "X perd la main" while three other players had
+          // also lost — even though the set was really "who pays". The red ring on that
+          // seat already says it, without claiming to be the other half of the sentence.
           <Animated.View entering={FadeIn.duration(300)} style={styles.resultBanners}>
             <Text style={[styles.resultBanner, { color: TABLE.gold }]}>
-              🏆 {groupMessage(winnerNames, 'wins')}
-            </Text>
-            <Text style={[styles.resultBanner, { color: colors.loss }]}>
-              {groupMessage(loserNames, 'loses')}
+              🏆 {winnerMessage(winnerNames)}
             </Text>
           </Animated.View>
         ) : (
@@ -364,7 +364,7 @@ export default function FlipPlayScreen() {
               width={TABLE_W}
               height={TABLE_H}
               title={t('flip.victory')}
-              subtitle={groupMessage(winnerNames, 'wins')}
+              subtitle={winnerMessage(winnerNames)}
               detail={winnerCategoryId ? t(`poker:handCategories.${winnerCategoryId}`) : undefined}
               onDone={() => setCelebrating(false)}
             />

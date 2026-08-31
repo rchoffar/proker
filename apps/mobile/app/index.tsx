@@ -130,40 +130,40 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.grid}>
               <GameTile
-                name="Flip"
+                name={t('degen:names.flip')}
                 description={t('degen:games.flip')}
                 icon={<Coins size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/flip')}
               />
               <GameTile
-                name="Bluff"
+                name={t('degen:names.bluff')}
                 description={t('degen:games.bluff')}
                 icon={<Drama size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/bluff')}
               />
               <GameTile
-                name="Roulette"
+                name={t('degen:names.roulette')}
                 description={t('degen:games.roulette')}
                 icon={<Disc3 size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/roulette')}
               />
               <GameTile
-                name="OFC"
+                name={t('degen:names.ofc')}
                 description={t('degen:games.ofc')}
                 icon={<Layers size={20} color={colors.textSecondary} strokeWidth={1.5} />}
                 comingSoon={false}
                 onPress={() => router.push('/games/ofc')}
               />
               <GameTile
-                name="Poker"
+                name={t('degen:names.poker')}
                 description={t('degen:games.poker')}
                 icon={<Spade size={20} color={colors.textSecondary} strokeWidth={1.5} />}
               />
               <GameTile
-                name="Blackjack"
+                name={t('degen:names.blackjack')}
                 description={t('degen:games.blackjack')}
                 icon={<Diamond size={20} color={colors.textSecondary} strokeWidth={1.5} />}
               />

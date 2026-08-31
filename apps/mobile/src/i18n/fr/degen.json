@@ -1,9 +1,17 @@
 {
+  "names": {
+    "flip": "Flip",
+    "bluff": "Bluff",
+    "roulette": "Tirage",
+    "ofc": "OFC",
+    "poker": "Poker",
+    "blackjack": "Blackjack"
+  },
   "games": {
     "flip": "Flop, turn, river : chacun sa main, la meilleure combinaison rafle la mise",
     "bluff": "Annonces, surenchères… qui ose crier menteur ?",
-    "roulette": "Misez, tournez, tentez le sort",
-    "ofc": "Trois lignes, treize cartes — sans jamais fauler",
+    "roulette": "Chacun sa carte — la lumière désigne qui paie",
+    "ofc": "Trois lignes, treize cartes — sans jamais fauter",
     "poker": "Le vrai jeu — tables, blindes, showdowns",
     "blackjack": "Battez le croupier jusqu'à 21"
   },

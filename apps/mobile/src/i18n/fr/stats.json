@@ -2,11 +2,11 @@
   "title": "Stats",
   "empty": {
     "title": "Pas encore de stats",
-    "subtitle": "Lance un mini-jeu depuis l'onglet Jeux — chaque résultat arrive ici automatiquement."
+    "subtitle": "Lance un mini-jeu depuis l'accueil — chaque résultat arrive ici automatiquement."
   },
   "games": {
     "flip": "Flip",
-    "roulette": "Roulette",
+    "roulette": "Tirage",
     "bluff": "Bluff",
     "ofc": "OFC"
   },
@@ -17,8 +17,8 @@
     "winRate": "{{value}} % de victoires"
   },
   "roulette": {
-    "spins_one": "{{count}} spin",
-    "spins_other": "{{count}} spins",
+    "spins_one": "{{count}} tirage",
+    "spins_other": "{{count}} tirages",
     "picked_one": "tiré {{count}} fois",
     "picked_other": "tiré {{count}} fois",
     "survival": "{{value}} % de survie"
