@@ -48,6 +48,16 @@ export function PokerTable({ width, height, style, children }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // NO `elevation` here, deliberately. On Android elevation orders siblings regardless of
+  // tree order, so the rail — the backmost child, and the only place a drop shadow could
+  // live — drew on top of the felt, the betting line and everything the caller puts
+  // inside: the whole table came out as a solid walnut blob, exported videos included
+  // (Mathieu, 30/08). Moving the elevation to the outer view only moves the bug, because
+  // SeatTableBoard renders its seats as siblings of PokerTable and they would go behind
+  // it. So Android goes without the drop shadow — barely visible on the near-black
+  // backgrounds these screens use — and the shadow* props keep it on iOS, which orders by
+  // tree and ignores elevation. Anything added here that needs to sit above the felt must
+  // rely on tree order or zIndex, never on elevation.
   rail: {
     position: 'absolute',
     top: 0,
@@ -61,7 +71,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.45,
     shadowRadius: 28,
-    elevation: 12,
   },
   felt: {
     position: 'absolute',

@@ -114,16 +114,23 @@ const styles = StyleSheet.create({
   podInner: {
     alignItems: 'center',
     zIndex: 1,
+    elevation: 1,
   },
   dimmed: {
     opacity: 0.4,
   },
   // Fans sit BEHIND the avatar/plate stack (zIndex 0 vs 1) and only tuck slightly under it —
   // painting them on top used to clip the plate's second line.
+  //
+  // Every zIndex in this component is mirrored by an equal `elevation`: Android orders
+  // siblings by elevation and ignores zIndex, so an unpaired elevation silently reorders
+  // the pod there and nowhere else. The glow used to carry 8 on its own, which put the
+  // avatar over the name plate on Android only.
   cards: {
     flexDirection: 'row',
     justifyContent: 'center',
     zIndex: 0,
+    elevation: 0,
   },
   cardsAbove: {
     marginBottom: -8,
@@ -139,12 +146,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#131A16',
   },
+  // iOS-only glow: Android cannot tint an elevation shadow before API 28, and giving this
+  // an elevation of its own is what lifted the avatar over the name plate there. The gold
+  // ring is what actually reads as "acting" on both platforms.
   avatarGlow: {
     shadowColor: TABLE.gold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7,
     shadowRadius: 10,
-    elevation: 8,
   },
   avatarText: {
     fontSize: fontSize.xs,
@@ -171,6 +180,7 @@ const styles = StyleSheet.create({
   plate: {
     marginTop: -8,
     zIndex: 2,
+    elevation: 2,
     alignItems: 'center',
     backgroundColor: TABLE.plateBg,
     borderWidth: 1,
