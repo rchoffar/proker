@@ -17,6 +17,10 @@ export interface EngineConfig {
   bigBlind: number;
   // Effective stack per player id — the hard cap on what they can put in.
   stacks: Record<string, number>;
+  // True heads-up table (the button posts the small blind), as opposed to two players out
+  // of a bigger one. Undefined on hands recorded before the question existed — see
+  // computeBlindPosting.
+  headsUp?: boolean;
 }
 
 export interface BettingRoundState {
@@ -76,7 +80,7 @@ function reopenQueueFrom(players: EnginePlayer[], aggressorId: string, folded: M
 // are consumed from the array, never regenerated: they carry their capped amounts and
 // orders, and regenerating them would have to match bit-for-bit or the pot math drifts.
 export function replayActions(players: EnginePlayer[], config: EngineConfig, actions: HandAction[]): DerivedState {
-  const { bbPosterId } = computeBlindPosting(players, config.smallBlind, config.bigBlind);
+  const { bbPosterId } = computeBlindPosting(players, config.smallBlind, config.bigBlind, config.headsUp);
   const folded = new Map<string, Street>();
   const allIn = new Set<string>();
   const committed: Record<string, number> = {};
@@ -230,7 +234,7 @@ export function resolveActionInput(
 // the poster's stack — the setup gate (every stack >= BB) makes a short post unreachable in
 // practice, but the cap keeps pot math honest regardless.
 export function computeBlindPosts(players: EnginePlayer[], config: EngineConfig): { playerId: string; amount: number }[] {
-  const { sbPosterId, bbPosterId } = computeBlindPosting(players, config.smallBlind, config.bigBlind);
+  const { sbPosterId, bbPosterId } = computeBlindPosting(players, config.smallBlind, config.bigBlind, config.headsUp);
   const posts: { playerId: string; amount: number }[] = [];
   if (sbPosterId) posts.push({ playerId: sbPosterId, amount: roundAmount(Math.min(config.smallBlind, config.stacks[sbPosterId] ?? 0)) });
   if (bbPosterId) posts.push({ playerId: bbPosterId, amount: roundAmount(Math.min(config.bigBlind, config.stacks[bbPosterId] ?? 0)) });

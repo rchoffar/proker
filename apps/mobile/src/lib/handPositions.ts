@@ -35,16 +35,24 @@ export interface BlindPosting {
   deadBlinds: number;
 }
 
-// Heads-up convention: exactly two players positioned BTN + BB means a true heads-up table,
-// where the button posts the small blind. Any other roster is a subset of a bigger table,
-// so absent blinds were posted by omitted players and count as dead money.
+// In a true heads-up hand the button posts the small blind. Whether a two-player roster IS
+// heads-up cannot be inferred — "BTN vs BB" is far more often two players out of a full
+// table, where the small blind was posted by somebody not entered in the hand and counts as
+// dead money. So the caller answers, and only a `headsUp: true` roster of exactly two gets
+// the convention.
+//
+// `undefined` keeps the old guess, for hands recorded before the question was asked: they
+// have no stored answer, and changing how they replay after the fact would be worse than
+// keeping their original reading.
 export function computeBlindPosting(
   players: { id: string; position?: Position }[],
   sbValue: number,
-  bbValue: number
+  bbValue: number,
+  headsUp?: boolean
 ): BlindPosting {
   const byPosition = new Map(players.filter((p) => p.position).map((p) => [p.position!, p.id]));
-  const headsUpButton = players.length === 2 && byPosition.has('BTN') && byPosition.has('BB');
+  const twoHanded = players.length === 2 && byPosition.has('BTN') && byPosition.has('BB');
+  const headsUpButton = twoHanded && (headsUp ?? true);
   const sbPosterId = headsUpButton ? byPosition.get('BTN') : byPosition.get('SB');
   const bbPosterId = byPosition.get('BB');
   let deadBlinds = 0;

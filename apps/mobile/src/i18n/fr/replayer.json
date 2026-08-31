@@ -20,6 +20,9 @@
   "chipsUnit": "jetons",
   "bigBlindLabel": "Grosse blinde",
   "heroCardsHint": "Touchez vos deux cartes, puis confirmez.",
+  "headsUpLabel": "Heads-up (2 joueurs à table)",
+  "headsUpHintOn": "Vrai heads-up : le bouton paie la petite blinde.",
+  "headsUpHintOff": "Un coup à 2 sur une table pleine : la petite blinde est de l’argent mort.",
   "anteLabel": "Ante (total)",
   "anteHint": "Optionnel — total des antes posées par tous les joueurs, ajouté au pot comme argent mort.",
   "potAmount": "Pot {{amount}}",
@@ -115,7 +118,7 @@
   "winOverlay": {
     "title": "GAGNÉ"
   },
-  "anteEqualsBb": "Ante de {{amount}} par joueur — toucher pour un autre montant.",
+  "anteEqualsBb": "Ante de {{amount}} au total — toucher pour un autre montant.",
   "postsSb": "{{name}} — petite blinde {{amount}}",
   "postsBb": "{{name}} — grosse blinde {{amount}}",
   "boardEditHint": "Touchez une carte du board pour la corriger."

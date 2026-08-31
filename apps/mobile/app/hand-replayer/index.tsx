@@ -48,6 +48,10 @@ import type { ActionType, Card, HandAction, HandHistory, HandPlayer, Position, S
 
 const BOARD_PHASES: Street[] = ['flop', 'turn', 'river'];
 
+// Two, not three: the hand people want to tell is almost always theirs against one
+// opponent. Extra seats are one tap away on the stepper.
+const DEFAULT_PLAYER_COUNT = 2;
+
 // One uniform size for every board card, flop through river — big enough to read, small
 // enough that 5 cards + gaps always fit on one row (only narrow screens scale below lg).
 const BOARD_CARD_WIDTH = Math.min(64, Math.floor((Dimensions.get('window').width - spacing.base * 2 - spacing.sm * 4) / 5));
@@ -80,7 +84,7 @@ export default function HandReplayerBuilderScreen() {
   );
 
   const [step, setStep] = useState(0);
-  const [players, setPlayers] = useState<HandPlayer[]>(() => makePlayers(3, heroName, defaultPlayerName));
+  const [players, setPlayers] = useState<HandPlayer[]>(() => makePlayers(DEFAULT_PLAYER_COUNT, heroName, defaultPlayerName));
   const [actions, setActions] = useState<HandAction[]>([]);
   const [heroCards, setHeroCards] = useState<(Card | undefined)[]>([undefined, undefined]);
   const [flopCards, setFlopCards] = useState<(Card | undefined)[]>([undefined, undefined, undefined]);
@@ -103,6 +107,10 @@ export default function HandReplayerBuilderScreen() {
   // Defaults to 1 in BB mode — the ante is almost always 1 BB.
   // Ante is a yes/no in almost every game, and when there is one it is a big blind. The
   // amount field only appears for the rare table that runs a different ante.
+  // A two-player hand is far more often "me on the button against the big blind" at a full
+  // table than an actual heads-up match, and only the latter has the button posting the
+  // small blind. Off by default, and only ever asked at exactly two players.
+  const [headsUp, setHeadsUp] = useState(false);
   const [anteOn, setAnteOn] = useState(false);
   const [anteCustom, setAnteCustom] = useState(false);
   const [anteInput, setAnteInput] = useState('1');
@@ -135,13 +143,16 @@ export default function HandReplayerBuilderScreen() {
     [stackOverrides, defaultStackValue]
   );
 
+  const isTwoHanded = players.length === 2;
+
   const engineConfig = useMemo<EngineConfig>(
     () => ({
       smallBlind: smallBlindValue,
       bigBlind: bigBlindValue,
       stacks: Object.fromEntries(players.map((p) => [p.id, stackFor(p.id)])),
+      headsUp: isTwoHanded && headsUp,
     }),
-    [players, smallBlindValue, bigBlindValue, stackFor]
+    [players, smallBlindValue, bigBlindValue, stackFor, isTwoHanded, headsUp]
   );
 
   // The actions array is the single source of truth: the whole betting state — round queue,
@@ -171,8 +182,8 @@ export default function HandReplayerBuilderScreen() {
   };
 
   const blindPosting = useMemo(
-    () => computeBlindPosting(players, smallBlindValue, bigBlindValue),
-    [players, smallBlindValue, bigBlindValue]
+    () => computeBlindPosting(players, smallBlindValue, bigBlindValue, isTwoHanded && headsUp),
+    [players, smallBlindValue, bigBlindValue, isTwoHanded, headsUp]
   );
   const deadBlinds = blindPosting.deadBlinds;
   const anteValue = useMemo(() => {
@@ -387,7 +398,8 @@ export default function HandReplayerBuilderScreen() {
   const reset = () => {
     setSessionIdentity({ id: randomUUID(), createdAt: new Date().toISOString() });
     setStep(0);
-    setPlayers(makePlayers(3, heroName, defaultPlayerName));
+    setPlayers(makePlayers(DEFAULT_PLAYER_COUNT, heroName, defaultPlayerName));
+    setHeadsUp(false);
     setActions([]);
     setHeroCards([undefined, undefined]);
     setFlopCards([undefined, undefined, undefined]);
@@ -490,11 +502,12 @@ export default function HandReplayerBuilderScreen() {
       pots: computePots(actions, roundAmount(deadBlinds + anteValue)),
       winnerIds: effectiveWinnerIds.length > 0 ? effectiveWinnerIds : undefined,
       winningHandDescription: effectiveWinningDescription,
+      headsUp: isTwoHanded && headsUp ? true : undefined,
       deadBlinds: deadBlinds > 0 ? deadBlinds : undefined,
       ante: anteValue > 0 ? anteValue : undefined,
       unitMode,
     };
-  }, [playersWithStatus, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, computeAutoTitle, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, anteValue, stackFor, unitMode, sessionIdentity]);
+  }, [isTwoHanded, headsUp, playersWithStatus, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, computeAutoTitle, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, anteValue, stackFor, unitMode, sessionIdentity]);
 
   // Auto-save: the hand lands in the history (and pushes to the server) as soon as the
   // builder reaches the showdown step — including the fold-out jump. buildHandHistory's
@@ -871,7 +884,13 @@ export default function HandReplayerBuilderScreen() {
                                 style={[
                                   styles.winnerChip,
                                   { borderColor: colors.hairline, backgroundColor: colors.neutralTileBg },
-                                  takenByOther && { opacity: 0.45 },
+                                  // A taken position is FULLY tappable — it swaps the two
+                                  // players, which is the point of the picker — so it must
+                                  // not read as disabled. Dimming it did exactly that
+                                  // ("les positions SB et BB sont grisées alors qu'on peut
+                                  // cliquer dessus"). Full opacity, with a visible outline
+                                  // against the near-invisible hairline of a free chip.
+                                  takenByOther && { borderColor: colors.textTertiary },
                                   current && { borderColor: colors.accent, backgroundColor: colors.accentTint },
                                 ]}
                                 activeOpacity={0.7}
@@ -898,6 +917,21 @@ export default function HandReplayerBuilderScreen() {
             )}
             {unitMode === 'chips' && (
               <AmountInput label={t('bigBlindLabel')} value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
+            )}
+            {isTwoHanded && (
+              <>
+                <View style={styles.anteRow}>
+                  <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('headsUpLabel')}</Text>
+                  <Switch
+                    value={headsUp}
+                    onValueChange={setHeadsUp}
+                    trackColor={{ true: colors.accentBright, false: colors.surface.fieldBorder }}
+                  />
+                </View>
+                <Text style={[styles.hint, { color: colors.textTertiary }]}>
+                  {headsUp ? t('headsUpHintOn') : t('headsUpHintOff')}
+                </Text>
+              </>
             )}
             <View style={styles.anteRow}>
               <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('anteLabel')}</Text>

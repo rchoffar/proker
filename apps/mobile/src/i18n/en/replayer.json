@@ -20,6 +20,9 @@
   "chipsUnit": "chips",
   "bigBlindLabel": "Big blind",
   "heroCardsHint": "Tap your two cards, then confirm.",
+  "headsUpLabel": "Heads-up (2 at the table)",
+  "headsUpHintOn": "True heads-up: the button posts the small blind.",
+  "headsUpHintOff": "A two-way pot at a full table: the small blind is dead money.",
   "anteLabel": "Ante (total)",
   "anteHint": "Optional — total antes posted by all players, added to the pot as dead money.",
   "potAmount": "Pot {{amount}}",
@@ -115,7 +118,7 @@
   "winOverlay": {
     "title": "WINNER"
   },
-  "anteEqualsBb": "{{amount}} ante per player — tap to set another amount.",
+  "anteEqualsBb": "{{amount}} ante in total — tap to set another amount.",
   "postsSb": "{{name}} — small blind {{amount}}",
   "postsBb": "{{name}} — big blind {{amount}}",
   "boardEditHint": "Tap a board card to fix it."

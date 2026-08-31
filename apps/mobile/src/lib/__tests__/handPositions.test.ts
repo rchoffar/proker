@@ -55,10 +55,37 @@ describe('computeBlindPosting', () => {
 
   it('heads-up BTN + BB: the button posts the small blind', () => {
     const players = roster(['BB', 'BTN']);
-    expect(computeBlindPosting(players, 0.5, 1)).toEqual({ sbPosterId: 'p1', bbPosterId: 'p0', deadBlinds: 0 });
+    expect(computeBlindPosting(players, 0.5, 1, true)).toEqual({ sbPosterId: 'p1', bbPosterId: 'p0', deadBlinds: 0 });
   });
 
-  it('two players who are NOT a heads-up table (subset) leave absent blinds dead', () => {
+  // The reading Mathieu asked for: "BTN vs BB" is usually two players out of a full table,
+  // where the small blind belongs to somebody who is not in the hand.
+  it('BTN + BB that is NOT heads-up leaves the small blind dead', () => {
+    const players = roster(['BB', 'BTN']);
+    expect(computeBlindPosting(players, 0.5, 1, false)).toEqual({
+      sbPosterId: undefined,
+      bbPosterId: 'p0',
+      deadBlinds: 0.5,
+    });
+  });
+
+  it('keeps the old guess when the hand never stored an answer', () => {
+    const players = roster(['BB', 'BTN']);
+    expect(computeBlindPosting(players, 0.5, 1)).toEqual(computeBlindPosting(players, 0.5, 1, true));
+  });
+
+  // The divergence the felt used to have: its own copy of the rule dropped the BB check, so
+  // this roster was tagged BTN/SB while the engine posted the small blind as dead money.
+  it('never gives the button the small blind without a BB, even asked for heads-up', () => {
+    const players = roster(['BTN', 'CO']);
+    expect(computeBlindPosting(players, 0.5, 1, true)).toEqual({
+      sbPosterId: undefined,
+      bbPosterId: undefined,
+      deadBlinds: 1.5,
+    });
+  });
+
+  it('two players in positions that cannot be a heads-up table leave absent blinds dead', () => {
     const players = roster(['BTN', 'CO']);
     expect(computeBlindPosting(players, 0.5, 1)).toEqual({ sbPosterId: undefined, bbPosterId: undefined, deadBlinds: 1.5 });
   });

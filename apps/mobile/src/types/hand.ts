@@ -73,6 +73,10 @@ export interface HandHistory {
   // Multiple ids = split pot (chopped between them).
   winnerIds?: string[];
   winningHandDescription?: string;
+  // True heads-up: only two players at the table, so the button posts the small blind.
+  // Absent on hands recorded before the builder asked — those keep the old guess, which
+  // read any BTN-vs-BB pair as heads-up.
+  headsUp?: boolean;
   // Blinds posted by SB/BB players who exist at the real table but weren't entered in the
   // hand (they folded pre-entry) — dead money already counted into pots.
   deadBlinds?: number;

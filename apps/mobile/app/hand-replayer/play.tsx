@@ -26,6 +26,8 @@ import { fontFamily, fontSize, radius, spacing } from '../../src/design-system/t
 import { useTheme } from '../../src/design-system/ThemeProvider';
 import { formatHandAmount, roundAmount } from '../../src/lib/format';
 import { strengthColor } from '../../src/lib/handStrength';
+import { computeBlindPosting } from '../../src/lib/handPositions';
+import { positionLabel } from '../../src/lib/handBuilder';
 import {
   allInRevealIndex,
   equityCacheKey,
@@ -276,10 +278,14 @@ export default function HandReplayerPlayScreen() {
     }
   };
 
-  // In heads-up the button IS the small blind. Nothing on the felt used to say that, so the
-  // button posting half a blind read as a bug.
-  const headsUpButton = hand.players.length === 2 && hand.players.some((p) => p.position === 'BTN');
-  const seatTag = (p: HandPlayer) => (headsUpButton && p.position === 'BTN' ? 'BTN/SB' : p.position);
+  // In heads-up the button IS the small blind, and the badge says so rather than just
+  // "BTN". Both facts come from the shared rule, not from a second copy of it: the copy
+  // that used to live here dropped computeBlindPosting's `has('BB')` check, so a BTN+CO
+  // pair was tagged BTN/SB on the felt while the engine posted the small blind as dead
+  // money. Blind VALUES are irrelevant to the tag — only deadBlinds needs them, and the
+  // felt reads that off the stored hand.
+  const posting = computeBlindPosting(hand.players, 0, 0, hand.headsUp);
+  const seatTag = (p: HandPlayer) => positionLabel(p, posting);
 
   // Seats for the shared table: villains reveal their hands as fans toward the felt (at
   // showdown or once everyone is all-in), each seat carrying its action bubble and either
@@ -310,10 +316,11 @@ export default function HandReplayerPlayScreen() {
       fan: revealed
         ? {
             cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),
-            // Villain hands stay small on the rail: this table is narrower than the other
-            // games' (smaller pods, board cards scaled to fit five across), and the hero's
-            // hand growing large at showdown is meant to be the only big card moment.
-            size: 'sm' as const,
+            // No explicit size: SeatedTable falls back to fanSizeFor(cards, seats), which is
+            // md up to four seats and sm from five — "big cards for the 2/3-player reveal,
+            // small ones once the table is busy", which is exactly what Mathieu asked for.
+            // Pinning sm here made the villain's reveal tiny even heads-up, where there is
+            // all the room in the world for it.
             flipInDelay: ms(k * 120),
             flipInDuration: ms(450),
           }
@@ -589,13 +596,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.base,
     backgroundColor: EXPORT_BG,
   },
+  // The hand's title, at the top of the capture. It speaks the felt's own typeface — the
+  // same display face as the street label right under it — instead of the UI's semibold,
+  // which read as a screenshot caption rather than part of the table. Bigger, and with air
+  // under it: at 16pt with no margin it sat almost on top of the first seat pod.
   caption: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.xl,
+    fontFamily: fontFamily.display,
     textAlign: 'center',
     color: TABLE.plateText,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
     paddingHorizontal: spacing.base,
+    marginBottom: spacing.sm,
   },
   streetLabel: {
     fontSize: fontSize.lg,
