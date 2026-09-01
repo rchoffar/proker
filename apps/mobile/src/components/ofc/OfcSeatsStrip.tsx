@@ -27,24 +27,31 @@ export interface OfcSeatVM {
 interface Props {
   seats: OfcSeatVM[];
   activeId: string | null;
+  /**
+   * The felt is sharing the page with your own placement board, which leaves it too little
+   * height for full-size boards. They shrink and sit side by side instead of stacked —
+   * nothing on these screens scrolls, so this is what keeps everything on one page.
+   */
+  compact?: boolean;
 }
 
-// The seats sit on green felt now, so they need the felt's own dark plate rather than the
-// translucent white that read as a slightly lighter panel on the old black screen.
-const DARK_CARD_BG = TABLE.plateBg;
+// No card behind a seat: on green felt a dark plate around a whole grid is a rectangle that
+// swallows the table — once the screen stopped scrolling and the felt tightened around its
+// content, the oval was reduced to a green border around it. The cards sit straight on the
+// felt, like a real board, and only the player acting gets an outline.
 
-export function OfcSeatsStrip({ seats, activeId }: Props) {
+export function OfcSeatsStrip({ seats, activeId, compact = false }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
 
   return (
-    <View style={styles.strip}>
+    <View style={[styles.strip, compact && styles.stripCompact]}>
       {seats.map((seat) => (
         <View
           key={seat.id}
           style={[
             styles.seat,
-            { backgroundColor: DARK_CARD_BG, borderColor: seat.id === activeId ? TABLE.gold : colors.onDarkHairline },
+            seat.id === activeId && { borderColor: TABLE.gold, backgroundColor: 'rgba(0,0,0,0.18)' },
             seat.eliminated && styles.eliminatedSeat,
           ]}
         >
@@ -71,7 +78,12 @@ export function OfcSeatsStrip({ seats, activeId }: Props) {
           {!seat.eliminated && (
             // Compact on purpose: the acting player's board renders big in the screen's
             // action zone (and their seat leaves the strip), so nothing shows twice.
-            <OfcGridView grid={seat.grid} gridCounts={seat.gridCounts} size="sm" fouled={seat.fouled} />
+            <OfcGridView
+              grid={seat.grid}
+              gridCounts={seat.gridCounts}
+              size={compact ? 'xs' : 'sm'}
+              fouled={seat.fouled}
+            />
           )}
           {seat.inFantasyLand && !seat.eliminated && (
             <Text style={[styles.fantasyHint, { color: colors.onDarkTertiary }]}>
@@ -85,18 +97,25 @@ export function OfcSeatsStrip({ seats, activeId }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // A column, not a row: on the felt these are the boards laid out across the table, and a
-  // seat card is about 184pt wide (five sm slots plus padding), so two of them never fit
-  // side by side inside an oval. Stacked, they read as "your board / my board" facing each
-  // other, which is how the game is actually played.
+  // Stacked by default: at sm a board is about 170pt wide, so two never fit across an oval,
+  // and stacked they read as "your board / my board" facing each other, which is how the game
+  // is played. Compact flips to a row, where xs boards do fit side by side — the only way to
+  // keep three players and a placement board on one non-scrolling page.
   strip: {
     alignItems: 'center',
     gap: spacing.sm,
   },
+  stripCompact: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
   seat: {
     borderWidth: 1,
+    borderColor: 'transparent',
     borderRadius: radius.md,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
     alignItems: 'center',
     gap: 3,
   },

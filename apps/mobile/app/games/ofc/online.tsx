@@ -339,6 +339,10 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   const myDraw = v.role === 'draw' ? view.pending : null;
 
   const caption = v.caption.kind === 'none' ? '' : t(v.caption.key, v.caption.params);
+  // While your own placement board is open it takes most of the page, and what is left is
+  // not enough for a full-size board on the felt — even at two players. So the felt's own
+  // boards go compact for exactly as long as yours is open.
+  const boardOpen = ((myFantasyTurn || myInitialTurn) && !!me?.hand) || (!myFantasyTurn && !!myDraw && !!me?.grid);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -359,17 +363,22 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {/* One screen, no scrolling — see the Pass & Play twin for why. */}
+      <View style={styles.content}>
         <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
           {caption}
         </Animated.Text>
 
         <OfcTableFelt>
-          <OfcSeatsStrip seats={stripSeats} activeId={phase === 'placing' ? view.turnId : null} />
+          <OfcSeatsStrip
+            seats={stripSeats}
+            activeId={phase === 'placing' ? view.turnId : null}
+            compact={boardOpen}
+          />
         </OfcTableFelt>
 
         {(myFantasyTurn || myInitialTurn) && me?.hand && (
-          <Animated.View entering={FadeIn.duration(200)}>
+          <Animated.View entering={FadeIn.duration(200)} style={styles.actorSlot}>
             <OfcActorPanel
               name={t('games:online.youSuffix', { name: me.name })}
               chips={me.chips}
@@ -394,6 +403,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
         )}
 
         {!myFantasyTurn && myDraw && me?.grid && (
+          <View style={styles.actorSlot}>
           <OfcActorPanel
             name={t('games:online.youSuffix', { name: me.name })}
             chips={me.chips}
@@ -408,16 +418,18 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               onCommit={(placements) => sendPlay({ type: 'placeDraw', playerId: myId, placements })}
             />
           </OfcActorPanel>
+          </View>
         )}
 
+        {/* The one block with no natural ceiling, so the one that scrolls inside itself. */}
         {(phase === 'scoring' || phase === 'gameOver') && view.handResult && (
-          <Animated.View entering={FadeInDown.duration(300)}>
-            <ScoreSheet result={view.handResult} nameById={nameById} />
+          <Animated.View entering={FadeInDown.duration(300)} style={styles.sheetSlot}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <ScoreSheet result={view.handResult} nameById={nameById} />
+            </ScrollView>
           </Animated.View>
         )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      </View>
 
       <View style={styles.footer}>
         {toast && (
@@ -515,11 +527,16 @@ const styles = StyleSheet.create({
     gap: spacing.base,
   },
   content: {
-    // flexGrow, so the felt's slot has leftover height to claim when the placement board is
-    // not on screen. Without it a ScrollView sizes to its content and nothing can stretch.
-    flexGrow: 1,
+    flex: 1,
     paddingHorizontal: spacing.base,
     gap: spacing.md,
+  },
+  // The placement board keeps its full height; the felt above it absorbs the difference.
+  actorSlot: {
+    flexShrink: 0,
+  },
+  sheetSlot: {
+    flexShrink: 1,
   },
   caption: {
     fontSize: fontSize.md,

@@ -9,18 +9,17 @@ import { spacing } from '../../design-system/theme';
 // while it was your turn — the action panel. Out of turn that left two small grids at the top
 // of a black screen and nothing else, which is the "écran noir" Mathieu sent three shots of.
 //
-// The first version of this felt had a floor of 0.85 × width so an oval would always "read as
-// a table". That was optimising for the wrong thing: at two players the content is one small
-// grid (~130pt) and the floor forced ~300, so the felt ate 40% of the screen for an empty grid
-// and pushed the placement board out of frame — "il est plus difficile de voir toutes les
-// informations à l'OFC maintenant qu'il y a la jolie table design".
+// The first version had a floor of 0.85 × width so an oval would always "read as a table".
+// That optimised for the wrong thing: at two players the content is one small grid (~130pt)
+// and the floor forced ~300, so the felt ate 40% of the screen and pushed the placement board
+// out of frame.
 //
-// So it is elastic instead, and answers both reports at once: it takes whatever height is
-// LEFT OVER. Out of turn nothing else wants the room and it stretches to fill the void; while
-// you are placing, the action panel takes what it needs and the felt shrinks back to its
-// content. The slot is `flex: 1` with a `minHeight` of the content, which is what stops the
-// shrink from going past it; the screens' scroll containers need `flexGrow: 1` or there is no
-// leftover space to claim in the first place.
+// It is elastic instead. The screens are one page and NOTHING scrolls — not the page, not
+// the felt — so height is a fixed budget with an order of priority: the placement board is
+// what you are using, so it keeps its size, and the felt takes what is left. It never takes
+// more than the seats need, which is what stops it from becoming a green border around a
+// board again. Keeping everything on one screen is the seat strip's job: it goes compact
+// when it has more than one board to show (see OfcSeatsStrip).
 
 /** Breathing room around the seats, inside the felt. */
 const FELT_PAD = spacing.base;
@@ -40,19 +39,21 @@ export function OfcTableFelt({ children }: Props) {
     if (next > 0 && next !== current) set(next);
   };
 
-  // Never smaller than the seats it holds; otherwise as tall as the slot allows, capped at the
-  // size every other game's felt uses so it stays recognisably the same table.
+  // As tall as the slot allows, capped at the size every other game's felt uses so it stays
+  // recognisably the same table, and never taller than the seats actually need.
   const natural = (contentH ?? 0) + FELT_PAD * 2;
-  const height = Math.max(natural, Math.min(PLAY_TABLE.height, slotH ?? 0));
+  const height = Math.min(natural || PLAY_TABLE.height, PLAY_TABLE.height, slotH ?? PLAY_TABLE.height);
 
   return (
-    <View style={[styles.slot, { minHeight: natural }]} onLayout={measure(setSlotH, slotH)}>
+    <View style={styles.slot} onLayout={measure(setSlotH, slotH)}>
       <PokerTable width={width} height={height} style={styles.table}>
         <View style={styles.center} pointerEvents="box-none">
-          <View onLayout={measure(setContentH, contentH)} pointerEvents="box-none">
+          {/* The measured box is everything the felt has to hold — the wordmark included, or
+              the felt comes out a wordmark too short and it spills onto the rail. */}
+          <View style={styles.measured} onLayout={measure(setContentH, contentH)} pointerEvents="box-none">
             {children}
+            <TableWordmark />
           </View>
-          <TableWordmark />
         </View>
       </PokerTable>
     </View>
@@ -60,8 +61,7 @@ export function OfcTableFelt({ children }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // Claims the leftover height, and gives it all back down to `minHeight` when a sibling —
-  // the placement board — needs it.
+  // Claims the leftover height, and gives it back when the placement board needs it.
   slot: {
     flex: 1,
     justifyContent: 'center',
@@ -69,15 +69,17 @@ const styles = StyleSheet.create({
   table: {
     alignSelf: 'center',
   },
-  // Normal flow rather than an absolute inset: PokerTable's own layers are the absolute
-  // ones, so a flex child fills the box and content that outgrows the cap spills visibly
-  // instead of being clipped.
+  // Normal flow rather than an absolute inset: PokerTable's own layers are the absolute ones,
+  // so a flex child fills the box.
   center: {
     flex: 1,
     paddingHorizontal: spacing.base,
     paddingVertical: FELT_PAD,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  measured: {
+    alignItems: 'center',
     gap: spacing.sm,
   },
 });

@@ -16,7 +16,7 @@ interface Props {
   // Visible cards (own grid, public grids, revealed grids). Absent → face-down backs.
   grid?: OfcGrid;
   gridCounts: { top: number; middle: number; bottom: number };
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
   fouled?: boolean;
   // Row names (Haut/Milieu/Bas) down the left edge — on by default for the big board,
   // where the three lines must read at a glance; compact seats stay label-free.
@@ -24,8 +24,12 @@ interface Props {
   overlays?: Partial<Record<RowId, OfcRowOverlay>>;
 }
 
-const CARD_GAP = { sm: 3, md: 5 } as const;
+// `xs` exists so that two opponents' boards fit ACROSS the felt while you have your own
+// placement board open — the screens never scroll, so the only way to keep three players on
+// one page is to give the boards you are only glancing at less room.
+const CARD_GAP = { xs: 2, sm: 3, md: 5 } as const;
 const SLOT = {
+  xs: { width: 22, height: 31 },
   sm: { width: 30, height: 42 },
   md: { width: 46, height: 64 },
 } as const;
@@ -71,7 +75,13 @@ export function OfcGridView({
                   />
                 );
               }
-              return <PlayingCard key={i} card={grid?.[row][i]} faceDown={!grid} size={size} />;
+              // `width` rather than `size` for xs: PlayingCard derives the rest from it, and
+              // there is no xs tier in its own scale.
+              return size === 'xs' ? (
+                <PlayingCard key={i} card={grid?.[row][i]} faceDown={!grid} width={slot.width} />
+              ) : (
+                <PlayingCard key={i} card={grid?.[row][i]} faceDown={!grid} size={size} />
+              );
             })}
             {overlay && (
               <View style={styles.overlayCol}>

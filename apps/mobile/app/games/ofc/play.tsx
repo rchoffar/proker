@@ -160,6 +160,12 @@ export default function OfcPlayScreen() {
   };
 
 
+  // While your own placement board is open it takes most of the page, and what is left is
+  // not enough for a full-size board on the felt — even at two players. So the felt's own
+  // boards go compact for exactly as long as yours is open.
+  const boardOpen =
+    phase === 'placing' && !!actor && ((arranging && (!fantasyArranging || !locked)) || (!arranging && !!state.pending));
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
@@ -173,18 +179,21 @@ export default function OfcPlayScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {/* One screen, no scrolling: OFC is a game you read at a glance, and a felt that pushes
+          the placement board below the fold is worse than no felt at all. The felt flexes
+          around the board rather than the page scrolling under it. */}
+      <View style={styles.content}>
         <Animated.Text key={`caption-${state.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
           {caption}
         </Animated.Text>
 
         <OfcTableFelt>
-          <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} />
+          <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} compact={boardOpen} />
         </OfcTableFelt>
 
         {/* Multi-card arrangement (initial 5 open, Fantasy Land 13 behind the lock). */}
         {phase === 'placing' && actor && arranging && (!fantasyArranging || !locked) && (
-          <Animated.View entering={FadeIn.duration(200)}>
+          <Animated.View entering={FadeIn.duration(200)} style={styles.actorSlot}>
             <OfcActorPanel
               name={actor.name}
               chips={actor.chips}
@@ -213,6 +222,7 @@ export default function OfcPlayScreen() {
             Pass & Play is open information, so the pineapple 3-card draw shows on the
             shared screen (secrecy only matters online, where redactFor enforces it). */}
         {phase === 'placing' && actor && !arranging && state.pending && (
+          <View style={styles.actorSlot}>
           <OfcActorPanel name={actor.name} chips={actor.chips} isButton={actor.id === state.buttonId}>
             <DrawPlacement
               key={`${actor.id}-${state.handNumber}-${state.placeRound}`}
@@ -223,16 +233,19 @@ export default function OfcPlayScreen() {
               onCommit={(placements) => dispatch({ type: 'placeDraw', playerId: actor.id, placements })}
             />
           </OfcActorPanel>
+          </View>
         )}
 
+        {/* The one block with no natural ceiling — a foul plus royalties per player runs
+            long — so it is the one that scrolls, inside itself. */}
         {(phase === 'scoring' || phase === 'gameOver') && state.handResult && (
-          <Animated.View entering={FadeInDown.duration(300)}>
-            <ScoreSheet result={state.handResult} nameById={nameById} />
+          <Animated.View entering={FadeInDown.duration(300)} style={styles.sheetSlot}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <ScoreSheet result={state.handResult} nameById={nameById} />
+            </ScrollView>
           </Animated.View>
         )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      </View>
 
       <View style={styles.footer}>
         {phase === 'scoring' && (
@@ -286,11 +299,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bold,
   },
   content: {
-    // flexGrow, so the felt's slot has leftover height to claim when the placement board is
-    // not on screen. Without it a ScrollView sizes to its content and nothing can stretch.
-    flexGrow: 1,
+    flex: 1,
     paddingHorizontal: spacing.base,
     gap: spacing.md,
+  },
+  // The placement board is the thing you are actually using — it keeps its full height and
+  // the felt above it absorbs the difference.
+  actorSlot: {
+    flexShrink: 0,
+  },
+  sheetSlot: {
+    flexShrink: 1,
   },
   caption: {
     fontSize: fontSize.md,
