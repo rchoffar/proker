@@ -7,6 +7,7 @@ import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomI
 import { RotateCw } from 'lucide-react-native';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useGameExit } from '../../../src/hooks/useGameExit';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../../src/components/table/SeatedTable';
 import { PLAY_TABLE } from '../../../src/components/table/tableSize';
@@ -166,9 +167,7 @@ export default function FlipPlayScreen() {
     );
   }, [statsPhase, outcomeShown, dealt, players, gameType]);
 
-  const finish = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
-  };
+  const exit = useGameExit(confirmQuit);
 
   // Street caption above the table; at result the winner/loser banner takes its place.
   const phaseButtonLabels: Record<Phase, string> = {
@@ -251,7 +250,7 @@ export default function FlipPlayScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <GamePlayHeader title={GAME_NAME} onClose={finish} />
+      <GamePlayHeader title={GAME_NAME} onClose={exit.back} onHome={exit.home} />
 
       <View style={styles.tableArea}>
         <LayoutAnimationConfig skipEntering={!ready}>

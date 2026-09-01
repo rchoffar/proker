@@ -14,6 +14,7 @@
   "play": {
     "noPlayers": "No players in this game.",
     "finish": "Finish",
+    "goHome": "Home",
     "passPhoneTo": "Pass the phone to"
   },
   "flip": {

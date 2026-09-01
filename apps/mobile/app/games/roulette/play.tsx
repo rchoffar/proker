@@ -10,6 +10,7 @@ import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
 import { NoPlayersScreen } from '../../../src/components/games/NoPlayersScreen';
 import { useRouletteDraft } from '../../../src/store/useRouletteDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useGameExit } from '../../../src/hooks/useGameExit';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordRouletteSpin } from '../../../src/lib/gameStats';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
@@ -54,9 +55,7 @@ export default function RoulettePlayScreen() {
     );
   };
 
-  const finish = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
-  };
+  const exit = useGameExit(confirmQuit);
 
   if (players.length < 2) {
     return <NoPlayersScreen message={t('play.noPlayers')} onBack={() => router.back()} />;
@@ -64,7 +63,7 @@ export default function RoulettePlayScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <GamePlayHeader title={t('degen:names.roulette')} onClose={finish} />
+      <GamePlayHeader title={t('degen:names.roulette')} onClose={exit.back} onHome={exit.home} />
 
       <View style={styles.body}>
         <RouletteCardTable players={players} spinToken={spinToken} onResult={handleResult} />

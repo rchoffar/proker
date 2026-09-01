@@ -18,6 +18,7 @@ import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useGameExit } from '../../../src/hooks/useGameExit';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
 import { GRID_SIZE, createHandDeal, initGame, reduce, validateAction, variantConfig } from '../../../src/lib/ofc';
@@ -53,6 +54,7 @@ export default function OfcPlayScreen() {
     players.length >= 2 ? withAutoDeal(initGame(players, startingStack, variant)) : null,
   );
   const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+  const exit = useGameExit(confirmQuit);
 
   // Handoff lock: the phone must reach the right player before private cards can show.
   const [locked, setLocked] = useState(true);
@@ -157,16 +159,14 @@ export default function OfcPlayScreen() {
     setLocked(true);
   };
 
-  const finish = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
-  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
       <GamePlayHeader
         title={t('title')}
-        onClose={finish}
+        onClose={exit.back}
+        onHome={exit.home}
         onDark
         right={
           <Text style={[styles.handBadge, { color: colors.onDarkTertiary }]}>{t('game.handBadge', { hand: state.handNumber })}</Text>
@@ -244,7 +244,7 @@ export default function OfcPlayScreen() {
           <GameOverActions
             finishLabel={t('games:play.finish')}
             replayLabel={t('games:game.replay')}
-            onFinish={finish}
+            onFinish={exit.home}
             onReplay={handleReplay}
           />
         )}

@@ -2,7 +2,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react-native';
+import { Home, X } from 'lucide-react-native';
 import { HandRecapCard } from '../../src/components/hand/HandRecapCard';
 import { GameIconButton } from '../../src/components/games/GamePlayHeader';
 import { NoPlayersScreen } from '../../src/components/games/NoPlayersScreen';
@@ -28,6 +28,10 @@ export default function HandReplayerViewScreen() {
       <View style={styles.header}>
         <GameIconButton onPress={() => router.back()}>
           <X size={18} color={colors.textSecondary} strokeWidth={2} />
+        </GameIconButton>
+        {/* ❌ goes back to the hands list, HOME goes home — the two taps it used to take. */}
+        <GameIconButton onPress={() => router.dismissTo('/')} accessibilityLabel={t('games:play.goHome')}>
+          <Home size={17} color={colors.textSecondary} strokeWidth={2} />
         </GameIconButton>
       </View>
 
@@ -62,6 +66,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },

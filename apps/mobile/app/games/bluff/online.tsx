@@ -208,13 +208,16 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     );
   }, [view, updateGameStats]);
 
-  const quit = async () => {
+  // Both ways off this screen are DELIBERATE exits, so both give the seat up (and close the
+  // room, if we host it) — only the destination differs. Every other way off keeps the seat,
+  // so coming back reclaims it instead of taking a new one.
+  const exitTo = async (go: () => void) => {
     if (!(await confirmQuit())) return;
-    // Deliberate exit: give the seat up (and close the room, if we host it). Every other way
-    // off this screen keeps the seat, so coming back reclaims it instead of taking a new one.
     leave();
-    router.dismissTo('/');
+    go();
   };
+  const quit = () => exitTo(() => router.back());
+  const quitHome = () => exitTo(() => router.dismissTo('/'));
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 
@@ -253,7 +256,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     return (
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <StatusBar style="light" />
-        <GamePlayHeader title={t('online.title')} onClose={quit} onDark />
+        <GamePlayHeader title={t('online.title')} onClose={quit} onHome={quitHome} onDark />
 
         {/* The room IS the table: the code sits on the felt and the seats fill as people
             join, instead of a code card above a list of names. */}
@@ -388,6 +391,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
       <GamePlayHeader
         title={t('online.headerCode', { code })}
         onClose={quit}
+        onHome={quitHome}
         onDark
         right={
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: view.round })}</Text>
@@ -609,7 +613,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
             finishLabel={t('games:online.quit')}
             replayLabel={t('games:game.replay')}
             waitingLabel={t('games:online.waitingHostReplay')}
-            onFinish={quit}
+            onFinish={quitHome}
             onReplay={
               isHost
                 ? () => {

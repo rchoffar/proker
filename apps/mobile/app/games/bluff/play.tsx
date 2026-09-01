@@ -23,6 +23,7 @@ import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
 import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
+import { useGameExit } from '../../../src/hooks/useGameExit';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
 import {
@@ -68,6 +69,7 @@ export default function BluffPlayScreen() {
     players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })) : null,
   );
   const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
+  const exit = useGameExit(confirmQuit);
 
   // Handoff lock: the phone must reach the right player before their cards can be peeked.
   const [locked, setLocked] = useState(true);
@@ -205,9 +207,6 @@ export default function BluffPlayScreen() {
     setLocked(true);
   };
 
-  const finish = async () => {
-    if (await confirmQuit()) router.dismissTo('/');
-  };
 
   const caption =
     v.caption.kind === 'none'
@@ -224,7 +223,8 @@ export default function BluffPlayScreen() {
       <StatusBar style="light" />
       <GamePlayHeader
         title={t('title')}
-        onClose={finish}
+        onClose={exit.back}
+        onHome={exit.home}
         onDark
         right={
           <Text style={[styles.roundBadge, { color: colors.onDarkTertiary }]}>{t('game.roundBadge', { round: state.round })}</Text>
@@ -433,7 +433,7 @@ export default function BluffPlayScreen() {
           <GameOverActions
             finishLabel={t('games:play.finish')}
             replayLabel={t('games:game.replay')}
-            onFinish={finish}
+            onFinish={exit.home}
             onReplay={handleReplay}
           />
         )}

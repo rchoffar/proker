@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Animated, { FadeIn, FadeInDown, FlipInEasyY, LayoutAnimationConfig, ZoomIn } from 'react-native-reanimated';
 import { useKeepAwake } from 'expo-keep-awake';
-import { X, Play, Pause, Download, Share2, SkipForward } from 'lucide-react-native';
+import { Home, X, Play, Pause, Download, Share2, SkipForward } from 'lucide-react-native';
 import { PlayingCard } from '../../src/components/hand/PlayingCard';
 import { TABLE, seatPoint } from '../../src/components/hand/PokerTable';
 import { SeatedTable } from '../../src/components/table/SeatedTable';
@@ -406,6 +406,18 @@ export default function HandReplayerPlayScreen() {
           }}
         >
           <X size={18} color={colors.onDarkSecondary} strokeWidth={2} />
+        </GameIconButton>
+        {/* ❌ goes back where you came from — the builder or the hands list — and HOME goes
+            home. Reaching a hand costs several screens, so getting out of one should not. */}
+        <GameIconButton
+          onDark
+          onPress={() => {
+            videoExport.cancel();
+            router.dismissTo('/');
+          }}
+          accessibilityLabel={t('games:play.goHome')}
+        >
+          <Home size={17} color={colors.onDarkSecondary} strokeWidth={2} />
         </GameIconButton>
         <View style={styles.progressRow}>
           {beats.map((_, i) => (

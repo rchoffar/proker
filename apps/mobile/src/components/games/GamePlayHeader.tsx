@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import { Home, X } from 'lucide-react-native';
 import { fontFamily, fontSize, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
 import { DARK_TILE } from './gameSurface';
@@ -51,27 +52,44 @@ export function GameIconButton({
 
 interface Props {
   title: string;
+  /** Up one level — the game's own setup screen. */
   onClose: () => void;
-  /** Right slot — a round/hand badge, say. The empty slot still reserves 32pt so the
-   *  title stays centred on the row rather than shifting between screens. */
+  /**
+   * Straight to the home screen. Two clicks to get home was the complaint; ❌ alone could
+   * only ever mean one of the two, and going up a level is the more useful one because the
+   * roster is still there.
+   */
+  onHome?: () => void;
+  /** Right slot — a round/hand badge, say. The empty slot still reserves as much as the
+   *  left side holds, so the title stays centred on the row rather than shifting between
+   *  screens. */
   right?: ReactNode;
   onDark?: boolean;
 }
 
-export function GamePlayHeader({ title, onClose, right, onDark = false }: Props) {
+export function GamePlayHeader({ title, onClose, onHome, right, onDark = false }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation('games');
+  const iconColor = onDark ? colors.onDarkSecondary : colors.textSecondary;
   return (
     <View style={styles.header}>
-      <GameIconButton onPress={onClose} onDark={onDark}>
-        <X size={18} color={onDark ? colors.onDarkSecondary : colors.textSecondary} strokeWidth={2} />
-      </GameIconButton>
+      <View style={styles.headerSide}>
+        <GameIconButton onPress={onClose} onDark={onDark}>
+          <X size={18} color={iconColor} strokeWidth={2} />
+        </GameIconButton>
+        {onHome && (
+          <GameIconButton onPress={onHome} onDark={onDark} accessibilityLabel={t('play.goHome')}>
+            <Home size={17} color={iconColor} strokeWidth={2} />
+          </GameIconButton>
+        )}
+      </View>
       <Text
         style={[styles.headerTitle, { color: onDark ? colors.onDarkPrimary : colors.textPrimary }]}
         numberOfLines={1}
       >
         {title}
       </Text>
-      <View style={styles.headerRight}>{right}</View>
+      <View style={[styles.headerSide, styles.headerRight, onHome && styles.headerRightWide]}>{right}</View>
     </View>
   );
 }
@@ -103,8 +121,18 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
+  headerSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  // Mirrors whatever the left side holds, or the title stops being centred: one button is
+  // 32pt, two are 32 + gap + 32.
   headerRight: {
     minWidth: 32,
-    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+  },
+  headerRightWide: {
+    minWidth: 32 + spacing.sm + 32,
   },
 });
