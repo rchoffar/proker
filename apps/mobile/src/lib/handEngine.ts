@@ -59,6 +59,10 @@ const streetIdx = (s: Street) => STREETS.indexOf(s);
 // Rotates a full seat list so `anchorId` ends up last — i.e. the seat right after the
 // anchor acts first. The players array is expected in preflop action order (the builder's
 // invariant), which keeps this rotation street-agnostic.
+//
+// Pass the FULL roster, never one already filtered: an anchor that is not in the list makes
+// this a no-op, and a no-op here is not a missing rotation but a wrong action order, which
+// looks like a rules bug rather than a bug.
 function seatOrderFrom<T extends { id: string }>(players: T[], anchorId: string): T[] {
   const idx = players.findIndex((p) => p.id === anchorId);
   if (idx === -1) return players;
@@ -68,10 +72,14 @@ function seatOrderFrom<T extends { id: string }>(players: T[], anchorId: string)
 // After a bet/raise/allin, action must resume with the player immediately after the
 // aggressor's seat (wrapping around), not just "seat order minus the aggressor" — otherwise
 // an earlier seat gets asked to act again before a later seat has responded to the raise.
+//
+// Rotate over the FULL seat list and filter afterwards, never the other way round: an all-in
+// aggressor is already in `allIn` by the time this runs, so anchoring on a pre-filtered list
+// cannot find them, and seatOrderFrom quietly returns the list unrotated. That is how UTG got
+// asked to call a UTG+1 shove while MP through BB had not spoken yet.
 function reopenQueueFrom(players: EnginePlayer[], aggressorId: string, folded: Map<string, Street>, allIn: Set<string>): string[] {
-  const eligible = players.filter((p) => !folded.has(p.id) && !allIn.has(p.id));
-  return seatOrderFrom(eligible, aggressorId)
-    .filter((p) => p.id !== aggressorId)
+  return seatOrderFrom(players, aggressorId)
+    .filter((p) => p.id !== aggressorId && !folded.has(p.id) && !allIn.has(p.id))
     .map((p) => p.id);
 }
 

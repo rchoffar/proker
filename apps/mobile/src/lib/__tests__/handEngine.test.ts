@@ -170,6 +170,33 @@ describe('replayActions — reopen rules', () => {
     expect(d.round!.toAct).toEqual(['p3', 'p4', 'p0', 'p1']);
   });
 
+  // Reported from a real hand: UTG opens to 2, UTG+1 shoves 100, and the builder asked UTG to
+  // call the shove while MP through BB had not spoken. An all-in aggressor is already in the
+  // all-in set when the queue is rebuilt, so anchoring the rotation on a list that excludes
+  // them found nothing and left the order untouched — i.e. plain seat order from UTG.
+  it('an all-in raise resumes after the shover, not back at the first seat', () => {
+    const players = roster(['UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB']);
+    const config = cfg(players);
+    const hand = makeHand(players, config);
+    hand.record('p0', 'raise', 2);
+    hand.record('p1', 'allin', 100);
+    const d = hand.derived();
+    expect(d.allInIds).toEqual(new Set(['p1']));
+    // MP, LJ, HJ, CO, BTN, SB, BB, and only then back round to UTG.
+    expect(d.round!.toAct).toEqual(['p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p0']);
+  });
+
+  it('a full-stack raise that is not all-in resumes after the aggressor too', () => {
+    const players = roster(['UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB']);
+    const config = cfg(players);
+    const hand = makeHand(players, config);
+    hand.record('p0', 'raise', 2);
+    hand.record('p1', 'raise', 6);
+    // The aggressor is still eligible here, so this path always worked — pinned so the fix
+    // above cannot regress it.
+    expect(hand.derived().round!.toAct).toEqual(['p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p0']);
+  });
+
   it('a short all-in at or below the current bet does not reopen the action', () => {
     const players = roster(['BTN', 'SB', 'BB']);
     const config: EngineConfig = { smallBlind: 0.5, bigBlind: 1, stacks: { p0: 100, p1: 100, p2: 17 } };
