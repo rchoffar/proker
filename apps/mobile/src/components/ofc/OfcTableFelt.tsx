@@ -21,8 +21,9 @@ import { spacing } from '../../design-system/theme';
 // board again. Keeping everything on one screen is the seat strip's job: it goes compact
 // when it has more than one board to show (see OfcSeatsStrip).
 
-/** Breathing room around the seats, inside the felt. */
-const FELT_PAD = spacing.base;
+/** Breathing room around the seats, inside the felt — tight, because every point of it is a
+ *  point the boards do not get, and the rail already frames them. */
+const FELT_PAD = spacing.sm;
 
 interface Props {
   /** The seat strip. Anything laid out here is centred on the felt. */
@@ -47,12 +48,15 @@ export function OfcTableFelt({ children }: Props) {
   return (
     <View style={styles.slot} onLayout={measure(setSlotH, slotH)}>
       <PokerTable width={width} height={height} style={styles.table}>
+        {/* Behind the cards, and out of the layout: in flow it cost the boards a line of
+            height they had better use for, and the felt is the one place a watermark belongs
+            anyway. */}
+        <View style={styles.brand} pointerEvents="none">
+          <TableWordmark />
+        </View>
         <View style={styles.center} pointerEvents="box-none">
-          {/* The measured box is everything the felt has to hold — the wordmark included, or
-              the felt comes out a wordmark too short and it spills onto the rail. */}
-          <View style={styles.measured} onLayout={measure(setContentH, contentH)} pointerEvents="box-none">
+          <View onLayout={measure(setContentH, contentH)} pointerEvents="box-none">
             {children}
-            <TableWordmark />
           </View>
         </View>
       </PokerTable>
@@ -73,13 +77,16 @@ const styles = StyleSheet.create({
   // so a flex child fills the box.
   center: {
     flex: 1,
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: spacing.sm,
     paddingVertical: FELT_PAD,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  measured: {
+  brand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.lg,
     alignItems: 'center',
-    gap: spacing.sm,
   },
 });

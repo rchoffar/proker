@@ -27,9 +27,9 @@ interface Props {
 // `xs` exists so that two opponents' boards fit ACROSS the felt while you have your own
 // placement board open — the screens never scroll, so the only way to keep three players on
 // one page is to give the boards you are only glancing at less room.
-const CARD_GAP = { xs: 2, sm: 3, md: 5 } as const;
+const CARD_GAP = { xs: 3, sm: 3, md: 5 } as const;
 const SLOT = {
-  xs: { width: 22, height: 31 },
+  xs: { width: 28, height: 39 },
   sm: { width: 30, height: 42 },
   md: { width: 46, height: 64 },
 } as const;
