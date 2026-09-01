@@ -26,6 +26,13 @@ export { seatPoint } from '../table/seatLayout';
 interface Props {
   width: number;
   height: number;
+  /**
+   * Corner radius of the rail. Defaults to a racetrack (half the width) — the shape every
+   * card game wants. OFC passes a small one on purpose: its content is a GRID, and a
+   * racetrack narrows exactly where a grid's top and bottom rows are, so rows that fit the
+   * felt's width still spilled past its edge.
+   */
+  cornerRadius?: number;
   style?: ViewStyle | ViewStyle[];
   // Absolutely-positioned content: felt center, seat pods, hero cards…
   children?: ReactNode;
@@ -33,15 +40,23 @@ interface Props {
 
 // The racetrack itself: walnut rail, gradient felt, inner betting line. Callers place their
 // own content (board, pot, seats) absolutely inside.
-export function PokerTable({ width, height, style, children }: Props) {
+export function PokerTable({ width, height, style, cornerRadius, children }: Props) {
+  const rail = cornerRadius ?? width / 2;
+  const inset = (px: number) => Math.max(0, rail - px);
+
   return (
     <View style={[{ width, height }, style]}>
-      <View style={[styles.rail, { borderRadius: width / 2 }]} />
+      <View style={[styles.rail, { borderRadius: rail }]} />
       <LinearGradient
         colors={[TABLE.feltTop, TABLE.feltMid, TABLE.feltBottom]}
-        style={[styles.felt, { borderRadius: (width - 24) / 2 }]}
+        style={[styles.felt, { borderRadius: cornerRadius ? inset(12) : (width - 24) / 2 }]}
       />
-      <View style={[styles.bettingLine, { borderRadius: (width - 76) / 2 }]} />
+      {/* The betting line is a card-table convention: it marks where bets are pushed. A grid
+          table has no betting line, and drawn as a rectangle it ran straight through the
+          boards — so it comes with the racetrack only. */}
+      {cornerRadius === undefined && (
+        <View style={[styles.bettingLine, { borderRadius: (width - 76) / 2 }]} />
+      )}
       {children}
     </View>
   );

@@ -3,51 +3,52 @@ import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { PokerTable } from '../hand/PokerTable';
 import { TableWordmark } from '../table/TableWordmark';
 import { PLAY_TABLE } from '../table/tableSize';
-import { spacing } from '../../design-system/theme';
+import { radius, spacing } from '../../design-system/theme';
 
 // OFC had no table at all: both play screens were a caption, a row of seat cards and — only
 // while it was your turn — the action panel. Out of turn that left two small grids at the top
 // of a black screen and nothing else, which is the "écran noir" Mathieu sent three shots of.
 //
-// The first version had a floor of 0.85 × width so an oval would always "read as a table".
-// That optimised for the wrong thing: at two players the content is one small grid (~130pt)
-// and the floor forced ~300, so the felt ate 40% of the screen and pushed the placement board
-// out of frame.
+// The felt takes the height that is LEFT OVER, and all of it. The page does not scroll and the
+// placement board is protected by `flexShrink: 0`, so "leftover" means height nothing else
+// wants — hugging the boards instead only left a band of black under the table. It hands that
+// height down so the boards can be sized to fill it rather than guessed at.
 //
-// It is elastic instead. The screens are one page and NOTHING scrolls — not the page, not
-// the felt — so height is a fixed budget with an order of priority: the placement board is
-// what you are using, so it keeps its size, and the felt takes what is left. It never takes
-// more than the seats need, which is what stops it from becoming a green border around a
-// board again. Keeping everything on one screen is the seat strip's job: it goes compact
-// when it has more than one board to show (see OfcSeatsStrip).
+// The measurement runs one way on purpose: the slot's height comes from the PARENT, never from
+// the children. Sizing the boards from a height the boards themselves determined would feed
+// back into itself and oscillate.
 
-/** Breathing room around the seats, inside the felt — tight, because every point of it is a
- *  point the boards do not get, and the rail already frames them. */
-const FELT_PAD = spacing.sm;
+/** Breathing room around the seats, inside the felt. */
+const FELT_PAD = spacing.md;
+/**
+ * A rounded rectangle, not the racetrack every other game uses. OFC's content is a grid, and
+ * a racetrack pinches in exactly where a grid's top and bottom rows sit: rows that fitted the
+ * felt's width still ran out past its edge. A rectangle gives every row the same width, which
+ * is also what lets the cards be bigger.
+ */
+const FELT_RADIUS = radius.xl;
 
 interface Props {
-  /** The seat strip. Anything laid out here is centred on the felt. */
-  children: ReactNode;
+  /** Given the height available inside the felt, so boards can be sized to fill it exactly. */
+  children: (innerHeight: number) => ReactNode;
 }
 
 export function OfcTableFelt({ children }: Props) {
-  const [contentH, setContentH] = useState<number | null>(null);
   const [slotH, setSlotH] = useState<number | null>(null);
   const width = PLAY_TABLE.width;
 
-  const measure = (set: (v: number) => void, current: number | null) => (e: LayoutChangeEvent) => {
+  const onLayout = (e: LayoutChangeEvent) => {
     const next = Math.round(e.nativeEvent.layout.height);
-    if (next > 0 && next !== current) set(next);
+    if (next > 0 && next !== slotH) setSlotH(next);
   };
 
-  // As tall as the slot allows, capped at the size every other game's felt uses so it stays
-  // recognisably the same table, and never taller than the seats actually need.
-  const natural = (contentH ?? 0) + FELT_PAD * 2;
-  const height = Math.min(natural || PLAY_TABLE.height, PLAY_TABLE.height, slotH ?? PLAY_TABLE.height);
+  // Capped at the size every other game's felt uses, so it stays recognisably the same table.
+  const height = Math.min(PLAY_TABLE.height, slotH ?? PLAY_TABLE.height);
+  const innerHeight = Math.max(0, height - FELT_PAD * 2);
 
   return (
-    <View style={styles.slot} onLayout={measure(setSlotH, slotH)}>
-      <PokerTable width={width} height={height} style={styles.table}>
+    <View style={styles.slot} onLayout={onLayout}>
+      <PokerTable width={width} height={height} cornerRadius={FELT_RADIUS} style={styles.table}>
         {/* Behind the cards, and out of the layout: in flow it cost the boards a line of
             height they had better use for, and the felt is the one place a watermark belongs
             anyway. */}
@@ -55,9 +56,7 @@ export function OfcTableFelt({ children }: Props) {
           <TableWordmark />
         </View>
         <View style={styles.center} pointerEvents="box-none">
-          <View onLayout={measure(setContentH, contentH)} pointerEvents="box-none">
-            {children}
-          </View>
+          {children(innerHeight)}
         </View>
       </PokerTable>
     </View>
@@ -73,6 +72,13 @@ const styles = StyleSheet.create({
   table: {
     alignSelf: 'center',
   },
+  brand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.lg,
+    alignItems: 'center',
+  },
   // Normal flow rather than an absolute inset: PokerTable's own layers are the absolute ones,
   // so a flex child fills the box.
   center: {
@@ -81,12 +87,5 @@ const styles = StyleSheet.create({
     paddingVertical: FELT_PAD,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  brand: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: spacing.lg,
-    alignItems: 'center',
   },
 });

@@ -188,7 +188,14 @@ export default function OfcPlayScreen() {
         </Animated.Text>
 
         <OfcTableFelt>
-          <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} compact={boardOpen} />
+          {(innerHeight) => (
+            <OfcSeatsStrip
+              seats={seats}
+              activeId={actor?.id ?? null}
+              compact={boardOpen}
+              innerHeight={innerHeight}
+            />
+          )}
         </OfcTableFelt>
 
         {/* Multi-card arrangement (initial 5 open, Fantasy Land 13 behind the lock). */}

@@ -370,11 +370,14 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
         </Animated.Text>
 
         <OfcTableFelt>
-          <OfcSeatsStrip
-            seats={stripSeats}
-            activeId={phase === 'placing' ? view.turnId : null}
-            compact={boardOpen}
-          />
+          {(innerHeight) => (
+            <OfcSeatsStrip
+              seats={stripSeats}
+              activeId={phase === 'placing' ? view.turnId : null}
+              compact={boardOpen}
+              innerHeight={innerHeight}
+            />
+          )}
         </OfcTableFelt>
 
         {(myFantasyTurn || myInitialTurn) && me?.hand && (

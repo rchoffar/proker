@@ -17,6 +17,8 @@ interface Props {
   grid?: OfcGrid;
   gridCounts: { top: number; middle: number; bottom: number };
   size?: 'xs' | 'sm' | 'md';
+  /** Exact slot width, overriding `size`. For boards fitted to the room actually available. */
+  slotWidth?: number;
   fouled?: boolean;
   // Row names (Haut/Milieu/Bas) down the left edge — on by default for the big board,
   // where the three lines must read at a glance; compact seats stay label-free.
@@ -29,7 +31,7 @@ interface Props {
 // one page is to give the boards you are only glancing at less room.
 const CARD_GAP = { xs: 3, sm: 3, md: 5 } as const;
 const SLOT = {
-  xs: { width: 28, height: 39 },
+  xs: { width: 32, height: 45 },
   sm: { width: 30, height: 42 },
   md: { width: 46, height: 64 },
 } as const;
@@ -43,13 +45,17 @@ export function OfcGridView({
   grid,
   gridCounts,
   size = 'md',
+  slotWidth,
   fouled = false,
   showLabels = size === 'md',
   overlays,
 }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
-  const slot = SLOT[size];
+  // PlayingCard derives height and type sizes from a width, so an explicit width is all a
+  // caller needs to fit a board to its space.
+  const slot = slotWidth ? { width: slotWidth, height: Math.round((slotWidth * 64) / 46) } : SLOT[size];
+  const exactWidth = slotWidth !== undefined || size === 'xs';
 
   return (
     <View style={[styles.grid, { gap: CARD_GAP[size] + 1 }, showLabels && styles.gridLeft]}>
@@ -75,9 +81,9 @@ export function OfcGridView({
                   />
                 );
               }
-              // `width` rather than `size` for xs: PlayingCard derives the rest from it, and
-              // there is no xs tier in its own scale.
-              return size === 'xs' ? (
+              // `width` rather than `size` whenever the slot is not one of PlayingCard's own
+              // tiers — it derives everything else from a width.
+              return exactWidth ? (
                 <PlayingCard key={i} card={grid?.[row][i]} faceDown={!grid} width={slot.width} />
               ) : (
                 <PlayingCard key={i} card={grid?.[row][i]} faceDown={!grid} size={size} />
