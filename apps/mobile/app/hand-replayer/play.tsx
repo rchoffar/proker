@@ -259,20 +259,18 @@ export default function HandReplayerPlayScreen() {
   const potSoFar = roundAmount(totalContributed(revealedContribs) + deadMoneySoFar);
   const committedFor = (playerId: string) => roundAmount(committedBy(revealedContribs, playerId));
 
-  // Money in front of a player: what they have put in ON THE CURRENT STREET, which is what a
-  // real table shows and what makes a replay readable — the blinds preflop, then the raise
-  // that answered them, then each street's betting in turn. The blinds were already in the
-  // pot and already off the stacks, they just had nothing of their own on the felt.
+  // The blinds, in front of whoever posted them — and nothing else. They were already in the
+  // pot and already off the stacks, they just had nothing of their own on the felt: posts get
+  // filtered out of the action bubbles, so the only money you could see preflop was the pot
+  // total. Every OTHER bet already speaks for itself through its bubble, so putting chips out
+  // for those too said the same thing twice.
   //
-  // The intro beat carries no actions at all, and that is precisely the frame Mathieu was
-  // looking at when he asked for this, so the posts are read straight off the hand there.
-  // At showdown the chips have been pushed to the middle, so nothing is out front.
+  // They come off at the first raise, which is Mathieu's own boundary — from there the
+  // bubbles carry the story and the blinds are ancient history. A call is not a raise.
   const blindPosts = hand.actions.filter((a) => a.street === 'preflop' && a.type === 'post');
-  const betFor = (playerId: string): number | undefined => {
-    if (currentBeat?.kind === 'intro') return blindPosts.find((a) => a.playerId === playerId)?.amount;
-    if (currentBeat?.kind !== 'street') return undefined;
-    return revealedContribs[currentBeat.street]?.[playerId];
-  };
+  const raiseRevealed = revealedActions.some((a) => a.type === 'bet' || a.type === 'raise' || a.type === 'allin');
+  const blindFor = (playerId: string): number | undefined =>
+    raiseRevealed ? undefined : blindPosts.find((a) => a.playerId === playerId)?.amount;
 
   // Each seat shows its latest REVEALED action, so a player who checks and then bets shows
   // the check first and the bet in its place — the cursor, not an animation delay, decides
@@ -328,9 +326,9 @@ export default function HandReplayerPlayScreen() {
       ringWidth: p.isHero ? 2 : 1.5,
       dimmed: folded,
       tag: seatTag(p),
-      bet: (() => {
-        const amount = betFor(p.id);
-        return amount ? formatHandAmount(amount, hand.unitMode) : undefined;
+      blind: (() => {
+        const blind = blindFor(p.id);
+        return blind ? formatHandAmount(blind, hand.unitMode) : undefined;
       })(),
       fan: revealed
         ? {

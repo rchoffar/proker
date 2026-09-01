@@ -62,11 +62,14 @@ contributions dès la première frame du beat preflop, le pot les compte et les 
 réduits. Elles n'ont simplement **aucun visuel** : `animatedActions` les filtre, donc elles n'ont
 même pas de bulle d'action.
 
-**Décision : afficher la mise de la street en cours devant chaque joueur**, pas seulement les
-blindes. C'est ce que montre une vraie table, sa demande en est le cas particulier preflop, et les
-contributions par street sont déjà calculées (`contributionsFrom` conserve le dernier montant par
-joueur et par street). Un champ nommé sur le view-model du siège plutôt qu'un bricolage : les trois
-autres consommateurs de `SeatedTable` (flip, bluff, le board de setup) pourront s'en servir.
+**Décision : les blindes, et rien d'autre.** Une première version affichait la mise de la street en
+cours devant chaque joueur — la vraie table — mais Rémy l'a écartée à l'essai : chaque autre mise
+s'annonce déjà par sa bulle d'action, donc un jeton en plus disait deux fois la même chose. Les
+blindes sont l'exception parce que les posts sont justement filtrés hors des bulles.
+
+Elles disparaissent à la première relance, la limite que donne Mathieu lui-même — à partir de là les
+bulles portent l'histoire. Un call n'est pas une relance. Le champ s'appelle `blind` sur le
+view-model du siège, pas `bet` : le nommer largement invitait à y remettre autre chose.
 
 **Le détail qui compte** : sa capture est le beat d'**intro**, qui ne porte aucune action du tout. Si
 le jeton se dérive uniquement des contributions révélées, il n'y a rien à voir exactement là où il
