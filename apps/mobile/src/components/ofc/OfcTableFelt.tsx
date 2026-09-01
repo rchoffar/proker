@@ -27,10 +27,12 @@ const FELT_PAD = spacing.md;
  * is also what lets the cards be bigger.
  */
 const FELT_RADIUS = radius.xl;
+/** Total width PokerTable's rail takes off the felt (12 each side). */
+const RAIL = 24;
 
 interface Props {
-  /** Given the height available inside the felt, so boards can be sized to fill it exactly. */
-  children: (innerHeight: number) => ReactNode;
+  /** Given the room inside the felt, so boards can be sized to fill it exactly. */
+  children: (inner: { width: number; height: number }) => ReactNode;
 }
 
 export function OfcTableFelt({ children }: Props) {
@@ -44,7 +46,9 @@ export function OfcTableFelt({ children }: Props) {
 
   // Capped at the size every other game's felt uses, so it stays recognisably the same table.
   const height = Math.min(PLAY_TABLE.height, slotH ?? PLAY_TABLE.height);
-  const innerHeight = Math.max(0, height - FELT_PAD * 2);
+  // The rail is 12 a side and already frames the boards, so the centre spends nothing more on
+  // horizontal padding: at two boards abreast every point of width is a point of card.
+  const inner = { width: width - RAIL, height: Math.max(0, height - FELT_PAD * 2) };
 
   return (
     <View style={styles.slot} onLayout={onLayout}>
@@ -56,7 +60,7 @@ export function OfcTableFelt({ children }: Props) {
           <TableWordmark />
         </View>
         <View style={styles.center} pointerEvents="box-none">
-          {children(innerHeight)}
+          {children(inner)}
         </View>
       </PokerTable>
     </View>
@@ -83,7 +87,6 @@ const styles = StyleSheet.create({
   // so a flex child fills the box.
   center: {
     flex: 1,
-    paddingHorizontal: spacing.sm,
     paddingVertical: FELT_PAD,
     alignItems: 'center',
     justifyContent: 'center',

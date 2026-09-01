@@ -370,12 +370,12 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
         </Animated.Text>
 
         <OfcTableFelt>
-          {(innerHeight) => (
+          {(inner) => (
             <OfcSeatsStrip
               seats={stripSeats}
               activeId={phase === 'placing' ? view.turnId : null}
               compact={boardOpen}
-              innerHeight={innerHeight}
+              inner={inner}
             />
           )}
         </OfcTableFelt>

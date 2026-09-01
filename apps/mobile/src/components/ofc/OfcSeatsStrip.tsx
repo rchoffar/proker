@@ -33,8 +33,8 @@ interface Props {
    * nothing on these screens scrolls, so this is what keeps everything on one page.
    */
   compact?: boolean;
-  /** Height available inside the felt, from OfcTableFelt. A lone board fills it. */
-  innerHeight?: number;
+  /** The room inside the felt, from OfcTableFelt. Compact boards are sized to fill it. */
+  inner?: { width: number; height: number };
 }
 
 // No dark PLATE behind a seat — on green felt that reads as a rectangle swallowing the table,
@@ -43,49 +43,50 @@ interface Props {
 // tells you where one ends and the next begins. Gold, and a shade darker inside, for whoever
 // is acting.
 
-// What limits a compact board depends on how many there are, and the two limits are nothing
-// alike.
+// A compact board is as big as BOTH dimensions allow, and which one binds depends on how many
+// boards there are — that is the whole rule, rather than a guessed size per case.
 //
-// Alone, the limit is HEIGHT — three rows plus a header line inside whatever the placement
-// board leaves over — and there is width going spare, so the slot is as big as that height
-// allows.
-//
-// Two abreast, the limit is WIDTH: five slots each, twice, plus the gap between them, inside
-// the felt. That one binds long before the height does, which is why the felt looks like it
-// has room left at three players and yet the cards cannot grow. Stacking them instead would
-// make them smaller still — half the height each, for a full width neither can use.
-const COMPACT_SLOT_ABREAST = 26;
-/** Height a seat spends on its own name/chips line, before the grid gets any. */
+// Alone, the height binds: three rows and a name line inside whatever the placement board
+// left over, with width going spare. Two abreast and the width binds instead — five slots
+// each, twice, plus the gap — and it binds hard: it is why three players looks like there is
+// room to spare and the cards still cannot grow much. Stacking them would be worse, not
+// better: half the height each for a width neither can use.
+
+/** Vertical: a seat's own name/chips line, the row gaps, and its border/padding. */
 const HEADER_H = 22;
-/** Never so small it stops being readable, never so big the felt's width runs out. */
-const SLOT_MIN = 26;
+const ROW_GAP = 2;
+const SEAT_CHROME_Y = 8;
+/** Horizontal: the gap between two boards, and each board's border/padding. */
+const BOARD_GAP = spacing.sm;
+const SEAT_CHROME_X = 6;
+/** Never so small it stops being readable, never bigger than the big board below it. */
+const SLOT_MIN = 24;
 const SLOT_MAX = 46;
 
-/** The tallest slot three rows of it can be inside `innerHeight`. */
-function slotForHeight(innerHeight: number): number {
-  const rows = Math.max(0, innerHeight - HEADER_H - CARD_ROW_GAP * 2 - SEAT_CHROME);
-  const height = Math.floor(rows / 3);
-  const width = Math.round((height * 46) / 64);
-  return Math.min(SLOT_MAX, Math.max(SLOT_MIN, width));
+const clampSlot = (w: number) => Math.min(SLOT_MAX, Math.max(SLOT_MIN, w));
+
+/** Widest slot three rows of it fit into `height`, header and gaps taken off. */
+function slotForHeight(height: number): number {
+  const rows = height - HEADER_H - ROW_GAP * 2 - SEAT_CHROME_Y;
+  return clampSlot(Math.floor((rows / 3) * (46 / 64)));
 }
 
-/** Row gap and border/padding OfcGridView and the seat spend on themselves. */
-const CARD_ROW_GAP = 4;
-const SEAT_CHROME = 10;
+/** Widest slot five of them fit into `width`, shared between `boards` boards. */
+function slotForWidth(width: number, boards: number): number {
+  const perBoard = (width - BOARD_GAP * (boards - 1)) / boards;
+  return clampSlot(Math.floor((perBoard - SEAT_CHROME_X - ROW_GAP * 4) / 5));
+}
 
-export function OfcSeatsStrip({ seats, activeId, compact = false, innerHeight }: Props) {
+export function OfcSeatsStrip({ seats, activeId, compact = false, inner }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const abreast = compact && seats.length > 1;
-  // Abreast, the width runs out long before the height does, so the slot is fixed. Alone, the
-  // height is the only limit — so it takes exactly as much of it as there is.
-  const slotWidth = !compact
-    ? undefined
-    : abreast
-      ? COMPACT_SLOT_ABREAST
-      : innerHeight
-        ? slotForHeight(innerHeight)
-        : SLOT_MIN;
+  const slotWidth =
+    compact && inner
+      ? Math.min(slotForHeight(inner.height), slotForWidth(inner.width, seats.length))
+      : compact
+        ? SLOT_MIN
+        : undefined;
 
   return (
     <View style={[styles.strip, compact && styles.stripCompact]}>
@@ -158,13 +159,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-start',
-    gap: spacing.md,
+    gap: BOARD_GAP,
   },
   seat: {
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
     borderRadius: radius.md,
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: 2,
     paddingVertical: spacing.xs,
     alignItems: 'center',
     gap: 3,

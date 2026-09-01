@@ -188,13 +188,8 @@ export default function OfcPlayScreen() {
         </Animated.Text>
 
         <OfcTableFelt>
-          {(innerHeight) => (
-            <OfcSeatsStrip
-              seats={seats}
-              activeId={actor?.id ?? null}
-              compact={boardOpen}
-              innerHeight={innerHeight}
-            />
+          {(inner) => (
+            <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} compact={boardOpen} inner={inner} />
           )}
         </OfcTableFelt>
 
