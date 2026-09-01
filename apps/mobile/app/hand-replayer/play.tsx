@@ -259,6 +259,21 @@ export default function HandReplayerPlayScreen() {
   const potSoFar = roundAmount(totalContributed(revealedContribs) + deadMoneySoFar);
   const committedFor = (playerId: string) => roundAmount(committedBy(revealedContribs, playerId));
 
+  // Money in front of a player: what they have put in ON THE CURRENT STREET, which is what a
+  // real table shows and what makes a replay readable — the blinds preflop, then the raise
+  // that answered them, then each street's betting in turn. The blinds were already in the
+  // pot and already off the stacks, they just had nothing of their own on the felt.
+  //
+  // The intro beat carries no actions at all, and that is precisely the frame Mathieu was
+  // looking at when he asked for this, so the posts are read straight off the hand there.
+  // At showdown the chips have been pushed to the middle, so nothing is out front.
+  const blindPosts = hand.actions.filter((a) => a.street === 'preflop' && a.type === 'post');
+  const betFor = (playerId: string): number | undefined => {
+    if (currentBeat?.kind === 'intro') return blindPosts.find((a) => a.playerId === playerId)?.amount;
+    if (currentBeat?.kind !== 'street') return undefined;
+    return revealedContribs[currentBeat.street]?.[playerId];
+  };
+
   // Each seat shows its latest REVEALED action, so a player who checks and then bets shows
   // the check first and the bet in its place — the cursor, not an animation delay, decides
   // when. Keyed by action id below so the swap re-pops the bubble.
@@ -313,6 +328,10 @@ export default function HandReplayerPlayScreen() {
       ringWidth: p.isHero ? 2 : 1.5,
       dimmed: folded,
       tag: seatTag(p),
+      bet: (() => {
+        const amount = betFor(p.id);
+        return amount ? formatHandAmount(amount, hand.unitMode) : undefined;
+      })(),
       fan: revealed
         ? {
             cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),

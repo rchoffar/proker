@@ -1,9 +1,16 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { PokerTable, seatPoint } from '../hand/PokerTable';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { PokerTable, seatPoint, TABLE } from '../hand/PokerTable';
 import { TableSeat } from '../hand/TableSeat';
 import { CardFan, FAN_GEOMETRY, fanSizeFor, type DealSpec, type FanCard, type FanSize } from './CardFan';
+import { fontFamily, radius } from '../../design-system/theme';
+
+// How far along the line from a seat to the pot its chip sits. Far enough in to clear the
+// card fan, which occupies the pod's felt-facing side, and short of the board in the middle.
+const BET_INSET = 0.34;
+const BET_W = 54;
+const BET_H = 18;
 
 // One poker table with players seated around it — the layer every card game shares
 // (flip, bluff, the hand replayer). Callers pass data: who sits where, what's in their
@@ -38,6 +45,11 @@ export interface SeatSpec {
   badge?: ReactNode;
   /** Absolutely-positioned extras relative to the pod (action bubbles…). */
   extras?: ReactNode;
+  /**
+   * What this seat has put in on the current street, as a chip on the felt between them and
+   * the pot — where it sits on a real table. Absent when they have nothing out there.
+   */
+  bet?: string;
   entering?: EnteringProp;
 }
 
@@ -90,6 +102,29 @@ export function SeatedTable({
       ) : null}
 
       {underSeats}
+
+      {/* Bets, on the line between each seat and the pot. Deliberately NOT part of the pod:
+          the pod's felt-facing side is where the card fan goes, and chips belong further in
+          than the cards anyway — cards in front of the player, money towards the middle. */}
+      {seats.map((seat, k) => {
+        if (!seat.bet) return null;
+        const point = seatPoint(k, seats.length, width, height);
+        const x = width / 2 + (point.x - width / 2) * squeezeX;
+        const cx = x + (width / 2 - x) * BET_INSET;
+        const cy = point.y + (height / 2 - point.y) * BET_INSET;
+        return (
+          <Animated.View
+            key={`bet-${seat.id}`}
+            entering={FadeIn.duration(200)}
+            pointerEvents="none"
+            style={[styles.bet, { left: cx - BET_W / 2, top: cy - BET_H / 2, width: BET_W }]}
+          >
+            <Text style={styles.betText} numberOfLines={1}>
+              {seat.bet}
+            </Text>
+          </Animated.View>
+        );
+      })}
 
       {seats.map((seat, k) => {
         const point = seatPoint(k, seats.length, width, height);
@@ -165,6 +200,21 @@ export function SeatedTable({
 }
 
 const styles = StyleSheet.create({
+  bet: {
+    position: 'absolute',
+    height: BET_H,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: TABLE.goldDeep,
+    backgroundColor: TABLE.plateBg,
+  },
+  betText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+    color: TABLE.gold,
+  },
   feltCenter: {
     position: 'absolute',
     top: 0,
