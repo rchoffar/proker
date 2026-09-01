@@ -502,7 +502,11 @@ export default function HandReplayerBuilderScreen() {
       pots: computePots(actions, roundAmount(deadBlinds + anteValue)),
       winnerIds: effectiveWinnerIds.length > 0 ? effectiveWinnerIds : undefined,
       winningHandDescription: effectiveWinningDescription,
-      headsUp: isTwoHanded && headsUp ? true : undefined,
+      // `false` when the switch is off, NOT undefined: undefined is reserved for hands from
+      // before the question existed, and computeBlindPosting reads it as "guess heads-up" for
+      // exactly those. Collapsing "no" into "never asked" made the felt badge the button
+      // BTN/SB while the same hand counted the small blind as dead money in the pot.
+      headsUp: isTwoHanded ? headsUp : undefined,
       deadBlinds: deadBlinds > 0 ? deadBlinds : undefined,
       ante: anteValue > 0 ? anteValue : undefined,
       unitMode,

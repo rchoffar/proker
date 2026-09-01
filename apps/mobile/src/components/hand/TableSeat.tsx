@@ -6,6 +6,9 @@ import { POD_ANCHOR_ABOVE_Y } from '../table/seatLayout';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { initials } from '../../lib/format';
 
+/** The seat's avatar circle. Named because the position badge is anchored off it. */
+const AVATAR_D = 44;
+
 type EnteringProp = ComponentProps<typeof Animated.View>['entering'];
 
 // Default upward anchor shift when a card fan sits above the avatar, so the avatar itself
@@ -79,12 +82,18 @@ export function TableSeat({
       <View style={[styles.podInner, { width }, dimmed && styles.dimmed]}>
         <View style={[styles.avatar, { borderColor: ringColor, borderWidth: ringWidth }, glow && styles.avatarGlow]}>
           <Text style={styles.avatarText}>{initials(name)}</Text>
-          {tag ? (
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ) : null}
         </View>
+        {/* Sibling of the avatar, not a child of it: an absolute child is measured against
+            its containing block, and inside the 44pt circle that left 34pt of text — so
+            "BTN/SB" wrapped onto two lines and the pill grew over the avatar. The pod is
+            74pt, which fits it on one line. Anchored to sit at the circle's top-right. */}
+        {tag ? (
+          <View style={[styles.tag, { right: (width - AVATAR_D) / 2 - 10 }]}>
+            <Text style={styles.tagText} numberOfLines={1}>
+              {tag}
+            </Text>
+          </View>
+        ) : null}
         <View style={[styles.plate, { borderColor: plateBorderColor, minWidth: width - 10, maxWidth: width + 20 }]}>
           <Text style={styles.plateName} numberOfLines={1}>
             {name}
@@ -139,9 +148,9 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: AVATAR_D,
+    height: AVATAR_D,
+    borderRadius: AVATAR_D / 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#131A16',
@@ -163,7 +172,10 @@ const styles = StyleSheet.create({
   tag: {
     position: 'absolute',
     top: -5,
-    right: -10,
+    // Above the name plate (zIndex 2), and elevation mirrors it or Android reorders — see
+    // the layering note above.
+    zIndex: 3,
+    elevation: 3,
     backgroundColor: TABLE.plateBg,
     borderWidth: 1,
     borderColor: TABLE.goldDeep,

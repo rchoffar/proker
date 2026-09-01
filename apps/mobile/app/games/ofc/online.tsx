@@ -511,6 +511,9 @@ const styles = StyleSheet.create({
     gap: spacing.base,
   },
   content: {
+    // flexGrow, so the felt's slot has leftover height to claim when the placement board is
+    // not on screen. Without it a ScrollView sizes to its content and nothing can stretch.
+    flexGrow: 1,
     paddingHorizontal: spacing.base,
     gap: spacing.md,
   },

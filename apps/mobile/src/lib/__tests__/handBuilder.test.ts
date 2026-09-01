@@ -8,6 +8,7 @@ import {
   resizePlayers,
   sortAndSeat,
 } from '../handBuilder';
+import { computeBlindPosting } from '../handPositions';
 import type { HandAction, HandPlayer } from '../../types';
 
 const name = (n: number) => `Player ${n}`;
@@ -138,6 +139,40 @@ describe('positionLabel', () => {
 
   it('is empty for a player with no position yet', () => {
     expect(positionLabel({ id: 'p0' }, {})).toBe('');
+  });
+});
+
+// The badge and the dead money are two readings of ONE stored answer, so they can never
+// disagree — and they did: the builder collapsed "heads-up: no" into `undefined`, which the
+// reader takes to mean "hand recorded before the question existed, guess heads-up". The felt
+// then badged the button BTN/SB while the same hand counted the small blind as dead money.
+describe('the stored heads-up answer, as the felt reads it back', () => {
+  const roster = [
+    { id: 'p0', position: 'BTN' as const },
+    { id: 'p1', position: 'BB' as const },
+  ];
+  const readBack = (stored: boolean | undefined) => {
+    const posting = computeBlindPosting(roster, 0.5, 1, stored);
+    return { label: positionLabel(roster[0], posting), deadBlinds: posting.deadBlinds };
+  };
+
+  it('true — a real heads-up table: the button posts, nothing is dead', () => {
+    expect(readBack(true)).toEqual({ label: 'BTN/SB', deadBlinds: 0 });
+  });
+
+  it('false — two of a bigger table: the button is just the button, the SB is dead money', () => {
+    expect(readBack(false)).toEqual({ label: 'BTN', deadBlinds: 0.5 });
+  });
+
+  it('undefined — recorded before the question existed, so the old guess stands', () => {
+    expect(readBack(undefined)).toEqual({ label: 'BTN/SB', deadBlinds: 0 });
+  });
+
+  it('never badges BTN/SB while charging the small blind as dead money', () => {
+    for (const stored of [true, false, undefined]) {
+      const { label, deadBlinds } = readBack(stored);
+      expect(label === 'BTN/SB').toBe(deadBlinds === 0);
+    }
   });
 });
 
