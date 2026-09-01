@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useMemo } from 'react';
@@ -90,7 +91,14 @@ export default function DashboardScreen() {
                 festival={currentFestival}
                 organizer={currentFestival.organizerId ? organizerById[currentFestival.organizerId] : undefined}
                 badge={heroBadge}
-                onPress={() => router.push(`/festival/${currentFestival.id}`)}
+                // A festival with its own page goes there — card and button alike, they share
+                // this one handler. Everything else keeps the in-app detail screen, which has
+                // the buy-ins, the Main Event and the blind structure.
+                onPress={() =>
+                  currentFestival.url
+                    ? Linking.openURL(currentFestival.url)
+                    : router.push(`/festival/${currentFestival.id}`)
+                }
               />
             ) : (
               <GlassCard variant="dark" padding={24} style={styles.emptyHero}>

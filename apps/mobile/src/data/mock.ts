@@ -45,11 +45,16 @@ export const mockFestivals: Festival[] = [
   { id: 'f6',  name: 'WPTDeepStacks',            location: 'Deauville', countryId: 'co1', organizerId: 'or4', startDate: '2026-08-15', endDate: '2026-08-24' },
   { id: 'f8',  name: 'Aviation Club de France',  location: 'Paris',     countryId: 'co1', organizerId: 'or6', startDate: '2026-07-05', endDate: '2026-07-09' },
   { id: 'f9',  name: 'Casino de Lyon',           location: 'Lyon',      countryId: 'co1', organizerId: 'or2', startDate: '2026-09-01', endDate: '2026-09-07' },
+  // Pinned to the home card: it is the festival Mathieu is walking into, and the card is what
+  // he shows the Texapoker managers. `url` sends the card to their own page rather than to an
+  // in-app detail screen we have no tournament list for.
+  { id: 'f21', name: 'WSOP-C Paris',              location: 'Paris',     countryId: 'co1', organizerId: 'or7', startDate: '2026-09-01', endDate: '2026-09-13', featured: true,
+    url: 'https://www.texapoker.net/fr/tournois-poker-live/paris-partouche-pasino-club-wsop-c_3089.html' },
   // Monaco
   { id: 'f7',  name: 'Casino de Monte-Carlo',    location: 'Monaco',    countryId: 'co3', organizerId: 'or5', startDate: '2026-09-15', endDate: '2026-09-25' },
   // Espagne
   { id: 'f4',  name: 'EPT Barcelone',            location: 'Barcelona', countryId: 'co2', organizerId: 'or3', startDate: '2026-08-20', endDate: '2026-08-30' },
-  { id: 'f10', name: 'WPT Spain',                location: 'Madrid',    countryId: 'co2', organizerId: 'or4', startDate: '2026-07-10', endDate: '2026-07-18', featured: true },
+  { id: 'f10', name: 'WPT Spain',                location: 'Madrid',    countryId: 'co2', organizerId: 'or4', startDate: '2026-07-10', endDate: '2026-07-18' },
   // République Tchèque
   { id: 'f11', name: 'EPT Prague',               location: 'Prague',    countryId: 'co4', organizerId: 'or3', startDate: '2026-10-01', endDate: '2026-10-12' },
   // Malte

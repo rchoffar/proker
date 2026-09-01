@@ -52,6 +52,12 @@ export interface Festival {
   startDate?: string; // ISO date, festival start
   endDate?: string; // ISO date, festival end
   featured?: boolean; // "Coup de cœur" pin
+  /**
+   * The organiser's own page. When set, the home card opens it instead of the in-app
+   * festival detail — for a festival we do not have a tournament list for, the real site is
+   * more use than an empty screen.
+   */
+  url?: string;
 }
 
 export interface BlindLevel {
