@@ -689,6 +689,15 @@ export default function HandReplayerBuilderScreen() {
     const previewHand = buildHandHistory();
     return (
       <View style={styles.stepBody}>
+        {/* The title first: it is what the hand is called everywhere afterwards, and naming
+            the story you are about to tell comes before its bookkeeping. */}
+        <TextInput
+          value={customTitle}
+          onChangeText={setCustomTitle}
+          placeholder={t('titlePlaceholder', { example: computeAutoTitle() })}
+          placeholderTextColor={colors.textTertiary}
+          style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
+        />
         <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('showdownHint')}</Text>
         {activePlayers
           .filter((p) => !p.isHero)
@@ -777,13 +786,6 @@ export default function HandReplayerBuilderScreen() {
           </>
         )}
 
-        <TextInput
-          value={customTitle}
-          onChangeText={setCustomTitle}
-          placeholder={t('titlePlaceholder', { example: computeAutoTitle() })}
-          placeholderTextColor={colors.textTertiary}
-          style={[styles.descInput, { color: colors.textPrimary, borderColor: colors.hairline, backgroundColor: colors.surface.fieldBg }]}
-        />
         <View style={styles.previewWrap}>
           <HandRecapCard hand={previewHand} />
         </View>
@@ -910,32 +912,8 @@ export default function HandReplayerBuilderScreen() {
                 );
               })}
             </View>
-            {deadBlinds > 0 && (
-              <Text style={[styles.hint, { color: colors.textTertiary }]}>
-                {!blindPosting.sbPosterId && !blindPosting.bbPosterId
-                  ? t('deadBlindsHintBoth')
-                  : !blindPosting.bbPosterId
-                    ? t('deadBlindsHintBb')
-                    : t('deadBlindsHintSb')}
-              </Text>
-            )}
             {unitMode === 'chips' && (
               <AmountInput label={t('bigBlindLabel')} value={bigBlindAmount} onChange={setBigBlindAmount} unit="" placeholder="2" />
-            )}
-            {isTwoHanded && (
-              <>
-                <View style={styles.anteRow}>
-                  <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('headsUpLabel')}</Text>
-                  <Switch
-                    value={headsUp}
-                    onValueChange={setHeadsUp}
-                    trackColor={{ true: colors.accentBright, false: colors.surface.fieldBorder }}
-                  />
-                </View>
-                <Text style={[styles.hint, { color: colors.textTertiary }]}>
-                  {headsUp ? t('headsUpHintOn') : t('headsUpHintOff')}
-                </Text>
-              </>
             )}
             <View style={styles.anteRow}>
               <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('anteLabel')}</Text>
@@ -967,6 +945,37 @@ export default function HandReplayerBuilderScreen() {
                 />
                 <Text style={[styles.hint, { color: colors.textTertiary }]}>{t('anteHint')}</Text>
               </>
+            )}
+            {/* Heads-up last: the rarer of the two switches, per Mathieu. The dead-blinds
+                hint travels with it rather than staying up with the roster — it only ever
+                appears BECAUSE this switch is off, so it belongs next to its cause. */}
+            {isTwoHanded && (
+              <>
+                <View style={styles.anteRow}>
+                  <Text style={[styles.anteLabel, { color: colors.textSecondary }]}>{t('headsUpLabel')}</Text>
+                  <Switch
+                    value={headsUp}
+                    onValueChange={setHeadsUp}
+                    trackColor={{ true: colors.accentBright, false: colors.surface.fieldBorder }}
+                  />
+                </View>
+                <Text style={[styles.hint, { color: colors.textTertiary }]}>
+                  {headsUp ? t('headsUpHintOn') : t('headsUpHintOff')}
+                </Text>
+              </>
+            )}
+            {/* Only when the heads-up hint above is not already saying it: at two players
+                "un coup à 2 sur une table pleine : la petite blinde est de l'argent mort"
+                and "pas de SB parmi ces joueurs…" are the same sentence twice, which is
+                what putting the two blocks next to each other exposed. */}
+            {deadBlinds > 0 && !isTwoHanded && (
+              <Text style={[styles.hint, { color: colors.textTertiary }]}>
+                {!blindPosting.sbPosterId && !blindPosting.bbPosterId
+                  ? t('deadBlindsHintBoth')
+                  : !blindPosting.bbPosterId
+                    ? t('deadBlindsHintBb')
+                    : t('deadBlindsHintSb')}
+              </Text>
             )}
           </View>
         );
