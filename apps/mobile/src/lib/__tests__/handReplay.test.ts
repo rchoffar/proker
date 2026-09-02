@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aggressiveActionIds,
   animatedActions,
   buildBeats,
   committedBy,
@@ -67,6 +68,45 @@ function makeHand(): HandHistory {
 
 const potAt = (hand: HandHistory, beats: ReturnType<typeof buildBeats>, index: number, count: number) =>
   totalContributed(contributionsFrom(revealedActionsUpTo(beats, index, count))) + (hand.ante ?? 0);
+
+// The builder retypes a call into `allin` whenever the caller is not deeper than the bet, so
+// the stored type alone cannot tell a shove from a call of a shove — both read `allin`, and on
+// the felt both got the shover's badge and the shover's gold.
+describe('aggressiveActionIds', () => {
+  const ids = (actions: HandAction[]) => aggressiveActionIds(actions);
+
+  it('tells a shove from the call of that shove, though both are stored as allin', () => {
+    order = 0;
+    const shove = act('flop', 'hero', 'allin', 100);
+    const callOfShove = act('flop', 'villain', 'allin', 60); // shorter stack, capped
+    expect(ids([shove, callOfShove])).toEqual(new Set([shove.id]));
+  });
+
+  it('reads the blind posts, so a preflop raise beats the big blind and a limp does not', () => {
+    order = 0;
+    const sb = act('preflop', 'hero', 'post', 0.5);
+    const bb = act('preflop', 'villain', 'post', 1);
+    const limp = act('preflop', 'hero', 'call', 1);
+    const open = act('preflop', 'villain', 'raise', 3);
+    expect(ids([sb, bb, limp, open])).toEqual(new Set([open.id]));
+  });
+
+  it('counts every genuine raise in an escalating street, and no call', () => {
+    order = 0;
+    const bet = act('flop', 'hero', 'bet', 5);
+    const raise = act('flop', 'villain', 'raise', 10);
+    const call = act('flop', 'hero', 'call', 10);
+    expect(ids([bet, raise, call])).toEqual(new Set([bet.id, raise.id]));
+  });
+
+  it('starts each street fresh, so a small bet after a big one still counts', () => {
+    order = 0;
+    const big = act('preflop', 'hero', 'raise', 20);
+    const called = act('preflop', 'villain', 'call', 20);
+    const small = act('flop', 'villain', 'bet', 2);
+    expect(ids([big, called, small])).toEqual(new Set([big.id, small.id]));
+  });
+});
 
 describe('replay reveal', () => {
   it('leaves the blinds out of the animated sequence', () => {

@@ -34,6 +34,16 @@ export interface BettingRoundState {
   // legality (owed = currentBet - contribution), which is what lets the Big Blind "check"
   // when unraised while everyone else who owes money still has to call/raise/fold.
   contributions: Record<string, number>;
+  /**
+   * How much the last full bet/raise raised BY. Poker's minimum raise is not "more than the
+   * outstanding bet", it is "by at least as much as the last raise" — so `currentBet` alone
+   * cannot express it and this is the missing half: `minRaiseTo = currentBet + lastRaiseSize`.
+   *
+   * It opens at the big blind on every street, which gives both floors at once: preflop
+   * `currentBet` is already the BB, so the first raise must reach 2 BB; postflop `currentBet`
+   * is 0, so an opening bet must reach 1 BB.
+   */
+  lastRaiseSize: number;
 }
 
 export interface DerivedState {
@@ -50,6 +60,25 @@ export interface DerivedState {
   // Everyone but one player folded before showdown.
   handOver: boolean;
   foldWinnerId?: string;
+}
+
+/**
+ * Did this action put MORE money out than was already owed — i.e. was it aggression rather
+ * than a response to it?
+ *
+ * Only an amount that actually raises the outstanding bet reopens the action: a short-stack
+ * all-in below (or matching) the current bet is a call, and forcing players who already
+ * matched to act again would be wrong.
+ *
+ * It is exported because the replay screen needs the same answer for a different reason —
+ * `resolveActionInput` retypes a call into `allin` whenever the caller is not deeper than the
+ * bet, so the STORED type cannot tell a shove from a call of a shove. Both readings must come
+ * from this one predicate; writing it a second time in the screen is what produced the
+ * BTN/SB divergence in the position labels.
+ */
+export function isAggressiveAmount(type: ActionType, amount: number | undefined, currentBet: number): boolean {
+  if (type !== 'bet' && type !== 'raise' && type !== 'allin') return false;
+  return amount !== undefined && amount > currentBet;
 }
 
 export const STREETS: Street[] = ['preflop', 'flop', 'turn', 'river'];
@@ -108,7 +137,7 @@ export function replayActions(players: EnginePlayer[], config: EngineConfig, act
     // shoved yet), so this never blocks the very first action.
     const round: BettingRoundState =
       eligible.length <= 1
-        ? { street, toAct: [], lastAggressorId: undefined, currentBet: 0, contributions: {} }
+        ? { street, toAct: [], lastAggressorId: undefined, currentBet: 0, contributions: {}, lastRaiseSize: config.bigBlind }
         : street === 'preflop'
           ? {
               street,
@@ -120,6 +149,8 @@ export function replayActions(players: EnginePlayer[], config: EngineConfig, act
               // overrides this with its (possibly stack-capped) amount below.
               currentBet: config.bigBlind,
               contributions: {},
+              // The blind IS the opening bet, so the first raise must double it.
+              lastRaiseSize: config.bigBlind,
             }
           : {
               street,
@@ -130,6 +161,8 @@ export function replayActions(players: EnginePlayer[], config: EngineConfig, act
               lastAggressorId: undefined,
               currentBet: 0,
               contributions: {},
+              // Nothing bet yet, so an opening bet's minimum is one big blind.
+              lastRaiseSize: config.bigBlind,
             };
 
     for (const a of streetActions) {
@@ -156,14 +189,16 @@ export function replayActions(players: EnginePlayer[], config: EngineConfig, act
       if (a.type === 'allin') allIn.add(a.playerId);
       if (a.amount !== undefined) round.contributions[a.playerId] = a.amount;
 
-      // Only an amount that actually raises the outstanding bet reopens the action — a
-      // short-stack all-in below (or matching) the current bet is a call, and forcing
-      // players who already matched to act again would be wrong.
-      const isAggression =
-        (a.type === 'bet' || a.type === 'raise' || a.type === 'allin') && a.amount !== undefined && a.amount > round.currentBet;
-      if (isAggression) {
+      if (isAggressiveAmount(a.type, a.amount, round.currentBet)) {
         round.toAct = reopenQueueFrom(players, a.playerId, folded, allIn);
         round.lastAggressorId = a.playerId;
+        // An INCOMPLETE raise — a short stack going all-in for less than a full raise — does
+        // not redefine the increment: the next full raise is still measured against the last
+        // real one. Otherwise a 7 shove over a bet of 5 (minimum 10) would drop the next
+        // minimum to 9 instead of 12.
+        if (a.amount! >= round.currentBet + round.lastRaiseSize) {
+          round.lastRaiseSize = roundAmount(a.amount! - round.currentBet);
+        }
         round.currentBet = a.amount!;
       } else {
         round.toAct = round.toAct.filter((id) => id !== a.playerId);
@@ -204,6 +239,21 @@ export function remainingStackFor(derived: DerivedState, config: EngineConfig, p
 // everything left behind. Committing exactly this amount IS an all-in.
 export function maxToFor(derived: DerivedState, config: EngineConfig, playerId: string): number {
   return roundAmount((derived.round?.contributions[playerId] ?? 0) + remainingStackFor(derived, config, playerId));
+}
+
+/**
+ * Smallest legal "bet/raise to" this street — the mirror of maxToFor, and the number the
+ * builder's amount field opens on.
+ *
+ * Capped at maxTo on purpose: a player too short to reach the minimum may still put their
+ * whole stack in, so the floor must never exceed what they are able to commit. Whether that
+ * short shove reopens the betting is a separate question, and one the engine already answers
+ * its own way (see isAggression).
+ */
+export function minToFor(derived: DerivedState, config: EngineConfig, playerId: string): number {
+  const round = derived.round;
+  if (!round) return 0;
+  return Math.min(roundAmount(round.currentBet + round.lastRaiseSize), maxToFor(derived, config, playerId));
 }
 
 export function availableActions(derived: DerivedState, config: EngineConfig, playerId: string): ActionType[] {

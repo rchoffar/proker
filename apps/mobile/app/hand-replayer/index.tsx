@@ -36,6 +36,7 @@ import {
   availableActions as engineAvailableActions,
   computeBlindPosts,
   maxToFor as engineMaxTo,
+  minToFor as engineMinTo,
   remainingStackFor as engineRemainingStack,
   replayActions,
   resolveActionInput,
@@ -490,7 +491,11 @@ export default function HandReplayerBuilderScreen() {
     return {
       id: sessionIdentity.id,
       createdAt: sessionIdentity.createdAt,
-      title: customTitle.trim() || computeAutoTitle(),
+      // `undefined`, not the generated title and not '': a hand nobody named simply has no
+      // name, and every consumer already knows how to show that. Storing the auto-title here
+      // meant every hand carried one whether or not it said anything; storing '' would make
+      // the two `??` consumers render an empty line instead of falling back.
+      title: customTitle.trim() || undefined,
       gameType: 'NLH',
       players: finalPlayers,
       board: {
@@ -511,7 +516,7 @@ export default function HandReplayerBuilderScreen() {
       ante: anteValue > 0 ? anteValue : undefined,
       unitMode,
     };
-  }, [isTwoHanded, headsUp, playersWithStatus, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, computeAutoTitle, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, anteValue, stackFor, unitMode, sessionIdentity]);
+  }, [isTwoHanded, headsUp, playersWithStatus, heroCards, opponentReveal, opponentCards, effectiveWinnerIds, customTitle, flopCards, turnCard, riverCard, actions, effectiveWinningDescription, deadBlinds, anteValue, stackFor, unitMode, sessionIdentity]);
 
   // Auto-save: the hand lands in the history (and pushes to the server) as soon as the
   // builder reaches the showdown step — including the fold-out jump. buildHandHistory's
@@ -549,10 +554,6 @@ export default function HandReplayerBuilderScreen() {
     return true;
   };
 
-  // The hand's first raise defaults to a 2 BB open (blind posts are 'post', so they don't
-  // count as aggression) — one tap confirms the common min-open, and the field stays editable.
-  const firstRaiseDefault = (list: HandAction[]) =>
-    list.some((a) => a.type === 'bet' || a.type === 'raise' || a.type === 'allin') ? undefined : 2 * bigBlindValue;
 
   // A street's betting block: recorded actions as tappable selected-style pills (tapping one
   // rewinds the hand to that point, on any street), the live action row at the head of the
@@ -599,7 +600,7 @@ export default function HandReplayerBuilderScreen() {
             unitMode={unitMode}
             remainingStack={engineRemainingStack(derived, engineConfig, currentPlayer.id)}
             maxTo={engineMaxTo(derived, engineConfig, currentPlayer.id)}
-            defaultRaiseTo={firstRaiseDefault(actions)}
+            minTo={engineMinTo(derived, engineConfig, currentPlayer.id)}
             onAction={(type, amount) => recordAction(street, currentPlayer.id, type, amount)}
           />
         )}

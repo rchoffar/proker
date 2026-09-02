@@ -1,3 +1,4 @@
+import { isAggressiveAmount } from './handEngine';
 import type { HandAction, HandHistory, Street } from '../types';
 
 // How a saved hand becomes a replay: the beats a tap walks through, and what the viewer has
@@ -68,6 +69,40 @@ export function revealedActionsUpTo(beats: Beat[], index: number, revealCount: n
         seen++;
       }
       out.push(a);
+    }
+  });
+  return out;
+}
+
+/**
+ * Which actions were aggression — a bet, a raise, or a shove that actually put more out than
+ * was owed — as opposed to a response to it.
+ *
+ * The replay needs this because the STORED type cannot tell the two apart: the builder retypes
+ * a call into `allin` whenever the caller is not deeper than the bet, so a player shoving and a
+ * player calling that shove are both saved as `allin`. On the felt they then got the same badge
+ * and the same aggressor gold, which is exactly the "on rate qui a fait all in" confusion.
+ *
+ * Walks the stored actions rather than the engine's derived state, because the screen has a
+ * HandHistory and no EngineConfig (blinds and stacks are not stored on a hand). That is fine
+ * here: the blind posts ARE stored actions, so the outstanding bet rebuilds itself. The one
+ * case the engine seeds differently is a hand with no BB among its players — dead blinds — and
+ * there the first voluntary bet is aggression under either reading. The predicate itself is the
+ * engine's, so the answer cannot drift from the one the action queue uses.
+ */
+export function aggressiveActionIds(actions: HandAction[]): Set<string> {
+  const out = new Set<string>();
+  const currentBetByStreet: Record<string, number> = {};
+  actions.forEach((a) => {
+    const currentBet = currentBetByStreet[a.street] ?? 0;
+    if (a.type === 'post') {
+      // The big blind is the largest post, and it is what a preflop raise has to beat.
+      currentBetByStreet[a.street] = Math.max(currentBet, a.amount ?? 0);
+      return;
+    }
+    if (isAggressiveAmount(a.type, a.amount, currentBet)) {
+      out.add(a.id);
+      currentBetByStreet[a.street] = a.amount!;
     }
   });
   return out;

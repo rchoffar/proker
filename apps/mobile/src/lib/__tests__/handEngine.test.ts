@@ -5,6 +5,7 @@ import {
   availableActions,
   computeBlindPosts,
   maxToFor,
+  minToFor,
   remainingStackFor,
   replayActions,
   resolveActionInput,
@@ -213,6 +214,99 @@ describe('replayActions — reopen rules', () => {
     expect(d.round!.currentBet).toBe(20);
     expect(d.round!.toAct).toEqual(['p0']);
     expect(d.allInIds).toEqual(new Set(['p2']));
+  });
+});
+
+// Mathieu gave these four from a real session, and they are the source of the rule — so they
+// are the regression test, in his own numbers. Standard poker:
+//   minRaiseTo = currentBet + (currentBet - previousBet)
+// which the engine carries as `currentBet + lastRaiseSize`.
+describe('minToFor — the minimum-raise rule, from the examples it came from', () => {
+  it('flop: a 1.2 bet into an unopened pot makes the next minimum 2.4', () => {
+    const players = roster(['BTN', 'SB', 'BB']);
+    const config = cfg(players, 200);
+    const hand = makeHand(players, config);
+    hand.record('p0', 'call');
+    hand.record('p1', 'call');
+    hand.record('p2', 'check');
+    hand.record('p1', 'bet', 1.2);
+    expect(minToFor(hand.derived(), config, 'p2')).toBe(2.4);
+  });
+
+  it('preflop: BB 1, CO to 2.1, so the next minimum is 3.2 — not 2.2', () => {
+    const players = roster(['CO', 'BTN', 'SB', 'BB']);
+    const config = cfg(players, 200);
+    const hand = makeHand(players, config);
+    hand.record('p0', 'raise', 2.1);
+    expect(minToFor(hand.derived(), config, 'p1')).toBe(3.2);
+  });
+
+  it('flop: CO bets 5, so the minimum is 10, and after 10 it is 15', () => {
+    const players = roster(['CO', 'BTN', 'SB', 'BB']);
+    const config = cfg(players, 200);
+    const hand = makeHand(players, config);
+    hand.record('p0', 'call');
+    hand.record('p1', 'call');
+    hand.record('p2', 'call');
+    hand.record('p3', 'check');
+    hand.record('p2', 'check');
+    hand.record('p3', 'check');
+    hand.record('p0', 'bet', 5);
+    expect(minToFor(hand.derived(), config, 'p1')).toBe(10);
+    hand.record('p1', 'raise', 10);
+    expect(minToFor(hand.derived(), config, 'p2')).toBe(15);
+  });
+});
+
+describe('minToFor — the two opening floors', () => {
+  it('preflop the first raise must double the blind', () => {
+    const players = roster(['BTN', 'SB', 'BB']);
+    const config = cfg(players);
+    const hand = makeHand(players, config);
+    expect(minToFor(hand.derived(), config, 'p0')).toBe(2);
+  });
+
+  it('postflop an opening bet must reach one big blind', () => {
+    const players = roster(['BTN', 'SB', 'BB']);
+    const config: EngineConfig = { smallBlind: 1, bigBlind: 2, stacks: { p0: 200, p1: 200, p2: 200 } };
+    const hand = makeHand(players, config);
+    hand.record('p0', 'call');
+    hand.record('p1', 'call');
+    hand.record('p2', 'check');
+    expect(hand.derived().round!.street).toBe('flop');
+    expect(minToFor(hand.derived(), config, 'p1')).toBe(2);
+  });
+
+  it('never asks for more than a short stack can commit', () => {
+    const players = roster(['BTN', 'SB', 'BB']);
+    const config: EngineConfig = { smallBlind: 0.5, bigBlind: 1, stacks: { p0: 100, p1: 100, p2: 3 } };
+    const hand = makeHand(players, config);
+    hand.record('p0', 'raise', 20);
+    // p2 cannot reach 40; the floor collapses to their all-in.
+    expect(minToFor(hand.derived(), config, 'p2')).toBe(3);
+    expect(maxToFor(hand.derived(), config, 'p2')).toBe(3);
+  });
+
+  // An incomplete raise does not reset the increment, or the next minimum would drift down.
+  it('a short all-in below the minimum leaves the increment alone', () => {
+    const players = roster(['BTN', 'SB', 'BB']);
+    const config: EngineConfig = { smallBlind: 0.5, bigBlind: 1, stacks: { p0: 200, p1: 200, p2: 8 } };
+    const hand = makeHand(players, config);
+    hand.record('p0', 'call');
+    hand.record('p1', 'call');
+    hand.record('p2', 'check');
+    expect(hand.derived().round!.street).toBe('flop');
+
+    hand.record('p1', 'bet', 5);
+    expect(minToFor(hand.derived(), config, 'p2')).toBe(7); // too short for 10, so their all-in
+    const shove = hand.record('p2', 'allin', 99);
+    expect(shove.type).toBe('allin');
+    expect(shove.amount).toBe(7); // 8 stack less the 1 already in preflop
+
+    // 7 raised BY 2, under the 5 it would have taken to be a full raise — so the next full
+    // raise is still measured on 5: 7 + 5, not 7 + 2.
+    expect(hand.derived().round!.lastRaiseSize).toBe(5);
+    expect(minToFor(hand.derived(), config, 'p0')).toBe(12);
   });
 });
 

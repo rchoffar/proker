@@ -39,6 +39,7 @@ import {
   ACTION_STAGGER,
   RIVER_FLIP_DELAY,
   RIVER_FLIP_DURATION,
+  aggressiveActionIds,
   animWindowMsFor,
   animatedActions,
   buildBeats,
@@ -67,8 +68,19 @@ const EXPORT_BG = '#000000';
 // Short action tag for the bubble that pops over a player's seat — standalone badge
 // register (fr "Se couche"/"Relance", en "Folds"/"Raises"), distinct from poker:actions
 // which reads inline after a player's name.
-function bubbleLabel(a: HandAction, unitMode: HandHistory['unitMode'], t: TFunction<'replayer'>): string {
-  const label = t(`actionBadges.${a.type}`);
+//
+// `aggressive` decides the WORD, not the amount: a stored `allin` that merely matched the
+// outstanding bet is a call of a shove, and calling it "All-in" like the shover made the two
+// indistinguishable at a glance. The amount is already the capped one the engine resolved, so
+// a caller shows exactly what they were able to put in.
+function bubbleLabel(
+  a: HandAction,
+  aggressive: boolean,
+  unitMode: HandHistory['unitMode'],
+  t: TFunction<'replayer'>
+): string {
+  const badge = a.type === 'allin' && !aggressive ? 'call' : a.type;
+  const label = t(`actionBadges.${badge}`);
   return a.amount && a.type !== 'fold' && a.type !== 'check' ? `${label} ${formatHandAmount(a.amount, unitMode)}` : label;
 }
 
@@ -252,6 +264,9 @@ export default function HandReplayerPlayScreen() {
   // "raise to" convention as the builder (an amount is a total, not an increment), so
   // summing gives the live pot and per-player committed totals as the replay advances.
   const revealedContribs = contributionsFrom(revealedActions);
+  // Which of this hand's actions were aggression — computed over the whole hand, not just what
+  // is revealed, since an action's nature does not depend on how far the replay has walked.
+  const aggressiveIds = aggressiveActionIds(hand.actions);
   // Dead money (absent SB/BB blinds + the global ante) is on the felt as soon as preflop
   // opens, like the posts beside it — not held back until someone with a stack acts.
   const preflopReached = beats.slice(0, index + 1).some((b) => b.kind === 'street' && b.street === 'preflop');
@@ -265,12 +280,18 @@ export default function HandReplayerPlayScreen() {
   // total. Every OTHER bet already speaks for itself through its bubble, so putting chips out
   // for those too said the same thing twice.
   //
-  // They come off at the first raise, which is Mathieu's own boundary — from there the
-  // bubbles carry the story and the blinds are ancient history. A call is not a raise.
+  // A blind chip comes off on either of two events. The first raise clears the felt of all of
+  // them — from there the bubbles carry the story and the blinds are ancient history. And a
+  // player's own chip goes as soon as THEY act, because the chip is a marker for money nobody
+  // has spoken about yet: once the small blind completes, their bubble says "Suit 1 BB" and a
+  // 0.5 chip beside it was simply a stale number, disagreeing with both the bubble and the pot.
   const blindPosts = hand.actions.filter((a) => a.street === 'preflop' && a.type === 'post');
   const raiseRevealed = revealedActions.some((a) => a.type === 'bet' || a.type === 'raise' || a.type === 'allin');
+  const actedIds = new Set(revealedActions.filter((a) => a.type !== 'post').map((a) => a.playerId));
   const blindFor = (playerId: string): number | undefined =>
-    raiseRevealed ? undefined : blindPosts.find((a) => a.playerId === playerId)?.amount;
+    raiseRevealed || actedIds.has(playerId)
+      ? undefined
+      : blindPosts.find((a) => a.playerId === playerId)?.amount;
 
   // Each seat shows its latest REVEALED action, so a player who checks and then bets shows
   // the check first and the bet in its place — the cursor, not an animation delay, decides
@@ -315,7 +336,11 @@ export default function HandReplayerPlayScreen() {
     // from the lagged statsIndex: the previous beat's number stays up while cards flip.
     const statsActive = allInRevealed && knownCards;
     const equityPct = statsActive ? equity?.get(p.id) : undefined;
-    const isAggro = bubble ? ['bet', 'raise', 'allin'].includes(bubble.type) : false;
+    // Aggression comes from the engine's own predicate, never from the stored type: a call
+    // retyped `allin` used to be painted in the aggressor's gold, so the shover and the player
+    // calling them looked identical.
+    const isAggro = bubble ? aggressiveIds.has(bubble.id) : false;
+    const isShove = isAggro && bubble?.type === 'allin';
     const revealed = !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards;
 
     return {
@@ -368,15 +393,20 @@ export default function HandReplayerPlayScreen() {
                 borderColor:
                   bubble.type === 'fold' ? colors.loss : isAggro ? TABLE.goldDeep : TABLE.neutralBorder,
               },
+              // A shove is the loudest thing that happens in a hand and read like any other
+              // raise: filled gold instead of outlined, so it cannot be missed in the second
+              // it takes to walk past it.
+              isShove && styles.bubblePillShove,
             ]}
           >
             <Text
               style={[
                 styles.bubbleText,
                 { color: bubble.type === 'fold' ? colors.loss : isAggro ? TABLE.gold : TABLE.plateText },
+                isShove && styles.bubbleTextShove,
               ]}
             >
-              {bubbleLabel(bubble, hand.unitMode, t)}
+              {bubbleLabel(bubble, isAggro, hand.unitMode, t)}
             </Text>
           </View>
         </Animated.View>
@@ -475,9 +505,15 @@ export default function HandReplayerPlayScreen() {
               and progress label below are siblings on purpose: never in the captures. */}
           <View ref={tableShotRef} collapsable={false} style={styles.tableShot}>
             <LayoutAnimationConfig skipEntering={!entranceReady}>
-            <Text style={styles.caption} numberOfLines={1}>
-              {hand.title ?? t('handStarts')}
-            </Text>
+            {/* No title, no line: the row disappears and the table rises into it. This is the
+                one caption that ends up burned into the exported video, so an invented
+                placeholder there would caption every untitled hand with filler. The street
+                label on the felt still says where the hand is. */}
+            {hand.title ? (
+              <Text style={styles.caption} numberOfLines={1}>
+                {hand.title}
+              </Text>
+            ) : null}
 
             <SeatedTable
               width={TABLE_W}
@@ -729,9 +765,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 4,
   },
+  bubblePillShove: {
+    backgroundColor: TABLE.gold,
+    borderColor: TABLE.gold,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+  },
   bubbleText: {
     fontSize: 10,
     fontFamily: fontFamily.bold,
+  },
+  bubbleTextShove: {
+    color: '#0A0A0F',
+    fontSize: 11,
+    fontFamily: fontFamily.extrabold,
+    letterSpacing: 0.5,
   },
   exportProgress: {
     position: 'absolute',

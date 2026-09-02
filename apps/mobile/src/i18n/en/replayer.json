@@ -90,8 +90,8 @@
   "amountHint": {
     "currentBet": "Current bet: {{amount}}",
     "currentBetMax": "Current bet: {{amount}} — max {{max}}",
-    "minRaise": "Current bet: {{amount}} — raise TO a total above {{amount}}",
-    "minRaiseMax": "Current bet: {{amount}} — raise TO a total above {{amount}} — max {{max}}",
+    "minRaise": "Minimum: {{min}}",
+    "minRaiseMax": "Minimum: {{min}} — max {{max}}",
     "maxOnly": "max {{max}}"
   },
   "stack": "Stack: {{amount}}",
@@ -100,7 +100,6 @@
   "pot": "POT",
   "folded": "Folded",
   "noHand": "No hand to replay.",
-  "handStarts": "The hand begins",
   "tapHint": "Tap to continue",
   "winsHand": "{{name}} wins the hand",
   "winsAmount": "{{name}} wins {{amount}}",

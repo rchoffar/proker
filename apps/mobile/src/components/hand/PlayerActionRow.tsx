@@ -24,9 +24,13 @@ interface Props {
   remainingStack?: number;
   maxTo?: number;
   disabled?: boolean;
-  // Prefill for the raise field (a "raise to" total, e.g. 2 BB on the hand's first raise) —
-  // still fully editable.
-  defaultRaiseTo?: number;
+  /**
+   * Smallest legal "bet/raise to" this street, from the engine's minToFor. It prefills the
+   * field and it is the floor the amount must clear — poker's minimum is "raise BY at least
+   * the last raise", which no amount of arithmetic on `currentBet` alone can express.
+   * Undefined only when the caller has no engine state to ask.
+   */
+  minTo?: number;
   onAction: (type: ActionType, amount?: number) => void;
 }
 
@@ -44,7 +48,7 @@ export function PlayerActionRow({
   remainingStack,
   maxTo,
   disabled = false,
-  defaultRaiseTo,
+  minTo,
   onAction,
 }: Props) {
   const { t } = useTranslation('replayer');
@@ -77,25 +81,27 @@ export function PlayerActionRow({
     }
     if (NEEDS_AMOUNT.includes(type)) {
       setAmountFor(type);
-      if (type === 'raise' && defaultRaiseTo !== undefined && (maxTo === undefined || defaultRaiseTo <= maxTo)) {
-        // A short stack that can't reach the default gets the usual blank field instead of a
-        // prefilled invalid amount.
-        setAmount(String(defaultRaiseTo));
-      } else {
-        setAmount('');
-      }
+      // Both a bet and a raise open on the legal minimum — one tap confirms the min-raise,
+      // which is the commonest amount there is, and the field stays editable. It used to
+      // prefill only the hand's FIRST raise, so every 3-bet started from a blank field with
+      // no hint of what was legal.
+      setAmount(type !== 'allin' && minTo !== undefined ? String(minTo) : '');
       return;
     }
     onAction(type);
   };
 
   const parsedAmount = parseFloat(amount.replace(',', '.'));
-  // A raise must strictly exceed the outstanding bet or it isn't a raise; a fresh bet just
-  // needs to be positive. Catches the "0€ raise" / "raise below the current bet" mistakes
-  // that used to slip through silently since nothing validated the typed amount at all.
-  const minAmount = amountFor === 'raise' ? currentBet : 0;
+  // The engine's floor, which is the real rule: a raise must raise BY at least the last
+  // raise, and an opening bet must reach one big blind. The old check was `> currentBet`,
+  // a whole increment short — it let through 3-bets that are illegal at a real table.
+  //
+  // All-in is never blocked: it commits maxTo directly from handPress without opening this
+  // field, and a stack too short for the minimum is still entitled to go in.
+  const minAmount = minTo ?? (amountFor === 'raise' ? currentBet : 0);
+  const underMin = parsedAmount < minAmount;
   const overMax = maxTo !== undefined && parsedAmount > maxTo;
-  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > minAmount && !overMax;
+  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0 && !underMin && !overMax;
 
   const confirmAmount = () => {
     if (!amountFor || !amountValid) return;
@@ -117,10 +123,19 @@ export function PlayerActionRow({
   const amountHint = (() => {
     const amountLabel = formatHandAmount(currentBet, unitMode);
     const maxLabel = maxTo !== undefined ? formatHandAmount(maxTo, unitMode) : undefined;
+    // The minimum is the number that matters while typing, whether it is a bet or a raise —
+    // the outstanding bet is already on the Call button. The old hint spelled out
+    // "raise to a total above X", which was a whole increment short of the real rule.
+    if (minTo !== undefined && amountFor !== null && amountFor !== 'allin') {
+      const minLabel = formatHandAmount(minTo, unitMode);
+      return maxLabel !== undefined && maxTo !== minTo
+        ? t('amountHint.minRaiseMax', { min: minLabel, max: maxLabel })
+        : t('amountHint.minRaise', { min: minLabel });
+    }
     if (currentBet > 0 && amountFor === 'raise') {
       return maxLabel !== undefined
-        ? t('amountHint.minRaiseMax', { amount: amountLabel, max: maxLabel })
-        : t('amountHint.minRaise', { amount: amountLabel });
+        ? t('amountHint.minRaiseMax', { min: amountLabel, max: maxLabel })
+        : t('amountHint.minRaise', { min: amountLabel });
     }
     if (currentBet > 0) {
       return maxLabel !== undefined

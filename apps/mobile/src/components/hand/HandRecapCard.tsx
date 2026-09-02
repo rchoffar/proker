@@ -40,7 +40,9 @@ export function HandRecapCard({ hand, onReady }: Props) {
   return (
     <View style={[styles.outer, { width: CARD_WIDTH }]} collapsable={false} onLayout={handleLayout}>
       <GlassCard variant="dark" padding={22} style={styles.card}>
-        <Text style={[styles.title, { color: colors.onDarkPrimary }]}>{hand.title ?? t('untitledHand')}</Text>
+        {/* `||`, not `??`: a hand saved before the title became optional can carry '', and an
+            empty string is just as untitled as a missing one. */}
+        <Text style={[styles.title, { color: colors.onDarkPrimary }]}>{hand.title || t('untitledHand')}</Text>
         {hand.stakes ? <Text style={[styles.stakes, { color: colors.onDarkSecondary }]}>{hand.stakes}</Text> : null}
 
         <View style={styles.section}>
