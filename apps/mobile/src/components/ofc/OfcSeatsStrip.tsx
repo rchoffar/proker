@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react-native';
 import { OfcGridView } from './OfcGridView';
+import { SEAT_BOARD_GAP, fitSeatBoards, seatBoardHeight, seatBoardWidth } from './seatsLayout';
 import { TABLE } from '../hand/PokerTable';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -40,72 +41,49 @@ interface Props {
 // tells you where one ends and the next begins. Gold, and a shade darker inside, for whoever
 // is acting.
 
-// The boards are sized AND oriented to the room the felt has — never to a fixed tier, and
-// never to a flag the screen passes down.
-//
-// Both of those were bugs. A fixed `sm` outside the placing phase meant that at scoring, where
-// the felt shrinks to share the page with the scoresheet, two stacked boards measured about
-// 320pt inside a felt given far less and spilled over the caption above and the scoresheet
-// below. And tying the orientation to "is the placement board open" got it backwards whenever
-// the felt was short: stacked, two boards have to split the height, which at scoring left a
-// 13pt slot — unreadable, and past the floor, so it overflowed anyway.
-//
-// So both orientations are measured and the roomier one wins. That is not a tie-breaker, it is
-// the whole decision, and it goes the other way depending on the felt: tall (out of turn, with
-// the page to itself) stacking wins, because each board keeps the full width and only shares
-// height. Short (sharing with the placement board, or with the scoresheet) side by side wins,
-// because the height is what ran out. Reading the numbers beats asserting the layout.
-
-/** Vertical: a seat's own name/chips line, the row gaps, and its border/padding. */
-const HEADER_H = 22;
-const ROW_GAP = 2;
-const SEAT_CHROME_Y = 8;
-/** Horizontal: the gap between boards, and each board's border/padding. */
-const BOARD_GAP = spacing.sm;
-const SEAT_CHROME_X = 6;
-/**
- * The floor has to stay BELOW what the tightest case needs, or it stops being a floor and
- * becomes an overflow: at three players on a short felt the arithmetic asks for 18, and a
- * floor of 20 pinned both orientations to 20, made them tie, and then spilled 370pt of boards
- * into 190pt of felt. Small cards on a crowded non-scrolling page are the honest trade; boards
- * over the scoresheet are not.
- */
-const SLOT_MIN = 14;
-const SLOT_MAX = 46;
-
-const clampSlot = (w: number) => Math.min(SLOT_MAX, Math.max(SLOT_MIN, w));
-
-/** Widest slot three rows of it fit into `height`, shared between `down` stacked boards. */
-function slotForHeight(height: number, down: number): number {
-  const perBoard = (height - BOARD_GAP * (down - 1)) / down;
-  const rows = perBoard - HEADER_H - ROW_GAP * 2 - SEAT_CHROME_Y;
-  return clampSlot(Math.floor((rows / 3) * (46 / 64)));
-}
-
-/** Widest slot five of them fit into `width`, shared between `across` boards. */
-function slotForWidth(width: number, across: number): number {
-  const perBoard = (width - BOARD_GAP * (across - 1)) / across;
-  return clampSlot(Math.floor((perBoard - SEAT_CHROME_X - ROW_GAP * 4) / 5));
-}
+// How the boards are sized and arranged lives in seatsLayout.ts — it is arithmetic against
+// OfcGridView's real geometry, and it is tested.
 
 export function OfcSeatsStrip({ seats, activeId, inner }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
-  // Measure both ways round and take the roomier — see the note above for why neither
-  // orientation is right on its own.
-  const fit = (across: number, down: number) =>
-    inner ? Math.min(slotForHeight(inner.height, down), slotForWidth(inner.width, across)) : 0;
-  const n = seats.length;
-  const abreast = n > 1 && fit(n, 1) > fit(1, n);
-  const slotWidth = inner ? (abreast ? fit(n, 1) : fit(1, n)) : undefined;
+  const fit = inner ? fitSeatBoards(seats.length, inner) : null;
+  const slotWidth = fit?.slotWidth;
+  const abreast = (fit?.cols ?? 1) > 1;
 
   return (
-    <View style={[styles.strip, abreast && styles.stripAbreast]}>
+    <View
+      style={[
+        styles.strip,
+        // The grid is a wrap, not a fixed split: the seats each take exactly the width their
+        // cards need (never their header's, which would move the wrap points), and the row
+        // measured above is what they wrap into.
+        inner
+          ? {
+              width: inner.width,
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              // A row's boards match each other's height even in the one case the floor cannot
+              // cover on its own — a seat both fouled AND in Fantasy Land, which has two lines
+              // to hang under its grid.
+              alignItems: 'stretch',
+            }
+          : null,
+      ]}
+    >
       {seats.map((seat) => (
         <View
           key={seat.id}
           style={[
             styles.seat,
+            // The reserved line under the grid has to be part of the BOX, not just of the
+            // arithmetic: sized to its content, a fouled seat was one banner taller than the
+            // seat beside it. The floor puts the empty line inside every seat instead, so the
+            // outlines match whether the banner is there or not.
+            slotWidth !== undefined && {
+              width: seatBoardWidth(slotWidth),
+              minHeight: seatBoardHeight(slotWidth),
+            },
             seat.id === activeId && { borderColor: TABLE.gold, backgroundColor: 'rgba(0,0,0,0.18)' },
             seat.eliminated && styles.eliminatedSeat,
           ]}
@@ -161,20 +139,14 @@ export function OfcSeatsStrip({ seats, activeId, inner }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // Stacked by default: at sm a board is about 170pt wide, so two never fit across an oval,
-  // and stacked they read as "your board / my board" facing each other, which is how the game
-  // is played. Compact flips to a row, where xs boards do fit side by side — the only way to
-  // keep three players and a placement board on one non-scrolling page.
-  // Stacked by default — "your board / my board" facing each other across a table, and each
-  // board keeps the felt's full width. Abreast when the height is what ran short.
+  // One wrapping, centred row, whatever the grid turns out to be: one column reads as "your
+  // board / my board" facing each other across the table, and more than one is what a short
+  // felt needs — see the sizing note above. Both come out of the same wrap.
   strip: {
     alignItems: 'center',
-    gap: BOARD_GAP,
-  },
-  stripAbreast: {
-    flexDirection: 'row',
+    alignContent: 'center',
     justifyContent: 'center',
-    alignItems: 'flex-start',
+    gap: SEAT_BOARD_GAP,
   },
   seat: {
     borderWidth: 1,
