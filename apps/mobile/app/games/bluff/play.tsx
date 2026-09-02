@@ -356,9 +356,15 @@ export default function BluffPlayScreen() {
               {peeking && handFan.length > 0 ? (
                 <View style={styles.peekFan}>
                   {handFan.map((card, i) => (
-                    <Animated.View
+                    // The fan angle and the flip are on two different views ON PURPOSE. An
+                    // entering animation DRIVES the view's own `transform` (FlipInEasyY sets
+                    // perspective + rotateY), which replaces any static transform in the same
+                    // style for the length of the animation: the fan angles vanished for 200ms
+                    // and the cards, still pulled together by peekOverlap, stacked on top of
+                    // each other before snapping open. So the outer view holds the layout — the
+                    // angle, the overlap, the stacking — and the animated one only flips.
+                    <View
                       key={`peek-${i}`}
-                      entering={FlipInEasyY.duration(200).delay(i * 40)}
                       style={[
                         // Staggered entering animations make sibling paint order unreliable —
                         // pin the fan stacking left→right.
@@ -367,8 +373,10 @@ export default function BluffPlayScreen() {
                         i > 0 && styles.peekOverlap,
                       ]}
                     >
-                      <PlayingCard card={card} size="lg" />
-                    </Animated.View>
+                      <Animated.View entering={FlipInEasyY.duration(200).delay(i * 40)}>
+                        <PlayingCard card={card} size="lg" />
+                      </Animated.View>
+                    </View>
                   ))}
                 </View>
               ) : (
