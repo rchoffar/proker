@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react-native';
@@ -7,6 +7,7 @@ import { setupTableSize } from '../table/tableSize';
 import { fillHeight, useSetupViewport } from './setupViewport';
 import { PlayerNameCard } from './PlayerNameCard';
 import { SeatNameBubble } from './SeatNameBubble';
+import { useSeatedRoster } from './useSeatedRoster';
 import { useAuthStore } from '../../store/useAuthStore';
 import { fontFamily, radius, spacing } from '../../design-system/theme';
 import { useTheme } from '../../design-system/ThemeProvider';
@@ -33,6 +34,16 @@ export function RouletteSetupBoard({ players, selected, onChange, fill = false }
   const { t } = useTranslation('games');
   const { colors } = useTheme();
   const [addingSlot, setAddingSlot] = useState<number | null>(null);
+  // Slots hold their player, same as the seated boards — and here the slot also picks the
+  // colour, so a removal used to recolour everybody below it.
+  const { seats, sitAt, standUp } = useSeatedRoster(selected, ROULETTE_MAX_PLAYERS, onChange);
+  // Measured when a slot is tapped, for the bubble's keyboard clamp — see SeatNameBubble.
+  const boardRef = useRef<View>(null);
+  const [boardTopOnScreen, setBoardTopOnScreen] = useState<number | null>(null);
+  const openSlot = (i: number) => {
+    boardRef.current?.measureInWindow((_x, y) => setBoardTopOnScreen(y));
+    setAddingSlot(i);
+  };
   const [offeredH, setOfferedH] = useState<number | null>(null);
   const viewportH = useSetupViewport();
 
@@ -73,18 +84,17 @@ export function RouletteSetupBoard({ players, selected, onChange, fill = false }
   ];
 
   const pickName = (name: string) => {
-    if (selected.length >= ROULETTE_MAX_PLAYERS) return;
+    if (addingSlot === null) return;
     const existing = players.find((p) => p.name === name);
-    const player = existing ?? { id: `p-${Date.now()}`, name };
-    if (!selected.some((p) => p.id === player.id)) onChange([...selected, player]);
+    sitAt(addingSlot, existing ?? { id: `p-${Date.now()}`, name });
   };
 
   const board = (
-    <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
+    <View ref={boardRef} style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
       <PokerTable width={boardW} height={boardH}>
         {Array.from({ length: ROULETTE_MAX_PLAYERS }, (_, i) => {
           const { x, y } = slotCenter(i);
-          const player = selected[i];
+          const player = seats[i];
           const left = x - cardW / 2;
           const top = y - cardH / 2;
           return player ? (
@@ -93,14 +103,14 @@ export function RouletteSetupBoard({ players, selected, onChange, fill = false }
               name={player.name}
               color={colors.calendarPalette[i % colors.calendarPalette.length]}
               width={cardW}
-              onRemove={() => onChange(selected.filter((p) => p.id !== player.id))}
+              onRemove={() => standUp(player.id)}
               style={{ position: 'absolute', left, top }}
             />
           ) : (
             <TouchableOpacity
               key={`slot-${i}`}
               style={[styles.emptySlot, { left, top, width: cardW, height: cardH }]}
-              onPress={() => setAddingSlot(i)}
+              onPress={() => openSlot(i)}
               activeOpacity={0.75}
             >
               <Plus size={22} color="rgba(255,255,255,0.75)" strokeWidth={2} />
@@ -118,6 +128,7 @@ export function RouletteSetupBoard({ players, selected, onChange, fill = false }
           <SeatNameBubble
             anchor={{ ...slotCenter(addingSlot), below: slotCenter(addingSlot).y < boardH / 2 }}
             boardWidth={boardW}
+            boardTopOnScreen={boardTopOnScreen}
             suggestions={suggestions}
             onPick={pickName}
             onClose={() => setAddingSlot(null)}

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { X, Plus } from 'lucide-react-native';
 import { PokerTable, TABLE, seatPoint } from '../hand/PokerTable';
@@ -6,6 +6,7 @@ import { SETUP_SQUEEZE_X, SETUP_TABLE, setupTableSize } from '../table/tableSize
 import { fillHeight, subtract, useSetupViewport } from './setupViewport';
 import { PlayingCard } from '../hand/PlayingCard';
 import { SeatNameBubble } from './SeatNameBubble';
+import { useSeatedRoster } from './useSeatedRoster';
 import { useAuthStore } from '../../store/useAuthStore';
 import { initials } from '../../lib/format';
 import { fontFamily, radius, spacing } from '../../design-system/theme';
@@ -67,6 +68,17 @@ export function SeatTableBoard({
 }: Props) {
   const { colors } = useTheme();
   const [addingSeat, setAddingSeat] = useState<number | null>(null);
+  // A seat holds the player put in it: the roster's own order cannot express a gap, so it is
+  // the seats that say who sits where, and they emit the roster in seat order.
+  const { seats, sitAt, standUp } = useSeatedRoster(selected, maxPlayers, onChange);
+  // Measured when a seat is tapped, for the bubble's keyboard clamp — the board only knows
+  // its own coordinates, and the keyboard comes in screen ones.
+  const boardRef = useRef<View>(null);
+  const [boardTopOnScreen, setBoardTopOnScreen] = useState<number | null>(null);
+  const openSeat = (k: number) => {
+    boardRef.current?.measureInWindow((_x, y) => setBoardTopOnScreen(y));
+    setAddingSeat(k);
+  };
   // Measured on the first layout pass when filling. Until then the board keeps its old
   // screen-fraction height, so it renders at roughly the right size straight away.
   const [offeredH, setOfferedH] = useState<number | null>(null);
@@ -122,15 +134,13 @@ export function SeatTableBoard({
   ];
 
   const pickName = (name: string) => {
+    if (addingSeat === null) return;
     const existing = players.find((p) => p.name === name);
-    const player = existing ?? { id: `p-${Date.now()}`, name };
-    if (!selected.some((p) => p.id === player.id)) onChange([...selected, player]);
+    sitAt(addingSeat, existing ?? { id: `p-${Date.now()}`, name });
   };
 
-  const remove = (id: string) => onChange(selected.filter((p) => p.id !== id));
-
   const board = (
-    <View style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
+    <View ref={boardRef} style={{ width: boardW, height: boardH, alignSelf: 'center' }}>
       <PokerTable width={tableW} height={tableH} style={{ position: 'absolute', left: padX, top: padTop }}>
         {center ? (
           <View style={styles.feltCenter} pointerEvents="box-none">
@@ -152,7 +162,7 @@ export function SeatTableBoard({
 
       {Array.from({ length: maxPlayers }, (_, k) => {
         const { cx, cy } = seatCenter(k);
-        const player = selected[k];
+        const player = seats[k];
         return (
           <View key={k} style={[styles.seatWrap, { left: cx - SEAT_D / 2, top: cy - SEAT_D / 2 }]}>
             {player ? (
@@ -169,7 +179,7 @@ export function SeatTableBoard({
                 </View>
                 <TouchableOpacity
                   style={styles.removeBadge}
-                  onPress={() => remove(player.id)}
+                  onPress={() => standUp(player.id)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.7}
                 >
@@ -179,7 +189,7 @@ export function SeatTableBoard({
             ) : seatsInteractive ? (
               <TouchableOpacity
                 style={[styles.seat, { backgroundColor: 'rgba(8,12,10,0.72)' }]}
-                onPress={() => setAddingSeat(k)}
+                onPress={() => openSeat(k)}
                 activeOpacity={0.75}
               >
                 <Plus size={26} color={colors.accentBright} strokeWidth={2.5} />
@@ -209,6 +219,7 @@ export function SeatTableBoard({
               return { x: cx, y: cy, below: cy - padTop < tableH / 2 };
             })()}
             boardWidth={boardW}
+            boardTopOnScreen={boardTopOnScreen}
             suggestions={suggestions}
             onPick={pickName}
             onClose={() => setAddingSeat(null)}
