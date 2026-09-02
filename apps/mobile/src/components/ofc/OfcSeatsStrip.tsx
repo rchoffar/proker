@@ -28,12 +28,9 @@ interface Props {
   seats: OfcSeatVM[];
   activeId: string | null;
   /**
-   * The felt is sharing the page with your own placement board, which leaves it too little
-   * height for full-size boards. They shrink and sit side by side instead of stacked —
-   * nothing on these screens scrolls, so this is what keeps everything on one page.
+   * The room inside the felt, from OfcTableFelt. The boards are laid out and sized to fill it
+   * — orientation included, so the caller has no layout decision to make.
    */
-  compact?: boolean;
-  /** The room inside the felt, from OfcTableFelt. Compact boards are sized to fill it. */
   inner?: { width: number; height: number };
 }
 
@@ -43,53 +40,67 @@ interface Props {
 // tells you where one ends and the next begins. Gold, and a shade darker inside, for whoever
 // is acting.
 
-// A compact board is as big as BOTH dimensions allow, and which one binds depends on how many
-// boards there are — that is the whole rule, rather than a guessed size per case.
+// The boards are sized AND oriented to the room the felt has — never to a fixed tier, and
+// never to a flag the screen passes down.
 //
-// Alone, the height binds: three rows and a name line inside whatever the placement board
-// left over, with width going spare. Two abreast and the width binds instead — five slots
-// each, twice, plus the gap — and it binds hard: it is why three players looks like there is
-// room to spare and the cards still cannot grow much. Stacking them would be worse, not
-// better: half the height each for a width neither can use.
+// Both of those were bugs. A fixed `sm` outside the placing phase meant that at scoring, where
+// the felt shrinks to share the page with the scoresheet, two stacked boards measured about
+// 320pt inside a felt given far less and spilled over the caption above and the scoresheet
+// below. And tying the orientation to "is the placement board open" got it backwards whenever
+// the felt was short: stacked, two boards have to split the height, which at scoring left a
+// 13pt slot — unreadable, and past the floor, so it overflowed anyway.
+//
+// So both orientations are measured and the roomier one wins. That is not a tie-breaker, it is
+// the whole decision, and it goes the other way depending on the felt: tall (out of turn, with
+// the page to itself) stacking wins, because each board keeps the full width and only shares
+// height. Short (sharing with the placement board, or with the scoresheet) side by side wins,
+// because the height is what ran out. Reading the numbers beats asserting the layout.
 
 /** Vertical: a seat's own name/chips line, the row gaps, and its border/padding. */
 const HEADER_H = 22;
 const ROW_GAP = 2;
 const SEAT_CHROME_Y = 8;
-/** Horizontal: the gap between two boards, and each board's border/padding. */
+/** Horizontal: the gap between boards, and each board's border/padding. */
 const BOARD_GAP = spacing.sm;
 const SEAT_CHROME_X = 6;
-/** Never so small it stops being readable, never bigger than the big board below it. */
-const SLOT_MIN = 24;
+/**
+ * The floor has to stay BELOW what the tightest case needs, or it stops being a floor and
+ * becomes an overflow: at three players on a short felt the arithmetic asks for 18, and a
+ * floor of 20 pinned both orientations to 20, made them tie, and then spilled 370pt of boards
+ * into 190pt of felt. Small cards on a crowded non-scrolling page are the honest trade; boards
+ * over the scoresheet are not.
+ */
+const SLOT_MIN = 14;
 const SLOT_MAX = 46;
 
 const clampSlot = (w: number) => Math.min(SLOT_MAX, Math.max(SLOT_MIN, w));
 
-/** Widest slot three rows of it fit into `height`, header and gaps taken off. */
-function slotForHeight(height: number): number {
-  const rows = height - HEADER_H - ROW_GAP * 2 - SEAT_CHROME_Y;
+/** Widest slot three rows of it fit into `height`, shared between `down` stacked boards. */
+function slotForHeight(height: number, down: number): number {
+  const perBoard = (height - BOARD_GAP * (down - 1)) / down;
+  const rows = perBoard - HEADER_H - ROW_GAP * 2 - SEAT_CHROME_Y;
   return clampSlot(Math.floor((rows / 3) * (46 / 64)));
 }
 
-/** Widest slot five of them fit into `width`, shared between `boards` boards. */
-function slotForWidth(width: number, boards: number): number {
-  const perBoard = (width - BOARD_GAP * (boards - 1)) / boards;
+/** Widest slot five of them fit into `width`, shared between `across` boards. */
+function slotForWidth(width: number, across: number): number {
+  const perBoard = (width - BOARD_GAP * (across - 1)) / across;
   return clampSlot(Math.floor((perBoard - SEAT_CHROME_X - ROW_GAP * 4) / 5));
 }
 
-export function OfcSeatsStrip({ seats, activeId, compact = false, inner }: Props) {
+export function OfcSeatsStrip({ seats, activeId, inner }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
-  const abreast = compact && seats.length > 1;
-  const slotWidth =
-    compact && inner
-      ? Math.min(slotForHeight(inner.height), slotForWidth(inner.width, seats.length))
-      : compact
-        ? SLOT_MIN
-        : undefined;
+  // Measure both ways round and take the roomier — see the note above for why neither
+  // orientation is right on its own.
+  const fit = (across: number, down: number) =>
+    inner ? Math.min(slotForHeight(inner.height, down), slotForWidth(inner.width, across)) : 0;
+  const n = seats.length;
+  const abreast = n > 1 && fit(n, 1) > fit(1, n);
+  const slotWidth = inner ? (abreast ? fit(n, 1) : fit(1, n)) : undefined;
 
   return (
-    <View style={[styles.strip, compact && styles.stripCompact]}>
+    <View style={[styles.strip, abreast && styles.stripAbreast]}>
       {seats.map((seat) => (
         <View
           key={seat.id}
@@ -130,7 +141,10 @@ export function OfcSeatsStrip({ seats, activeId, compact = false, inner }: Props
             <OfcGridView
               grid={seat.grid}
               gridCounts={seat.gridCounts}
-              size={compact ? 'xs' : 'sm'}
+              // `size` only decides the row gap now — slotWidth is what sets the cards, and it
+              // is always present on the felt. The tier is the fallback for a caller with no
+              // measurement to give.
+              size="xs"
               slotWidth={slotWidth}
               fouled={seat.fouled}
             />
@@ -151,15 +165,16 @@ const styles = StyleSheet.create({
   // and stacked they read as "your board / my board" facing each other, which is how the game
   // is played. Compact flips to a row, where xs boards do fit side by side — the only way to
   // keep three players and a placement board on one non-scrolling page.
+  // Stacked by default — "your board / my board" facing each other across a table, and each
+  // board keeps the felt's full width. Abreast when the height is what ran short.
   strip: {
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: BOARD_GAP,
   },
-  stripCompact: {
+  stripAbreast: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-start',
-    gap: BOARD_GAP,
   },
   seat: {
     borderWidth: 1,

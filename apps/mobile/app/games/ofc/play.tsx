@@ -160,12 +160,6 @@ export default function OfcPlayScreen() {
   };
 
 
-  // While your own placement board is open it takes most of the page, and what is left is
-  // not enough for a full-size board on the felt — even at two players. So the felt's own
-  // boards go compact for exactly as long as yours is open.
-  const boardOpen =
-    phase === 'placing' && !!actor && ((arranging && (!fantasyArranging || !locked)) || (!arranging && !!state.pending));
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
@@ -189,7 +183,7 @@ export default function OfcPlayScreen() {
 
         <OfcTableFelt>
           {(inner) => (
-            <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} compact={boardOpen} inner={inner} />
+            <OfcSeatsStrip seats={seats} activeId={actor?.id ?? null} inner={inner} />
           )}
         </OfcTableFelt>
 

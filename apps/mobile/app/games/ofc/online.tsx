@@ -339,11 +339,6 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
   const myDraw = v.role === 'draw' ? view.pending : null;
 
   const caption = v.caption.kind === 'none' ? '' : t(v.caption.key, v.caption.params);
-  // While your own placement board is open it takes most of the page, and what is left is
-  // not enough for a full-size board on the felt — even at two players. So the felt's own
-  // boards go compact for exactly as long as yours is open.
-  const boardOpen = ((myFantasyTurn || myInitialTurn) && !!me?.hand) || (!myFantasyTurn && !!myDraw && !!me?.grid);
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar style="light" />
@@ -374,7 +369,6 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
             <OfcSeatsStrip
               seats={stripSeats}
               activeId={phase === 'placing' ? view.turnId : null}
-              compact={boardOpen}
               inner={inner}
             />
           )}
