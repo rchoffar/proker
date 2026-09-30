@@ -3,6 +3,7 @@ import {
   CAPTURE_SHARE,
   EXPORT_SLOWMO,
   advancePts,
+  animationFramePts,
   beatWorkWeights,
   buildCapturePlan,
   captureProgress,
@@ -71,6 +72,23 @@ describe('retimedPts', () => {
     const windowMs = buildCapturePlan(BEATS)[4].windowMs;
     const lastCapture = captureWindowMs(beat) - 1;
     expect(retimedPts(0, lastCapture, EXPORT_SLOWMO)).toBeLessThanOrEqual(windowMs);
+  });
+});
+
+describe('animationFramePts', () => {
+  it('rejects frames after encoder backpressure exhausts the capture window', () => {
+    const { windowMs, captureMs } = buildCapturePlan(BEATS)[4];
+    expect(animationFramePts(1000, captureMs, windowMs)).toBeNull();
+    expect(animationFramePts(1000, captureMs + 30_000, windowMs)).toBeNull();
+    expect(animationFramePts(1000, 900, windowMs)).toBe(1300);
+  });
+
+  it('reserves the boundary for the settled frame even when rounding up', () => {
+    for (const { windowMs, captureMs } of buildCapturePlan(BEATS)) {
+      const pts = animationFramePts(1000, captureMs - 0.1, windowMs);
+      expect(pts).toBe(1000 + windowMs - 1);
+      expect(pts).toBeLessThan(holdKeyframePts(1000, windowMs, 1000)[0]);
+    }
   });
 });
 

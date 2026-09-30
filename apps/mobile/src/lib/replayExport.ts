@@ -45,6 +45,18 @@ export function retimedPts(basePts: number, tCaptureMs: number, slowmo = EXPORT_
   return basePts + Math.round(tCaptureMs / slowmo);
 }
 
+/** A delayed encoder must not push an animation frame into the hold or the next beat.
+ * Reserve the window boundary for the settled frame, including after PTS rounding. */
+export function animationFramePts(
+  basePts: number,
+  tCaptureMs: number,
+  windowMs: number,
+  slowmo = EXPORT_SLOWMO
+): number | null {
+  if (tCaptureMs >= windowMs * slowmo) return null;
+  return Math.min(retimedPts(basePts, Math.max(0, tCaptureMs), slowmo), basePts + windowMs - 1);
+}
+
 /**
  * The keep-alive stamps filling a beat's static hold. Pure PTS bookkeeping — these repeat
  * the settled frame and cost no wall time.

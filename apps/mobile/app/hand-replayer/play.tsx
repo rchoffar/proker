@@ -253,9 +253,12 @@ export default function HandReplayerPlayScreen() {
 
   const hero = hand.players.find((p) => p.isHero);
   const winners = hand.winnerIds?.length ? hand.players.filter((p) => hand.winnerIds!.includes(p.id)) : [];
+  const showdownPlayers = winners.filter((p) => p.cardsKnown && p.holeCards);
+  const finalCardsPlayers = showdownPlayers.length > 0 ? showdownPlayers : hero?.holeCards ? [hero] : [];
+  const finalCardWidth = Math.min(64, Math.floor(((TABLE_W - 24) / Math.max(1, finalCardsPlayers.length) + 16) / 2));
   const currentBeat = beats[index];
 
-  // Seats in table order, hero first (he anchors the bottom of the table).
+  // Seats in table order, hero first (seat 0 follows the shared layout).
   const sortedPlayers = [...hand.players].sort((a, b) => a.seat - b.seat);
   const heroIdx = sortedPlayers.findIndex((p) => p.isHero);
   const orderedPlayers: HandPlayer[] = heroIdx <= 0 ? sortedPlayers : [...sortedPlayers.slice(heroIdx), ...sortedPlayers.slice(0, heroIdx)];
@@ -341,7 +344,9 @@ export default function HandReplayerPlayScreen() {
     // calling them looked identical.
     const isAggro = bubble ? aggressiveIds.has(bubble.id) : false;
     const isShove = isAggro && bubble?.type === 'allin';
-    const revealed = !p.isHero && !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards;
+    const revealed = p.isHero
+      ? !isShowdown && !!p.holeCards
+      : !folded && (isShowdown || allInRevealed) && p.cardsKnown && p.holeCards;
 
     return {
       id: p.id,
@@ -358,11 +363,8 @@ export default function HandReplayerPlayScreen() {
       fan: revealed
         ? {
             cards: p.holeCards!.map((c) => ({ card: c, dimmed: dimCard(c) })),
-            // No explicit size: SeatedTable falls back to fanSizeFor(cards, seats), which is
-            // md up to four seats and sm from five — "big cards for the 2/3-player reveal,
-            // small ones once the table is busy", which is exactly what Mathieu asked for.
-            // Pinning sm here made the villain's reveal tiny even heads-up, where there is
-            // all the room in the world for it.
+            // Anchor the hero's cards to the actual seat too: at four players seat 0
+            // moves left, so a fixed bottom-centre hand ends up behind the avatar.
             flipInDelay: ms(k * 120),
             flipInDuration: ms(450),
           }
@@ -562,22 +564,20 @@ export default function HandReplayerPlayScreen() {
               }
               underSeats={
               <>
-            {/* Hero cards live small next to the hero's seat for the whole hand (visible from
-                the intro — no dedicated tap), then pop large and centered at showdown. Two
-                rendered states, not a shared transition: the export loop only understands
-                entering animations. */}
-            {hero?.holeCards &&
-              (isShowdown ? (
-                <Animated.View key="hero-lg" entering={ZoomIn.duration(ms(300))} style={styles.heroCards} pointerEvents="none">
-                  <PlayingCard card={hero.holeCards[0]} size="lg" dimmed={dimCard(hero.holeCards[0])} style={styles.heroCardLeft} />
-                  <PlayingCard card={hero.holeCards[1]} size="lg" dimmed={dimCard(hero.holeCards[1])} style={styles.heroCardRight} />
-                </Animated.View>
-              ) : (
-                <Animated.View key="hero-sm" entering={FlipInEasyY.duration(ms(450))} style={styles.heroCardsSide} pointerEvents="none">
-                  <PlayingCard card={hero.holeCards[0]} size="sm" style={styles.heroCardLeft} />
-                  <PlayingCard card={hero.holeCards[1]} size="sm" style={styles.heroCardRight} />
-                </Animated.View>
-              ))}
+            {/* Reveal known winning hands at a readable size, with names for split pots. */}
+            {isShowdown && (
+              <Animated.View key="winning-hands" entering={ZoomIn.duration(ms(300))} style={styles.heroCards} pointerEvents="none">
+                {finalCardsPlayers.map((p) => (
+                  <View key={p.id} style={styles.finalHand}>
+                    <Text style={styles.finalHandName} numberOfLines={1}>{p.name}</Text>
+                    <View style={styles.finalHandCards}>
+                      <PlayingCard card={p.holeCards![0]} width={finalCardWidth} dimmed={dimCard(p.holeCards![0])} style={styles.heroCardLeft} />
+                      <PlayingCard card={p.holeCards![1]} width={finalCardWidth} dimmed={dimCard(p.holeCards![1])} style={styles.heroCardRight} />
+                    </View>
+                  </View>
+                ))}
+              </Animated.View>
+            )}
               </>
               }
             >
@@ -721,20 +721,26 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingLeft: BOARD_INSET,
   },
-  // Showdown state: the hero hand pops large and centered.
+  // Known winning hands pop large between the board and the bottom seats.
   heroCards: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 70,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  // In-hand state: small fan parked left of the hero pod (hero is seat 0, bottom center).
-  heroCardsSide: {
-    position: 'absolute',
-    bottom: 14,
-    left: TABLE_W / 2 - POD_W / 2 - 36,
+  finalHand: {
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  finalHandName: {
+    color: TABLE.gold,
+    fontFamily: fontFamily.semibold,
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  finalHandCards: {
     flexDirection: 'row',
   },
   heroCardLeft: {

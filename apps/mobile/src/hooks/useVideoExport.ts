@@ -8,10 +8,10 @@ import {
   VIDEO_HEIGHT,
   VIDEO_WIDTH,
   advancePts,
+  animationFramePts,
   buildCapturePlan,
   captureProgress,
   holdKeyframePts,
-  retimedPts,
 } from '../lib/replayExport';
 import type { Beat } from '../lib/handReplay';
 import { nextFrame } from '../lib/nextFrame';
@@ -159,15 +159,19 @@ export function useVideoExport({
         // Animated window: capture as fast as view-shot allows, stamping each frame with
         // its retimed PTS. Wall clock runs at EXPORT_SLOWMO×, the video at 1×.
         const { windowMs, holdMs, captureMs } = plan[i];
-        const start = Date.now();
-        while (Date.now() - start < captureMs) {
+        const start = performance.now();
+        while (performance.now() - start < captureMs) {
           await drainTo(MAX_FRAMES_IN_FLIGHT);
           if (cancelled()) throw new Error('cancelled');
           if (encodeError) throw encodeError;
-          const tCapture = Date.now() - start;
+          const tCapture = performance.now() - start;
+          // Backpressure can consume the rest of the animation window. Recheck AFTER
+          // waiting, otherwise the next frame's PTS can extend this beat (or the video).
+          const pts = animationFramePts(basePts, tCapture, windowMs);
+          if (pts === null) break;
           const uri = await capture();
           if (!uri) throw new Error('capture failed');
-          appendFrame(uri, retimedPts(basePts, tCapture));
+          appendFrame(uri, pts);
           reportProgress(captureProgress(workDone + tCapture, totalWork));
         }
         // Settled frame at the window boundary, then the beat's dwell — pure PTS
