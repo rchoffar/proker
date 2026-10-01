@@ -7,9 +7,10 @@
     "base": {
       "node": "24.18.0",
       "env": {
-        "EXPO_PUBLIC_BLUFF_SERVER_URL": "https://upk-api.fly.dev",
+        "EXPO_PUBLIC_BLUFF_SERVER_URL": "https://proker-api.vercel.app",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1095846669375-vuocogitehuqh74bq9ogh89su33gf5hi.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1095846669375-1u6ff9r9svtu7jf198t0br76163kahqq.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1095846669375-1u6ff9r9svtu7jf198t0br76163kahqq.apps.googleusercontent.com",
+        "EXPO_PUBLIC_API_URL": "https://proker-api.vercel.app"
       }
     },
     "development": {

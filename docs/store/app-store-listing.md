@@ -3,9 +3,9 @@
 Everything to paste into App Store Connect. Limits are noted per field; all texts below respect them.
 
 - Bundle ID: `fr.upk.app` · Team ID: `J9M3DDY93R` · EAS project `758e18a1-a494-47de-b8e7-518879a3fc9e`
-- Privacy policy URL: **https://upk-api.fly.dev/privacy**
-- Support URL: **https://upk-api.fly.dev/support**
-- Marketing URL (optional): https://upk-api.fly.dev/support
+- Privacy policy URL: **https://proker-api.vercel.app/privacy**
+- Support URL: **https://proker-api.vercel.app/support**
+- Marketing URL (optional): https://proker-api.vercel.app/support
 - Copyright: `© 2026 Remy Choffardet`
 - Primary category: **Games** (subcategories: **Card** + **Board**) — Secondary category: **Sports**
   - Games is primary because the card games are the app's center. When Games is primary, App Store Connect asks for two game subcategories: pick **Card** (Bluff/OFC are card games) and **Board** (tabletop-with-friends fits; Casual also acceptable).
@@ -176,7 +176,7 @@ Suggested order (first 3 are what most users see — games lead): 1. Bluff game 
 ## Final submission checklist
 
 1. Commit the pending working-tree changes (Bluff/OFC work), then:
-2. `cd apps/api && fly deploy` → check https://upk-api.fly.dev/privacy and /support
+2. `vercel deploy --prod --local-config apps/api/vercel.json` from the repository root → check https://proker-api.vercel.app/privacy and /support
 3. `cd apps/mobile && npm install` (moves expo-dev-client to devDependencies in the lockfile)
 4. `eas build -p ios --profile production`
 5. `eas submit -p ios --latest` (fills/asks for ascAppId + appleId on first run)

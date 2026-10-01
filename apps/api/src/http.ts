@@ -5,7 +5,6 @@ import {
   getHand,
   getUserById,
   listHands,
-  pruneHands,
   setPseudo,
   upsertHand,
   upsertUser,
@@ -80,7 +79,7 @@ async function authenticatedUser(req: IncomingMessage): Promise<UserRow | null> 
   if (!token) return null;
   const userId = await verifySession(token);
   if (!userId) return null;
-  return getUserById(userId) ?? null;
+  return (await getUserById(userId)) ?? null;
 }
 
 /** Returns true if the request matched a route (response already sent). */
@@ -100,32 +99,24 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
       sendJson(res, 400, { error: 'invalid_body' });
       return true;
     }
+    const tokenValue = url === '/auth/google' ? body.idToken : body.identityToken;
+    if (typeof tokenValue !== 'string' || !tokenValue) {
+      sendJson(res, 400, { error: 'invalid_body' });
+      return true;
+    }
+    let identity: { sub: string; email?: string };
     try {
-      let row: UserRow;
-      if (url === '/auth/google') {
-        const idToken = body.idToken;
-        if (typeof idToken !== 'string' || !idToken) {
-          sendJson(res, 400, { error: 'invalid_body' });
-          return true;
-        }
-        const identity = await verifyGoogleIdToken(idToken);
-        row = upsertUser('google', identity.sub, identity.email);
-      } else {
-        const identityToken = body.identityToken;
-        if (typeof identityToken !== 'string' || !identityToken) {
-          sendJson(res, 400, { error: 'invalid_body' });
-          return true;
-        }
-        const identity = await verifyAppleIdentityToken(identityToken);
-        // Apple only includes the email claim on first authorization; the
-        // client forwards credential.email as a fallback for that first pass.
-        const fallbackEmail = typeof body.email === 'string' && body.email ? body.email : undefined;
-        row = upsertUser('apple', identity.sub, identity.email ?? fallbackEmail);
-      }
-      sendJson(res, 200, { token: await signSession(row.id), user: publicUser(row) });
+      identity = url === '/auth/google'
+        ? await verifyGoogleIdToken(tokenValue)
+        : await verifyAppleIdentityToken(tokenValue);
     } catch {
       sendJson(res, 401, { error: 'invalid_token' });
+      return true;
     }
+    const fallbackEmail = url === '/auth/apple' && typeof body.email === 'string' && body.email ? body.email : undefined;
+    // Database outages must produce a retryable server error, not an invalid login.
+    const row = await upsertUser(url === '/auth/google' ? 'google' : 'apple', identity.sub, identity.email ?? fallbackEmail);
+    sendJson(res, 200, { token: await signSession(row.id), user: publicUser(row) });
     return true;
   }
 
@@ -145,7 +136,7 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
       sendJson(res, 401, { error: 'unauthorized' });
       return true;
     }
-    deleteUser(user.id);
+    await deleteUser(user.id);
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -162,7 +153,7 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
       sendJson(res, 400, { error: 'invalid_pseudo' });
       return true;
     }
-    const updated = setPseudo(user.id, pseudo);
+    const updated = await setPseudo(user.id, pseudo);
     if (!updated) {
       sendJson(res, 500, { error: 'internal' });
       return true;
@@ -177,7 +168,7 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
       sendJson(res, 401, { error: 'unauthorized' });
       return true;
     }
-    sendJson(res, 200, { hands: listHands(user.id).map(publicHandMeta) });
+    sendJson(res, 200, { hands: (await listHands(user.id)).map(publicHandMeta) });
     return true;
   }
 
@@ -191,7 +182,7 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
     }
 
     if (method === 'GET') {
-      const row = getHand(handId);
+      const row = await getHand(handId);
       // A missing hand and someone else's hand answer identically — don't leak existence.
       if (!row || row.user_id !== user.id) {
         sendJson(res, 404, { error: 'not_found' });
@@ -215,12 +206,12 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
         sendJson(res, 400, { error: 'invalid_body' });
         return true;
       }
-      const existing = getHand(handId);
+      const existing = await getHand(handId);
       if (existing && existing.user_id !== user.id) {
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const row = upsertHand(
+      const row = await upsertHand(
         user.id,
         {
           id: handId,
@@ -231,14 +222,17 @@ export async function handleHttp(req: IncomingMessage, res: ServerResponse): Pro
         },
         JSON.stringify(body)
       );
-      pruneHands(user.id);
+      if (!row) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
       sendJson(res, 200, { hand: publicHandMeta(row) });
       return true;
     }
 
     if (method === 'DELETE') {
       // Idempotent: deleting an already-gone hand still succeeds (offline retries re-send).
-      deleteHand(handId, user.id);
+      await deleteHand(handId, user.id);
       sendJson(res, 200, { ok: true });
       return true;
     }

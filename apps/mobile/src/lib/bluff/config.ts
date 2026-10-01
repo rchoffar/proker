@@ -4,4 +4,4 @@
 // The localhost fallback is dev-only; a release bundle missing the env var
 // must not silently point at localhost.
 export const BLUFF_SERVER_URL =
-  process.env.EXPO_PUBLIC_BLUFF_SERVER_URL ?? (__DEV__ ? 'http://localhost:3001' : 'https://upk-api.fly.dev');
+  process.env.EXPO_PUBLIC_BLUFF_SERVER_URL ?? (__DEV__ ? 'http://localhost:3001' : 'https://proker-api.vercel.app');
