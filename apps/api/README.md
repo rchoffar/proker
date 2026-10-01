@@ -126,9 +126,7 @@ vercel deploy --target preview --local-config apps/api/vercel.json
 vercel deploy --prod --local-config apps/api/vercel.json
 ```
 
-La connexion GitHub automatique n'est pas encore activée pour ce projet : le
-premier lien a été refusé par Vercel. Les déploiements actuels sont faits par CLI.
-`vercel.json` limite les déploiements Git à `main` lorsqu'une liaison sera activée.
+Le projet est relié à `rchoffar/proker` sur GitHub : chaque push sur `main` déclenche un déploiement de production. `vercel.json` désactive les déploiements Git des autres branches. Les déploiements CLI restent disponibles pour les vérifications manuelles.
 Pour publier les jeux HTTP, déployer d'abord l'API avec les migrations additives `002_ofc.sql` et `003_bluff.sql`, puis le client mobile. Le build Vercel applique les migrations avant publication et échoue si elles ne passent pas. Les anciennes parties du relais ne sont pas converties et les anciennes versions mobiles utilisant les sockets doivent être mises à jour.
 
 Le build inclut les sources partagées `packages/ofc` et `packages/bluff` hors de `apps/api`. Pour un déploiement depuis ce Root Directory, inclure les fichiers extérieurs dans les réglages du projet Vercel ; les déploiements CLI se font depuis la racine du dépôt. `npm start` utilise `dist/apps/api/src/index.js` et conserve les modules partagés sous `dist/packages/`.
