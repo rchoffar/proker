@@ -1,0 +1,11 @@
+**/node_modules/**
+**/.git/**
+**/.vercel/**
+**/.expo/**
+**/dist/**
+**/.env*
+**/.DS_Store
+apps/mobile/**
+docs/**
+.agents/**
+.codex/**

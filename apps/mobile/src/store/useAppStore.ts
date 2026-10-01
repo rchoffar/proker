@@ -8,6 +8,10 @@ import type { BluffVariant } from '../lib/bluff';
 import type { OfcVariant } from '../lib/ofc';
 import type { GameStatsState } from '../lib/gameStats';
 import { mmkvStorage } from './mmkvStorage';
+import { applyBluffOnlineStats } from '../lib/bluff/onlineStats';
+import type { BluffGameDetail, BluffHistoryEntry } from '../lib/api/bluff';
+import { applyOfcOnlineStats } from '../lib/ofc/onlineStats';
+import type { OfcGameDetail, OfcHistoryEntry } from '../lib/api/ofc';
 
 interface AppStore {
   user: User;
@@ -28,6 +32,10 @@ interface AppStore {
   ofcStartingStack: number;
   ofcVariant: OfcVariant;
   gameStats: GameStatsState;
+  ofcRecordedEvents: Record<string, true>;
+  bluffRecordedEvents: Record<string, true>;
+  recordBluffOnlineStats: (game: BluffGameDetail, history: BluffHistoryEntry[]) => void;
+  recordOfcOnlineStats: (game: OfcGameDetail, history: OfcHistoryEntry[]) => void;
 
   updateUser: (patch: Partial<User>) => void;
   addPlayer: (player: Player) => void;
@@ -67,6 +75,8 @@ export const useAppStore = create<AppStore>()(
       ofcStartingStack: 100,
       ofcVariant: 'classic',
       gameStats: {},
+      ofcRecordedEvents: {},
+      bluffRecordedEvents: {},
 
       updateUser: (patch) =>
         set((state) => ({ user: { ...state.user, ...patch } })),
@@ -106,6 +116,15 @@ export const useAppStore = create<AppStore>()(
           ofcVariant: patch.variant ?? state.ofcVariant,
         })),
 
+      recordBluffOnlineStats: (game, history) => set(state => {
+        const patch = applyBluffOnlineStats(state.gameStats, state.bluffRecordedEvents ?? {}, game, history);
+        return patch.gameStats === state.gameStats ? state : patch;
+      }),
+      recordOfcOnlineStats: (game, history) => set(state => {
+        const next = applyOfcOnlineStats(state.gameStats, state.ofcRecordedEvents, game, history);
+        return next.gameStats === state.gameStats && next.ofcRecordedEvents === state.ofcRecordedEvents ? state : next;
+      }),
+
       updateGameStats: (updater) =>
         set((state) => ({ gameStats: updater(state.gameStats) })),
 
@@ -131,6 +150,8 @@ export const useAppStore = create<AppStore>()(
           ofcStartingStack: 100,
           ofcVariant: 'classic',
           gameStats: {},
+          ofcRecordedEvents: {},
+          bluffRecordedEvents: {},
         }));
       },
     }),
@@ -156,6 +177,8 @@ export const useAppStore = create<AppStore>()(
         ofcStartingStack: state.ofcStartingStack,
         ofcVariant: state.ofcVariant,
         gameStats: state.gameStats,
+        ofcRecordedEvents: state.ofcRecordedEvents,
+        bluffRecordedEvents: state.bluffRecordedEvents,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
@@ -180,6 +203,8 @@ export const useAppStore = create<AppStore>()(
           );
           // Older persisted blobs predate game stats — no persist `migrate` exists.
           state.gameStats = state.gameStats ?? {};
+          state.ofcRecordedEvents = state.ofcRecordedEvents ?? {};
+          state.bluffRecordedEvents = state.bluffRecordedEvents ?? {};
           state.bluffVariant = state.bluffVariant ?? 'standard';
           // Re-apply the persisted language choice — i18next inits with the device
           // locale and would otherwise silently override the user's setting on boot.

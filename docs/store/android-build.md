@@ -49,10 +49,11 @@ Select the `production` keystore — the summary prints the **SHA-1 fingerprint*
 **5. API:** the server accepts the Web audience once the secret is set (see `apps/api/src/auth/verify.ts`):
 
 ```sh
-fly secrets set GOOGLE_WEB_CLIENT_ID=<web-client-id> -a upk-api
+vercel env add GOOGLE_WEB_CLIENT_ID production
+vercel deploy --prod --local-config apps/api/vercel.json
 ```
 
-(`fly secrets set` redeploys the API automatically.)
+(Run these commands from the repository root, linked to the `proker-api` Vercel project.)
 
 **6. Rebuild** the APK (`eas build -p android --profile preview`) and reinstall — Google Sign-In now works end-to-end on Android.
 

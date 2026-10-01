@@ -50,8 +50,8 @@ pnpm-debug.log*
 # ── Misc ──────────────────────────────────────────────────────
 *.tsbuildinfo
 .cache/
+.vercel/
 
 # ── Local SQLite (apps/api dev) ───────────────────────────────
 dev.db
 dev.db-*
-

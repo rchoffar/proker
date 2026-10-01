@@ -3,9 +3,9 @@
 Everything to paste into the Google Play Console. Companion to `app-store-listing.md` (iOS) and `android-build.md` (APK build + Google Sign-In console setup, already done). Limits are noted per field; all texts below respect them.
 
 - Package: `fr.upk.app` · EAS project `758e18a1-a494-47de-b8e7-518879a3fc9e`
-- Privacy policy URL: **https://upk-api.fly.dev/privacy**
-- Support email: `froxyonfr@gmail.com` (Play requires an email; the support *page* https://upk-api.fly.dev/support goes in the optional website field)
-- **Account deletion URL** (required in Data safety, the app has account creation): **https://upk-api.fly.dev/account-deletion**
+- Privacy policy URL: **https://proker-api.vercel.app/privacy**
+- Support email: `froxyonfr@gmail.com` (Play requires an email; the support *page* https://proker-api.vercel.app/support goes in the optional website field)
+- **Account deletion URL** (required in Data safety, the app has account creation): **https://proker-api.vercel.app/account-deletion**
 - App category: **Game → Card**. Do **not** pick Casino: it signals gambling, invites extra scrutiny, and is regulated/blocked in some countries — UPK has no real-money play.
 - Contains ads: **No** · In-app purchases: **No**
 - Note: the iOS listing doc predates the 2026-08-25 game-stats pivot and still mentions the bankroll tracker and festivals. The copy below reflects the **current app** (games, hand replayer, game stats). Don't paste the iOS description as-is.
@@ -182,7 +182,7 @@ Does your app collect or share any of the required user data types? **Yes.**
 | Question | Answer |
 |---|---|
 | Data encrypted in transit? | **Yes** (HTTPS/WSS only) |
-| Way to request data deletion? | **Yes** → deletion URL `https://upk-api.fly.dev/account-deletion` |
+| Way to request data deletion? | **Yes** → deletion URL `https://proker-api.vercel.app/account-deletion` |
 
 Declare **four** data types, all **collected** and none shared (corrected 2026-09-01 — the earlier two-type answer under-declared, see the ⚠ below):
 
@@ -219,7 +219,7 @@ Expected rating: **18+ / Adult in most territories** (simulated gambling). Don't
 
 ## Other App content declarations
 
-- **Privacy policy**: `https://upk-api.fly.dev/privacy`
+- **Privacy policy**: `https://proker-api.vercel.app/privacy`
 - **Ads**: No ads
 - **App access**: "All or some functionality is restricted" → add an instruction set: sign-in is required, only via Google/Apple (no password login exists). Note for reviewers: "Sign in with Google with any Google account — account creation is free and instant, no extra steps."
 - **Target audience**: 18 and over only. Not appealing to children.
@@ -245,7 +245,7 @@ Expected rating: **18+ / Adult in most territories** (simulated gambling). Don't
    3. ⚠ **Publish the OAuth consent screen.** APIs & Services → OAuth consent screen: if *Publishing status* is still **Testing**, only accounts listed as test users can sign in (100 max) — your 12 testers get `access_denied`. Hit **Publish app**; with only `openid`/`email`/`profile` (non-sensitive scopes) no Google verification review is triggered and it takes effect immediately.
    4. **Verify on a Play-signed install before rolling out.** A sideloaded EAS APK does *not* exercise this path. Note that **Internal app sharing uses yet another key** ("Internal app sharing key certificate" on the same keymanagement page) — testing through it needs a third Android OAuth client for that SHA-1. Simpler: join the closed test yourself and install from the Play Store on the `upk_play_1080x2160` AVD (Play Store image — the emulator only fails hardware attestation, the Store itself works).
 5. **Store listing** (Grow → Store presence → Main store listing): paste the en texts above, upload `icon-512.png`, `feature-graphic.png` and the `store/screenshots/android/en/` set. Then add a **French (France)** localization with the fr texts + `android/fr/` screenshots.
-6. **Store settings**: category Card, contact email, website `https://upk-api.fly.dev/support`.
+6. **Store settings**: category Card, contact email, website `https://proker-api.vercel.app/support`.
 7. **App content** (Policy → App content): work through every section using the answers above (privacy policy, ads, app access, content rating, target audience, data safety, financial features, government/news).
 8. **Build the AAB**:
    ```sh
@@ -281,7 +281,7 @@ Les libellés ci-dessous sont ceux de la Console en français. Réponse à colle
 | Tags (5 max) | prendre dans la liste imposée : Cartes, Poker si proposé, Jeux occasionnels. Éviter tout tag Casino/Paris |
 | E-mail d'assistance | `froxyonfr@gmail.com` |
 | Téléphone | laisser vide (facultatif, devient public) |
-| Site Web | `https://upk-api.fly.dev/support` |
+| Site Web | `https://proker-api.vercel.app/support` |
 
 ### Fiche Play Store principale
 
@@ -300,12 +300,12 @@ Les libellés ci-dessous sont ceux de la Console en français. Réponse à colle
 
 | Section | Réponse |
 |---|---|
-| Règles de confidentialité | `https://upk-api.fly.dev/privacy` |
+| Règles de confidentialité | `https://proker-api.vercel.app/privacy` |
 | **Accès à l'application** | « Toutes les fonctionnalités ou certaines d'entre elles sont restreintes » → un ensemble d'instructions (voir détail ci-dessous) |
 | Annonces | **Non**, l'appli ne contient pas d'annonces |
 | Classification du contenu | questionnaire IARC (voir § Content rating + détail ci-dessous) |
 | Public cible et contenu | tranche d'âge **18 ans et plus** uniquement · « attire les enfants » → **Non** |
-| Sécurité des données | voir § Data safety form · URL de suppression `https://upk-api.fly.dev/account-deletion` |
+| Sécurité des données | voir § Data safety form · URL de suppression `https://proker-api.vercel.app/account-deletion` |
 | Jeux d'argent et de hasard, jeux et concours | **Non** — aucune mise ni gain en argent réel |
 | Fonctionnalités financières | **Aucune de ces fonctionnalités** |
 | Applications gouvernementales | **Non** |

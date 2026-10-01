@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState, type ReactNode, type ReactElement } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, type RefreshControlProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,7 @@ interface Props {
    * which picks what the rest of the screen is and so must not drift with it.
    */
   topBar?: ReactNode;
+  refreshControl?: ReactElement<RefreshControlProps>;
   children: ReactNode;
   ctaLabel: string;
   ctaDisabled?: boolean;
@@ -47,7 +48,7 @@ export function SetupBlock({ index, fill, children }: { index: number; fill?: bo
   );
 }
 
-export function GameSetupScreen({ title, subtitle, topBar, children, ctaLabel, ctaDisabled = false, onCtaPress }: Props) {
+export function GameSetupScreen({ title, subtitle, topBar, refreshControl, children, ctaLabel, ctaDisabled = false, onCtaPress }: Props) {
   const { colors } = useTheme();
   const router = useRouter();
   const { t } = useTranslation('games');
@@ -81,6 +82,8 @@ export function GameSetupScreen({ title, subtitle, topBar, children, ctaLabel, c
       {topBar ? <View style={styles.topBar}>{topBar}</View> : null}
 
       <ScrollView
+        refreshControl={refreshControl}
+        alwaysBounceVertical={!!refreshControl}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

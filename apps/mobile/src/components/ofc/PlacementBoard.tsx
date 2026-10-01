@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { useOfcPlacementDraft } from '../../hooks/useOfcPlacementDraft';
 import { PlayingCard } from '../hand/PlayingCard';
 import { TABLE } from '../hand/PokerTable';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
@@ -18,6 +19,8 @@ import { HAND_SORT_MODES, ROW_CAPACITY, ROW_IDS, sortHand } from '../../lib/ofc'
 // discards — they are inferred by the engine, never sent.
 
 interface Props {
+  disabled?: boolean;
+  draftKey?: string;
   hand: Card[];
   onCommit: (placements: OfcPlacement[]) => void;
   commitLabel: string;
@@ -27,17 +30,18 @@ interface Props {
 const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
 const INITIAL_TRAY_MAX = 5; // above this the tray is a Fantasy Land hand
 
-export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Props) {
+export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0, disabled = false, draftKey }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
-  const [layout, setLayout] = useState<Record<RowId, Card[]>>({ top: [], middle: [], bottom: [] });
+  const [placements, setPlacements] = useOfcPlacementDraft(draftKey);
+  const layout = Object.fromEntries(ROW_IDS.map(row => [row, placements.filter(p => p.row === row).map(p => p.card)])) as Record<RowId, Card[]>;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   // Display-only tray order — placements reference the cards, so sorting commits nothing.
   const [sortMode, setSortMode] = useState<HandSortMode | null>(null);
 
   const placedKeys = useMemo(
-    () => new Set(ROW_IDS.flatMap((row) => layout[row].map(cardKey))),
-    [layout],
+    () => new Set(placements.map(p => cardKey(p.card))),
+    [placements],
   );
   // Sort the FULL hand, then filter out placed cards: the pairs mode groups by rank count,
   // and counting the shrinking tray instead made a pair's remaining card jump to the singles
@@ -49,20 +53,21 @@ export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Pr
   const done = tray.length === discards;
 
   const placeInto = (row: RowId) => {
-    if (!selectedKey || layout[row].length >= ROW_CAPACITY[row]) return;
+    if (disabled || !selectedKey || layout[row].length >= ROW_CAPACITY[row]) return;
     const card = tray.find((c) => cardKey(c) === selectedKey);
     if (!card) return;
     Haptics.selectionAsync();
-    setLayout((prev) => ({ ...prev, [row]: [...prev[row], card] }));
+    setPlacements([...placements, { card, row }]);
     setSelectedKey(null);
   };
 
   const takeBack = (row: RowId, card: Card) => {
     Haptics.selectionAsync();
-    setLayout((prev) => ({ ...prev, [row]: prev[row].filter((c) => cardKey(c) !== cardKey(card)) }));
+    setPlacements(placements.filter(p => p.row !== row || cardKey(p.card) !== cardKey(card)));
   };
 
   const commit = () => {
+    if (disabled) return;
     onCommit(ROW_IDS.flatMap((row) => layout[row].map((card) => ({ card, row }))));
   };
 
@@ -167,9 +172,9 @@ export function PlacementBoard({ hand, onCommit, commitLabel, discards = 0 }: Pr
       </View>
 
       <TouchableOpacity
-        style={[styles.commitBtn, { backgroundColor: colors.accentBright }, !done && styles.disabledBtn]}
+        style={[styles.commitBtn, { backgroundColor: colors.accentBright }, (!done || disabled) && styles.disabledBtn]}
         onPress={commit}
-        disabled={!done}
+        disabled={!done || disabled}
         activeOpacity={0.85}
       >
         <Text style={styles.commitText}>{commitLabel}</Text>

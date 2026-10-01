@@ -83,12 +83,46 @@
     "title": "Online Bluff",
     "headerCode": "Bluff · {{code}}",
     "waitingBoard": "{{name}} is choosing the middle…",
-    "waitingTurn": "{{name}}'s turn…",
+    "waitingTurn": "Waiting for a player",
     "advancing": "Moving on…",
     "jeuMaxEnabled": "Jeu Max rule enabled",
     "jeuMaxDisabledLobby": "Classic rules — no Jeu Max",
     "variantStandard": "Classic variant — 2 cards, out at 5",
-    "variantQuick": "Quick variant — 1 card, out at 4"
+    "variantQuick": "Quick variant — 1 card, out at 4",
+    "myRooms": "My rooms",
+    "availableRooms": "Available rooms",
+    "yourTurn": "Your turn",
+    "waitingPlayers": "Waiting · {{current}}/{{max}} players",
+    "finished": "Finished",
+    "abandoned": "Abandoned",
+    "noGames": "No games yet. Create a room or join one.",
+    "noRooms": "No public rooms are waiting.",
+    "joinByCode": "Join by code",
+    "codePlaceholder": "6-digit code",
+    "seats_one": "{{count}} player",
+    "seats_other": "{{count}} players",
+    "public": "Public",
+    "private": "Private",
+    "autoStartHint": "The game starts automatically when all {{count}} seats are taken.",
+    "deletedPlayer": "Deleted player",
+    "forfeited": "Forfeited",
+    "errors": {
+      "network": "Cannot reach the server. Your last state is preserved.",
+      "unauthorized": "Sign in again to find your games.",
+      "notFound": "This game cannot be found or accessed.",
+      "started": "This game has already started.",
+      "full": "This room is full.",
+      "stale": "The game has advanced. Refresh, then confirm your placement again.",
+      "notPlaying": "You can no longer play in this game.",
+      "invalid": "This request is invalid."
+    },
+    "gameSummary": "{{variant}} · Round {{round}}",
+    "leaveTitle": "Leave the game?",
+    "leaveWaitingMessage": "Your seat in this room will become available.",
+    "leaveConfirm": "Leave",
+    "leaveRoom": "Leave room",
+    "forfeit": "Forfeit",
+    "forfeitMessage": "You will be eliminated. The current round will be cancelled and the other players can continue."
   },
   "picker": {
     "title": "Announce",
@@ -114,5 +148,8 @@
     "eliminatedNow": "Eliminated!",
     "plusOneCard": "+1 card",
     "minusOneCard": "−1 card"
+  },
+  "local": {
+    "resume": "Resume — round {{round}}"
   }
 }

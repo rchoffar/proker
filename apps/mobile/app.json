@@ -99,6 +99,7 @@
       ]
     ],
     "experiments": {
+      "onDemandFilesystem": false,
       "typedRoutes": true
     },
     "extra": {

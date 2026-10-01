@@ -1,6 +1,6 @@
 // Static legal/support pages served by the API so the store listings have
 // stable privacy-policy, support and account-deletion URLs without extra
-// infrastructure. https://upk-api.fly.dev/privacy — /support — /account-deletion
+// infrastructure. https://proker-api.vercel.app/privacy — /support — /account-deletion
 // (/account-deletion is required by Google Play's Data safety form for apps
 // with account creation.)
 
@@ -48,6 +48,7 @@ export const privacyHtml: string = page(
 <ul>
   <li><strong>Adresse e-mail</strong> (fournie par Apple ou Google — avec Apple vous pouvez utiliser une adresse relais masquée) ;</li>
   <li><strong>Identifiant de compte</strong> (identifiant technique fourni par Apple/Google et un identifiant interne UPK) ;</li>
+  <li><strong>Parties en ligne</strong> : participation aux rooms, règles, cartes, coups et résultats, pour reprendre vos parties OFC et Bluff ;</li>
   <li><strong>Pseudo</strong> (choisi par vous, affiché aux autres joueurs dans les jeux en ligne) ;</li>
   <li><strong>Mains de poker que vous enregistrez</strong> dans le hand replayer (positions, blindes, tapis, actions) : elles sont sauvegardées sur votre appareil <em>et</em> synchronisées sur nos serveurs, rattachées à votre compte, afin que vous les retrouviez après une réinstallation ou sur un autre appareil. Vous seul y avez accès. Enregistrer une main est facultatif : l'application fonctionne sans.</li>
 </ul>
@@ -63,7 +64,7 @@ export const privacyHtml: string = page(
 <p>Vos <strong>statistiques de jeu</strong> (parties jouées, victoires, records, par pseudo) et vos <strong>préférences</strong> sont stockées <strong>uniquement sur votre appareil</strong> et ne sont jamais transmises à nos serveurs. Vos mains enregistrées y sont également conservées, en plus de la copie synchronisée sur nos serveurs décrite ci-dessus. Le jeton de session est stocké dans le stockage sécurisé du système (Keychain).</p>
 
 <h3>Hébergement et conservation</h3>
-<p>Les données de compte et les mains synchronisées sont hébergées sur Fly.io. Elles sont conservées tant que votre compte existe.</p>
+<p>Les données de compte et les mains synchronisées sont hébergées dans une base PostgreSQL Neon, avec une API sur Vercel. Elles sont conservées tant que votre compte existe.</p>
 
 <h3>Suppression de votre compte</h3>
 <p>Vous pouvez supprimer votre compte à tout moment depuis l'application (Profil → Supprimer le compte). La suppression est immédiate et définitive : toutes les données serveur associées (e-mail, identifiants, pseudo, mains synchronisées) sont effacées. Vous pouvez aussi en faire la demande par e-mail à <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -86,6 +87,7 @@ export const privacyHtml: string = page(
 <ul>
   <li><strong>Email address</strong> (provided by Apple or Google — with Apple you may use a private relay address);</li>
   <li><strong>Account identifier</strong> (a technical ID from Apple/Google plus an internal UPK ID);</li>
+  <li><strong>Online games</strong>: room memberships, rules, cards, moves and results, so you can resume your OFC and Bluff games;</li>
   <li><strong>Nickname</strong> (chosen by you, shown to other players in online games);</li>
   <li><strong>The poker hands you save</strong> in the hand replayer (positions, blinds, stacks, actions): they are stored on your device <em>and</em> synced to our servers under your account, so you keep them after a reinstall or on another device. Only you can access them. Saving a hand is optional — the app works without it.</li>
 </ul>
@@ -101,7 +103,7 @@ export const privacyHtml: string = page(
 <p>Your <strong>game stats</strong> (games played, wins, records, per nickname) and <strong>preferences</strong> are stored <strong>on your device only</strong> and are never sent to our servers. Your saved hands are also kept there, in addition to the synced copy on our servers described above. Your session token is kept in the system secure storage (Keychain).</p>
 
 <h3>Hosting and retention</h3>
-<p>Account data and synced hands are hosted on Fly.io and retained for as long as your account exists.</p>
+<p>Account data and synced hands are stored in Neon PostgreSQL, with an API hosted on Vercel. These data are retained for as long as your account exists.</p>
 
 <h3>Deleting your account</h3>
 <p>You can delete your account at any time from within the app (Profile → Delete account). Deletion is immediate and permanent: all associated server data (email, identifiers, nickname, synced hands) is erased. You can also request deletion by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -127,7 +129,7 @@ export const supportHtml: string = page(
   <li><strong>Ai-je besoin d'un compte ?</strong> Oui — la connexion (Apple ou Google) est requise. La création est gratuite et immédiate, sans formulaire ni mot de passe.</li>
   <li><strong>Comment supprimer mon compte ?</strong> Profil → Supprimer le compte. Effet immédiat et définitif.</li>
   <li><strong>UPK est-il un site de jeux d'argent ?</strong> Non. Aucune mise en argent réel, aucun gain — les jeux sont purement récréatifs.</li>
-  <li><strong>Mes données sont-elles envoyées en ligne ?</strong> Vos statistiques de jeu et vos préférences restent sur votre appareil. Les mains que vous enregistrez dans le replayer sont synchronisées sur votre compte, pour que vous les retrouviez après une réinstallation — vous seul y avez accès.</li>
+  <li><strong>Mes données sont-elles envoyées en ligne ?</strong> Vos statistiques de jeu et vos préférences restent sur votre appareil. Les parties OFC et Bluff en ligne sont enregistrées sur le serveur pour être reprises plus tard. Les mains que vous enregistrez dans le replayer sont synchronisées sur votre compte, pour que vous les retrouviez après une réinstallation — vous seul y avez accès.</li>
 </ul>
 <p>Un problème, une suggestion ? Écrivez-nous : <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. Nous répondons généralement sous 48 h.</p>
 
@@ -140,7 +142,7 @@ export const supportHtml: string = page(
   <li><strong>Do I need an account?</strong> Yes — signing in (Apple or Google) is required. Creation is free and instant, with no forms or passwords.</li>
   <li><strong>How do I delete my account?</strong> Profile → Delete account. Immediate and permanent.</li>
   <li><strong>Is UPK a gambling app?</strong> No. No real-money wagering, no payouts — the games are purely recreational.</li>
-  <li><strong>Is my data uploaded?</strong> Your game stats and preferences stay on your device. The hands you save in the replayer are synced to your account so you keep them after a reinstall — only you can access them.</li>
+  <li><strong>Is my data uploaded?</strong> Your game stats and preferences stay on your device. Online OFC and Bluff games are stored on the server so you can resume them later. The hands you save in the replayer are synced to your account so you keep them after a reinstall — only you can access them.</li>
 </ul>
 <p>Problems or suggestions? Email us: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. We usually reply within 48 hours.</p>
 

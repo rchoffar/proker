@@ -60,9 +60,11 @@ function RootNavigator() {
             <Stack.Screen name="games/flip/index" />
             <Stack.Screen name="games/flip/play" />
             <Stack.Screen name="games/bluff/index" />
+            <Stack.Screen name="games/bluff/create" />
             <Stack.Screen name="games/bluff/play" />
             <Stack.Screen name="games/bluff/online" />
             <Stack.Screen name="games/ofc/index" />
+            <Stack.Screen name="games/ofc/create" />
             <Stack.Screen name="games/ofc/play" />
             <Stack.Screen name="games/ofc/online" />
           </Stack.Protected>

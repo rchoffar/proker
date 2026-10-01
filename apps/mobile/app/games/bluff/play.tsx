@@ -21,8 +21,9 @@ import { GameOverActions } from '../../../src/components/games/GameOverActions';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
+import * as Crypto from 'expo-crypto';
+import { useBluffLocalGames } from '../../../src/store/useBluffLocalGames';
 import { useBluffDraft } from '../../../src/store/useBluffDraft';
-import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { useGameExit } from '../../../src/hooks/useGameExit';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
@@ -50,14 +51,24 @@ const HAND_FAN_ANGLES: Record<number, number[]> = {
   5: [-14, -7, 0, 7, 14],
 };
 
+const resumeLater = () => Promise.resolve(true);
+
 export default function BluffPlayScreen() {
   useKeepAwake(); // the shared phone must not lock mid-game
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const router = useRouter();
-  const players = useBluffDraft((s) => s.players);
-  const jeuMaxEnabled = useBluffDraft((s) => s.jeuMax);
-  const variant = useBluffDraft((s) => s.variant);
+  const [saved] = useState(() => {
+    const store = useBluffLocalGames.getState();
+    return store.activeId ? store.games[store.activeId] : undefined;
+  });
+  const [saveId] = useState(() => useBluffLocalGames.getState().activeId ?? Crypto.randomUUID());
+  const draftPlayers = useBluffDraft((s) => s.players);
+  const players = saved?.state.players ?? draftPlayers;
+  const draftJeuMax = useBluffDraft((s) => s.jeuMax);
+  const jeuMaxEnabled = saved?.state.config.jeuMax ?? draftJeuMax;
+  const draftVariant = useBluffDraft((s) => s.variant);
+  const variant = saved?.state.config.variant ?? draftVariant;
   const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   // The engine leaves dealing to the controller (randomness stays out of reduce):
@@ -66,10 +77,9 @@ export default function BluffPlayScreen() {
     s.phase === 'dealing' ? reduce(s, createRoundDeal(s)) : s;
 
   const [state, setState] = useState<BluffState | null>(() =>
-    players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })) : null,
+    saved?.state ?? (players.length >= 2 ? withAutoDeal(initGame(players, Math.random, { jeuMax: jeuMaxEnabled, variant })) : null),
   );
-  const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
-  const exit = useGameExit(confirmQuit);
+  const exit = useGameExit(resumeLater);
 
   // Handoff lock: the phone must reach the right player before their cards can be peeked.
   const [locked, setLocked] = useState(true);
@@ -111,7 +121,7 @@ export default function BluffPlayScreen() {
   // Per-round bluff-catch stats: one reveal max per round, and `reveal` is cleared by the
   // next deal, so the round-number ref dedupes re-renders and resets across replays.
   // Jeu Max reveals are a different mechanic and stay out of the catch counters.
-  const revealRoundRef = useRef<number | null>(null);
+  const revealRoundRef = useRef<number | null>(saved?.statsRound ?? null);
   useEffect(() => {
     if (!state?.reveal) {
       revealRoundRef.current = null;
@@ -129,7 +139,7 @@ export default function BluffPlayScreen() {
     );
   }, [state, updateGameStats]);
 
-  const gameOverRecordedRef = useRef(false);
+  const gameOverRecordedRef = useRef(saved?.gameOverRecorded ?? false);
   useEffect(() => {
     if (state?.phase !== 'gameOver') {
       gameOverRecordedRef.current = false;
@@ -144,6 +154,12 @@ export default function BluffPlayScreen() {
     );
   }, [state, updateGameStats]);
 
+
+  useEffect(() => {
+    if (state) useBluffLocalGames.getState().save(saveId, {
+      state, statsRound: revealRoundRef.current, gameOverRecorded: gameOverRecordedRef.current,
+    });
+  }, [state, saveId]);
 
   if (!state) {
     return <NoPlayersScreen message={t('games:play.noPlayers')} onBack={() => router.back()} onDark />;

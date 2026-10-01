@@ -1,19 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { RefreshControl, Text, TouchableOpacity } from 'react-native';
+import { useOfcLocalGames } from '../../../src/store/useOfcLocalGames';
+import { GlassCard } from '../../../src/components/ui/GlassCard';
+import { useTheme } from '../../../src/design-system/ThemeProvider';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GameSetupScreen, SetupBlock } from '../../../src/components/games/GameSetupScreen';
 import { SeatTableBoard } from '../../../src/components/games/SeatTableBoard';
 import { FeltOptions, type FeltOptionRow } from '../../../src/components/games/FeltOptions';
-import { GlassCard } from '../../../src/components/ui/GlassCard';
 import { SegmentedControl } from '../../../src/components/ui/SegmentedControl';
 import { useAppStore } from '../../../src/store/useAppStore';
-import { useAuthStore } from '../../../src/store/useAuthStore';
+import { OnlineLobby } from '../../../src/components/ofc/OnlineLobby';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
 import { MAX_OFC_PLAYERS, MIN_OFC_PLAYERS, OFC_VARIANTS } from '../../../src/lib/ofc';
 import type { OfcVariant } from '../../../src/lib/ofc';
-import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
-import { useTheme } from '../../../src/design-system/ThemeProvider';
 import type { Player } from '../../../src/types';
 
 type SetupMode = 'passPlay' | 'online';
@@ -24,46 +24,37 @@ const GAME_NAME = 'OFC';
 
 export default function OfcSetupScreen() {
   const { t } = useTranslation('ofc');
-  const { colors } = useTheme();
   const router = useRouter();
+  const refreshRef = useRef<(() => void) | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const registerRefresh = useCallback((refresh: () => void) => { refreshRef.current = refresh; }, []);
+  const { colors } = useTheme();
+  const localGames = useOfcLocalGames(s => s.games);
   const { players, addPlayer, ofcLastPlayers, ofcStartingStack, ofcVariant, setOfcDefaults } = useAppStore();
-  const pseudo = useAuthStore((s) => s.user?.pseudo) ?? '';
   const setDraft = useOfcDraft((s) => s.setDraft);
 
   const modeOptions = useMemo<{ key: SetupMode; label: string }[]>(
     () => [
-      { key: 'passPlay', label: t('games:setup.modePassPlay') },
       { key: 'online', label: t('games:setup.modeOnline') },
+      { key: 'passPlay', label: t('games:setup.modePassPlay') },
     ],
     [t],
   );
 
-  const [mode, setMode] = useState<SetupMode>('passPlay');
+  const [mode, setMode] = useState<SetupMode>('online');
   const [selected, setSelected] = useState<Player[]>(ofcLastPlayers);
   const [startingStack, setStartingStack] = useState(ofcStartingStack);
   const [variant, setVariant] = useState<OfcVariant>(ofcVariant);
-  const [joinCode, setJoinCode] = useState('');
 
   const canDeal = selected.length >= MIN_OFC_PLAYERS && selected.length <= MAX_OFC_PLAYERS;
-  const canJoin = joinCode.length === 4;
 
   const handleStartPassPlay = () => {
+    useOfcLocalGames.getState().select(null);
     const newPlayers = selected.filter((p) => !players.some((existing) => existing.id === p.id));
     for (const p of newPlayers) addPlayer(p);
     setOfcDefaults({ players: selected, startingStack, variant });
     setDraft({ mode: 'passPlay', players: selected, startingStack, variant });
     router.push('/games/ofc/play');
-  };
-
-  const handleHost = () => {
-    setOfcDefaults({ startingStack, variant });
-    setDraft({ mode: 'host', pseudo, startingStack, variant });
-    router.push('/games/ofc/online');
-  };
-
-  const handleJoin = () => {
-    setDraft({ mode: 'guest', pseudo, joinCode });
-    router.push('/games/ofc/online');
   };
 
   const feltRows: FeltOptionRow[] = [
@@ -96,11 +87,12 @@ export default function OfcSetupScreen() {
 
   return (
     <GameSetupScreen
+      refreshControl={mode === 'online' ? <RefreshControl refreshing={refreshing} onRefresh={() => refreshRef.current?.()} /> : undefined}
       title={t('title')}
       subtitle={t('setup.subtitle')}
       ctaLabel={mode === 'passPlay' ? t('games:setup.dealCards') : t('games:setup.createTable')}
-      ctaDisabled={mode === 'passPlay' && !canDeal}
-      onCtaPress={mode === 'passPlay' ? handleStartPassPlay : handleHost}
+      ctaDisabled={mode === 'passPlay' ? !canDeal : false}
+      onCtaPress={mode === 'passPlay' ? handleStartPassPlay : () => router.push('/games/ofc/create')}
       topBar={
         <SetupBlock index={0}>
           <SegmentedControl options={modeOptions} value={mode} onChange={setMode} />
@@ -108,6 +100,15 @@ export default function OfcSetupScreen() {
       }
     >
       {mode === 'passPlay' ? (
+        <>
+          {Object.entries(localGames).filter(([, game]) => game.state.phase !== 'gameOver').map(([id, game]) => (
+            <TouchableOpacity key={id} onPress={() => { useOfcLocalGames.getState().select(id); router.push('/games/ofc/play'); }}>
+              <GlassCard padding={12}>
+                <Text style={{ color: colors.accent }}>{t('local.resume', { hand: game.state.handNumber })}</Text>
+                <Text style={{ color: colors.textSecondary }}>{game.state.players.map(p => p.name).join(' · ')}</Text>
+              </GlassCard>
+            </TouchableOpacity>
+          ))}
         <SetupBlock index={1} fill>
           <SeatTableBoard
             players={players}
@@ -118,89 +119,10 @@ export default function OfcSetupScreen() {
             fill
           />
         </SetupBlock>
-      ) : (
-        <>
-          <SetupBlock index={1}>
-            <GlassCard padding={16}>
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('games:setup.joinTable')}</Text>
-              <View style={styles.joinRow}>
-                <TextInput
-                  value={joinCode}
-                  onChangeText={(v) => setJoinCode(v.replace(/[^0-9]/g, '').slice(0, 4))}
-                  placeholder="0000"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  style={[
-                    styles.codeInput,
-                    { color: colors.textPrimary, borderColor: colors.surface.fieldBorder, backgroundColor: colors.surface.fieldBg },
-                  ]}
-                />
-                <TouchableOpacity
-                  style={[styles.joinBtn, { backgroundColor: colors.accentTint, borderColor: colors.accent }, !canJoin && styles.disabledBtn]}
-                  onPress={handleJoin}
-                  disabled={!canJoin}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.joinBtnText, { color: colors.accent }]}>{t('games:setup.join')}</Text>
-                </TouchableOpacity>
-              </View>
-            </GlassCard>
-          </SetupBlock>
-          {/* Hosting: the felt shows the rules the guests will inherit, no roster yet. */}
-          <SetupBlock index={2} fill>
-            <SeatTableBoard
-              players={players}
-              selected={[]}
-              onChange={() => {}}
-              maxPlayers={MAX_OFC_PLAYERS}
-              center={feltOptions}
-              seatsInteractive={false}
-              emptySeatLabel={t('games:online.waitingSeat')}
-              fill
-            />
-          </SetupBlock>
         </>
+      ) : (
+        <OnlineLobby onRefreshReady={registerRefresh} onRefreshingChange={setRefreshing} />
       )}
     </GameSetupScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  fieldLabel: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.medium,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  joinRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'center',
-  },
-  codeInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    fontSize: fontSize.lg,
-    fontFamily: fontFamily.bold,
-    letterSpacing: 6,
-    textAlign: 'center',
-  },
-  joinBtn: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  joinBtnText: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.bold,
-  },
-  disabledBtn: {
-    opacity: 0.4,
-  },
-});
