@@ -1,10 +1,6 @@
-export type Suit = 'clubs' | 'diamonds' | 'hearts' | 'spades';
-export type Rank = 'A' | 'K' | 'Q' | 'J' | 'T' | '9' | '8' | '7' | '6' | '5' | '4' | '3' | '2';
-
-export interface Card {
-  rank: Rank;
-  suit: Suit;
-}
+import type { Card } from '../../../../packages/ofc/cards';
+export type { Card, Rank, Suit } from '../../../../packages/ofc/cards';
+export { RANKS, SUITS, cardKey } from '../../../../packages/ofc/cards';
 
 export type Street = 'preflop' | 'flop' | 'turn' | 'river';
 
@@ -86,11 +82,4 @@ export interface HandHistory {
   heroNet?: number;
   // Absent on hands recorded before unit modes existed — treat as 'chips'.
   unitMode?: UnitMode;
-}
-
-export const RANKS: Rank[] = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
-export const SUITS: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
-
-export function cardKey(card: Card): string {
-  return `${card.rank}${card.suit[0]}`;
 }

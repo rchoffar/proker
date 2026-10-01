@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { WifiOff } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { useKeepAwake } from 'expo-keep-awake';
+import { useOfcGame } from '../../../src/hooks/useOfcOnline';
+import { BottomSheet } from '../../../src/components/ui/BottomSheet';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
 import { OfcActorPanel } from '../../../src/components/ofc/OfcActorPanel';
@@ -20,295 +20,89 @@ import type { OfcSeatVM } from '../../../src/components/ofc/OfcSeatsStrip';
 import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
 import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
-import { useOfcDraft } from '../../../src/store/useOfcDraft';
-import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
-import { useActionInFlight } from '../../../src/hooks/useActionInFlight';
-import { useAppStore } from '../../../src/store/useAppStore';
-import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
-import { useOfcGuest, useOfcHost } from '../../../src/hooks/useOfcOnline';
-import type { OfcOnlineCommon } from '../../../src/hooks/useOfcOnline';
-import { GRID_SIZE, MAX_OFC_PLAYERS, MIN_OFC_PLAYERS, VARIANT_CONFIG } from '../../../src/lib/ofc';
+import { GRID_SIZE, VARIANT_CONFIG } from '../../../src/lib/ofc';
 import { ofcPlayView, ofcSeatData } from '../../../src/lib/ofc/view';
-import type { OfcVariant } from '../../../src/lib/ofc';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
 import { DARK_TILE, SCREEN_BG } from '../../../src/components/games/gameSurface';
 import { GamePlayHeader } from '../../../src/components/games/GamePlayHeader';
-import { GameOverActions } from '../../../src/components/games/GameOverActions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// How long the scoresheet stays up before the host's device rolls the next hand on its
-// own. Long enough to read a full foul + royalties breakdown without feeling stuck.
-const SCORESHEET_HOLD_MS = 6000;
-
-// Server/protocol disconnect enums → ofc namespace keys, translated at render.
-const DISCONNECT_KEYS = {
-  host_left: 'games:disconnect.host_left',
-  expired: 'games:disconnect.expired',
-  hostQuit: 'games:disconnect.hostQuit',
-} as const;
-
 export default function OfcOnlineScreen() {
-  const mode = useOfcDraft((s) => s.mode);
-  const pseudo = useOfcDraft((s) => s.pseudo);
-  const joinCode = useOfcDraft((s) => s.joinCode);
-  const startingStack = useOfcDraft((s) => s.startingStack);
-  const variant = useOfcDraft((s) => s.variant);
-
-  if (mode === 'guest' && joinCode) return <GuestFlow pseudo={pseudo} joinCode={joinCode} />;
-  return <HostFlow pseudo={pseudo} startingStack={startingStack} variant={variant} />;
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { t } = useTranslation('ofc');
+  const router = useRouter();
+  if (!id) return <SafeAreaView style={[styles.screen, styles.centered]}>
+    <Text style={styles.caption}>{t('online.errors.notFound')}</Text>
+    <TouchableOpacity onPress={() => router.replace('/games/ofc')}><Text style={styles.reconnectText}>{t('common:back')}</Text></TouchableOpacity>
+  </SafeAreaView>;
+  return <OnlineView key={id} id={id} />;
 }
 
-function HostFlow({ pseudo, startingStack, variant }: { pseudo: string; startingStack: number; variant: OfcVariant }) {
-  const online = useOfcHost(pseudo);
-  return (
-    <OnlineView
-      online={online}
-      isHost
-      hostVariant={variant}
-      onStart={() => online.startGame(startingStack, variant)}
-      onReplay={online.replay}
-    />
-  );
-}
-
-function GuestFlow({ pseudo, joinCode }: { pseudo: string; joinCode: string }) {
-  const online = useOfcGuest(pseudo, joinCode);
-  return <OnlineView online={online} isHost={false} />;
-}
-
-interface OnlineViewProps {
-  online: OfcOnlineCommon;
-  isHost: boolean;
-  hostVariant?: OfcVariant; // the mode this host will start — shown in the lobby
-  onStart?: () => void;
-  onReplay?: () => void;
-}
-
-function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineViewProps) {
-  // Locking the phone suspends the socket — fatal for the host, disruptive for guests.
-  useKeepAwake();
+function OnlineView({ id }: { id: string }) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const router = useRouter();
-  const { status, code, myId, members, view, errorMsg, closedReason, reconnecting, sendAction, leave } = online;
-
-  // Committing does nothing visible until the host's state comes back, which on a slow
-  // connection reads as a freeze. Player actions report themselves as in flight; the host's
-  // own auto-advance timer does NOT go through this, or the wrapper would swallow it.
-  const { inFlight, send } = useActionInFlight(view?.version);
-  const sendPlay = send(sendAction);
-
-  // The host holds the room: their exit closes it for everyone, so it needs confirming in
-  // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
-  const gameLive = status === 'playing' && view?.phase !== 'gameOver';
-  const hostHoldsRoom = isHost && (status === 'lobby' || gameLive);
-  const confirmQuit = useConfirmQuitGame(hostHoldsRoom || gameLive, hostHoldsRoom ? 'closesTable' : 'progress');
-
+  const { game, history, error, sending, sendAction, leave, refresh } = useOfcGame(id);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
-  const [dismissedError, setDismissedError] = useState<string | null>(null);
-
-  // Action errors from the host surface as a transient toast (auto-dismissed).
+  const code = game?.code;
+  const myId = game?.myPlayerId;
+  const view = game?.state ? { ...game.state, players: game.state.players.map(p => ({ ...p, name: p.name || t('online.deletedPlayer') })) } : null;
+  const inFlight = sending;
+  const sendPlay = sendAction;
+  const quit = () => router.back();
+  const quitHome = () => router.dismissTo('/');
   useEffect(() => {
-    if (!errorMsg || status === 'error') return;
-    const timer = setTimeout(() => setDismissedError(errorMsg), 3000);
-    return () => clearTimeout(timer);
-  }, [errorMsg, status]);
-  const toast = errorMsg && errorMsg !== dismissedError && status !== 'error' ? errorMsg : null;
-
-  useEffect(() => {
-    if (view?.phase !== 'gameOver') return;
+    if (game?.status !== 'finished') return;
     const timer = setTimeout(() => setCelebrating(true), 700);
     return () => clearTimeout(timer);
-  }, [view?.phase]);
+  }, [game?.status]);
+  const abandon = () => Alert.alert(t('online.leaveTitle'), t(game?.status === 'waiting' ? 'online.leaveWaitingMessage' : 'online.forfeitMessage'), [
+    { text: t('common:cancel'), style: 'cancel' },
+    { text: t('online.leaveConfirm'), style: 'destructive', onPress: () => { void leave().then(ok => { if (ok) quit(); }); } },
+  ]);
+  const errorBanner = error && <TouchableOpacity onPress={refresh} style={styles.reconnectBar}>
+    <WifiOff size={13} color={TABLE.gold} />
+    <Text style={styles.reconnectText}>{error} · {t('common:retry')}</Text>
+  </TouchableOpacity>;
+  const historySheet = <BottomSheet visible={historyOpen} onClose={() => setHistoryOpen(false)} title={t('online.history')}>
+    {history.length === 0 && <Text style={{ color: colors.textSecondary }}>{t('online.noHistory')}</Text>}
+    {[...history].reverse().map(hand => <View key={hand.handNumber} style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+      <Text style={{ color: colors.textPrimary, fontFamily: fontFamily.bold }}>{t('online.historyHand', { hand: hand.handNumber })}</Text>
+      {hand.result ? <View style={{ backgroundColor: SCREEN_BG, borderRadius: radius.md }}><ScoreSheet result={hand.result} nameById={Object.fromEntries((game?.members ?? []).map(m => [m.playerId, m.name ?? t('online.deletedPlayer')]))} /></View> :
+        <Text style={{ color: colors.textSecondary }}>{t('online.cancelledHand')}</Text>}
+    </View>)}
+  </BottomSheet>;
 
-  // Every device (host and guests) records local stats for all pseudos in the game.
-  // Broadcasts repeat states, so both effects dedupe: hands by hand number (the ref
-  // clears while a hand is being played), the game end by a latch reset when the phase
-  // moves on. The scoring/gameOver condition also covers a guest reconnecting late.
-  const updateGameStats = useAppStore((s) => s.updateGameStats);
-  const statsHandRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!view) return;
-    if (view.phase === 'dealing' || view.phase === 'placing') {
-      statsHandRef.current = null;
-      return;
-    }
-    if (!view.handResult || statsHandRef.current === view.handNumber) return;
-    statsHandRef.current = view.handNumber;
-    updateGameStats((s) =>
-      recordOfcHand(s, {
-        perPlayer: view.players
-          .filter((p) => view.handResult!.perPlayer[p.id])
-          .map((p) => ({
-            name: p.name,
-            fouled: view.handResult!.perPlayer[p.id].fouled,
-            fantasyNext: view.handResult!.perPlayer[p.id].fantasyNext,
-          })),
-      })
-    );
-  }, [view, updateGameStats]);
+  if (!game) return <SafeAreaView style={[styles.screen, styles.centered]}>
+    <StatusBar style="light" />
+    {!error && <ActivityIndicator color={colors.accentBright} />}
+    {errorBanner}
+    <TouchableOpacity onPress={quit}><Text style={styles.reconnectText}>{t('common:back')}</Text></TouchableOpacity>
+  </SafeAreaView>;
 
-  // The host used to have to press "next hand" for everyone. Nobody wants that button —
-  // the scoresheet is the only reason to pause, so hold it long enough to read and move on.
-  // It is also what declares a finished game over, so it must fire even when the host is
-  // the player who just busted (the engine now accepts table actions from an eliminated
-  // caller; without both halves a busted host froze the table for good).
-  const autoAdvancedRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!isHost || view?.phase !== 'scoring') {
-      if (view && view.phase !== 'scoring') autoAdvancedRef.current = null;
-      return;
-    }
-    if (autoAdvancedRef.current === view.handNumber) return;
-    const hand = view.handNumber;
-    const timer = setTimeout(() => {
-      autoAdvancedRef.current = hand;
-      sendAction({ type: 'nextHand', playerId: myId! });
-    }, SCORESHEET_HOLD_MS);
-    return () => clearTimeout(timer);
-  }, [isHost, view, myId, sendAction]);
-
-  const gameOverRecordedRef = useRef(false);
-  useEffect(() => {
-    if (view?.phase !== 'gameOver') {
-      gameOverRecordedRef.current = false;
-      return;
-    }
-    if (gameOverRecordedRef.current || !view.winnerId) return;
-    gameOverRecordedRef.current = true;
-    const winnerPlayer = view.players.find((p) => p.id === view.winnerId);
-    if (!winnerPlayer) return;
-    updateGameStats((s) =>
-      recordOfcGameEnd(s, { players: view.players.map((p) => p.name), winner: winnerPlayer.name })
-    );
-  }, [view, updateGameStats]);
-
-  // Both ways off this screen are DELIBERATE exits, so both give the seat up (and close the
-  // room, if we host it) — only the destination differs. Every other way off keeps the seat,
-  // so coming back reclaims it instead of taking a new one.
-  const exitTo = async (go: () => void) => {
-    if (!(await confirmQuit())) return;
-    leave();
-    go();
-  };
-  const quit = () => exitTo(() => router.back());
-  const quitHome = () => exitTo(() => router.dismissTo('/'));
-
-  // ── Pre-game states ──────────────────────────────────────────────────────────
-
-  if (status === 'connecting') {
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <StatusBar style="light" />
-        <ActivityIndicator color={colors.accentBright} />
-        <Text style={[styles.mutedText, { color: colors.onDarkSecondary }]}>{t('games:online.connecting')}</Text>
-        <TouchableOpacity onPress={quit} style={[styles.secondaryBtn, { backgroundColor: DARK_TILE }]}>
-          <Text style={[styles.secondaryBtnText, { color: colors.onDarkPrimary }]}>{t('common:cancel')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  if (status === 'error' || status === 'closed') {
-    const message =
-      status === 'error'
-        ? errorMsg
-        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'games:disconnect.generic');
-    return (
-      <SafeAreaView style={[styles.screen, styles.centered]}>
-        <StatusBar style="light" />
-        <WifiOff size={28} color={colors.onDarkTertiary} strokeWidth={1.5} />
-        <Text style={[styles.mutedText, { color: colors.onDarkPrimary }]}>{message}</Text>
-        <TouchableOpacity onPress={quit} style={[styles.primaryBtn, { backgroundColor: colors.accentBright }]}>
-          <Text style={styles.primaryBtnText}>{t('common:back')}</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  if (status === 'lobby') {
-    const canStart = members.length >= MIN_OFC_PLAYERS && members.length <= MAX_OFC_PLAYERS;
-    return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <StatusBar style="light" />
-        <GamePlayHeader title={t('online.title')} onClose={quit} onHome={quitHome} onDark />
-
-        {/* The room IS the table: the code sits on the felt and the seats fill as people
-            join, instead of a code card above a list of names. */}
-        <View style={styles.lobbyContent}>
-          <Animated.View entering={FadeInDown.delay(0).springify().damping(18).stiffness(140)}>
-            <SeatTableBoard
-              players={[]}
-              selected={members.map((m) => ({
-                id: m.playerId,
-                name: m.playerId === myId ? t('games:online.youSuffix', { name: m.name }) : m.name,
-              }))}
-              onChange={() => {}}
-              maxPlayers={MAX_OFC_PLAYERS}
-              seatsInteractive={false}
-              emptySeatLabel={t('games:online.waitingSeat')}
-              dimmedIds={members.filter((m) => !m.connected).map((m) => m.playerId)}
-              center={(feltWidth) => (
-                <LobbyFelt
-                  code={code ?? ''}
-                  codeLabel={t('games:online.tableCode')}
-                  caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
-                  inviteLabel={t('games:online.invite')}
-                  onInvite={
-                    isHost && code
-                      ? () => shareTableCode(t('games:online.inviteMessage', { game: t('degen:names.ofc'), code }))
-                      : undefined
-                  }
-                  rules={
-                    isHost && hostVariant
-                      ? [
-                          t('online.variant', {
-                            mode: t(hostVariant === 'classic' ? 'setup.variantClassic' : 'setup.variantPineapple'),
-                          }),
-                        ]
-                      : []
-                  }
-                  width={feltWidth}
-                />
-              )}
-            />
-          </Animated.View>
-          <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-            {t('games:online.players', { current: members.length, max: MAX_OFC_PLAYERS })}
-          </Text>
-        </View>
-
-        <View style={styles.footer}>
-          {isHost ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colors.accentBright }, !canStart && styles.disabledBtn]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onStart?.();
-              }}
-              disabled={!canStart}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryBtnText}>{t('games:online.startGame')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('games:online.startsWhenHostLaunches')}
-            </Text>
-          )}
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (game.status === 'waiting') return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <StatusBar style="light" />
+    <GamePlayHeader title={t('online.title')} onClose={quit} onHome={quitHome} onDark />
+    {errorBanner}
+    <View style={styles.lobbyContent}>
+      <SeatTableBoard players={[]} selected={game.members.map(m => ({ id: m.playerId, name: m.playerId === myId ? t('games:online.youSuffix', { name: m.name }) : m.name ?? t('online.deletedPlayer') }))}
+        onChange={() => {}} maxPlayers={game.capacity} seatsInteractive={false} emptySeatLabel={t('games:online.waitingSeat')}
+        center={width => <LobbyFelt code={game.code} codeLabel={t('games:online.tableCode')} caption={t('online.autoStartHint', { count: game.capacity })}
+          inviteLabel={t('games:online.invite')} onInvite={() => shareTableCode(t('games:online.inviteMessage', { game: t('degen:names.ofc'), code: game.code }))}
+          rules={[t('online.variant', { mode: t(game.variant === 'classic' ? 'setup.variantClassic' : 'setup.variantPineapple') }), t(game.visibility === 'public' ? 'online.public' : 'online.private')]} width={width} />} />
+      <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('online.waitingPlayers', { current: game.members.length, max: game.capacity })}</Text>
+    </View>
+    <View style={styles.footer}><TouchableOpacity disabled={sending} onPress={abandon} style={styles.secondaryBtn}>
+      <Text style={[styles.secondaryBtnText, { color: colors.onDarkSecondary }]}>{t('online.leaveRoom')}</Text>
+    </TouchableOpacity></View>
+  </SafeAreaView>;
 
   // ── Playing ──────────────────────────────────────────────────────────────────
 
-  // Playing, but this device has no state to draw yet — normally the beat between the host
-  // dealing and its first broadcast reaching us. It used to `return null`, which is a fully
-  // black screen with no way out, and a late joiner could sit in it indefinitely (the relay
-  // now refuses them outright, but a silent hole is still the wrong thing to render).
+  // Keep a way back if a response does not contain a playable state.
   if (!view || !myId) {
     return (
       <SafeAreaView style={[styles.screen, styles.centered]}>
@@ -351,16 +145,11 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
           <Text style={[styles.handBadge, { color: colors.onDarkTertiary }]}>{t('game.handBadge', { hand: view.handNumber })}</Text>
         }
       />
-      {reconnecting && (
-        <View style={styles.reconnectBar}>
-          <WifiOff size={13} color={TABLE.gold} strokeWidth={2} />
-          <Text style={styles.reconnectText}>{t('games:online.reconnecting')}</Text>
-        </View>
-      )}
+      {errorBanner}
 
       {/* One screen, no scrolling — see the Pass & Play twin for why. */}
       <View style={styles.content}>
-        <Animated.Text key={`caption-${view.version}`} entering={FadeInDown.duration(300)} style={styles.caption}>
+        <Animated.Text key={`caption-${caption}`} entering={FadeInDown.duration(300)} style={styles.caption}>
           {caption}
         </Animated.Text>
 
@@ -383,6 +172,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
               inFantasyLand={me.inFantasyLand}
             >
               <PlacementBoard
+                disabled={sending}
                 key={`${myId}-${view.handNumber}-${myFantasyTurn ? 'fl' : 'initial'}`}
                 hand={me.hand}
                 discards={myFantasyTurn ? Math.max(0, me.hand.length - GRID_SIZE) : 0}
@@ -407,6 +197,8 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
             isButton={me.id === view.buttonId}
           >
             <DrawPlacement
+              disabled={sending}
+              draftKey={`ofc-draft:${id}:${myId}:${view.handNumber}:draw:${view.placeRound}`}
               key={`${myId}-${view.handNumber}-${view.placeRound}`}
               cards={myDraw.cards!}
               placeCount={VARIANT_CONFIG[view.variant].placeCount}
@@ -429,49 +221,32 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
       </View>
 
       <View style={styles.footer}>
-        {toast && (
-          <Animated.Text entering={FadeIn.duration(200)} style={[styles.toast, { color: '#FF6B70' }]}>
-            {toast}
-          </Animated.Text>
-        )}
-
         {inFlight && (
           <View style={styles.sending}>
             <ActivityIndicator size="small" color={colors.onDarkTertiary} />
             <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('games:online.sending')}</Text>
           </View>
         )}
-        {phase === 'scoring' && (
-          <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-            {t('online.advancing')}
-          </Text>
-        )}
+        <View style={styles.actionRow}>
+          <TouchableOpacity onPress={() => setHistoryOpen(true)} style={styles.secondaryBtn}>
+            <Text style={[styles.secondaryBtnText, { color: colors.onDarkSecondary }]}>{t('online.history')}</Text>
+          </TouchableOpacity>
+          {game.status === 'playing' && !view.players.find(p => p.id === myId)?.eliminated && <TouchableOpacity disabled={sending} onPress={abandon}>
+            <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('online.forfeit')}</Text>
+          </TouchableOpacity>}
+          {phase === 'gameOver' && <TouchableOpacity onPress={quit}><Text style={styles.reconnectText}>{t('common:back')}</Text></TouchableOpacity>}
+        </View>
 
-        {phase === 'gameOver' && (
-          <GameOverActions
-            finishLabel={t('games:online.quit')}
-            replayLabel={t('games:game.replay')}
-            waitingLabel={t('games:online.waitingHostReplay')}
-            onFinish={quitHome}
-            onReplay={
-              isHost
-                ? () => {
-                    setCelebrating(false);
-                    onReplay?.();
-                  }
-                : undefined
-            }
-          />
-        )}
       </View>
 
+      {historySheet}
       {celebrating && winner && (
         <View pointerEvents="none" style={styles.celebrationLayer}>
           <WinCelebration
             width={SCREEN_WIDTH}
             height={320}
             title={t('games:game.victory')}
-            subtitle={t('game.winnerSub', { name: winner.name })}
+            subtitle={t('online.winner', { name: winner.name })}
             borderRadius={0}
             onDone={() => setCelebrating(false)}
           />
@@ -482,6 +257,7 @@ function OnlineView({ online, isHost, hostVariant, onStart, onReplay }: OnlineVi
 }
 
 const styles = StyleSheet.create({
+  actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   screen: {
     flex: 1,
     backgroundColor: SCREEN_BG,
@@ -491,7 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.base,
   },
-  // The table stays on screen while the socket is down — without this it looked perfectly
+  // The table stays on screen while a refresh fails — without this it looked perfectly
   // alive, and nothing said why an action was going nowhere.
   sending: {
     flexDirection: 'row',

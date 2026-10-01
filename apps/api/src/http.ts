@@ -13,6 +13,8 @@ import {
 } from './db.js';
 import { signSession, verifySession } from './auth/session.js';
 import { verifyAppleIdentityToken, verifyGoogleIdToken } from './auth/verify.js';
+import { handleBluffHttp } from './bluff-http.js';
+import { handleOfcHttp } from './ofc-http.js';
 import { accountDeletionHtml, privacyHtml, supportHtml } from './pages.js';
 
 const MAX_BODY_BYTES = 16_384;
@@ -86,6 +88,12 @@ async function authenticatedUser(req: IncomingMessage): Promise<UserRow | null> 
 export async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = (req.url ?? '').split('?')[0];
   const method = req.method ?? 'GET';
+
+  if (url.startsWith('/ofc/') || url.startsWith('/bluff/')) {
+    const user = await authenticatedUser(req);
+    if (!user) { sendJson(res, 401, { error: 'unauthorized' }); return true; }
+    return url.startsWith('/ofc/') ? handleOfcHttp(req, res, user, readJson) : handleBluffHttp(req, res, user, readJson);
+  }
 
   if (method === 'GET' && (url === '/privacy' || url === '/support' || url === '/account-deletion')) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

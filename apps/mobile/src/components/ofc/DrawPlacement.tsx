@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { useOfcPlacementDraft } from '../../hooks/useOfcPlacementDraft';
 import { PlayingCard } from '../hand/PlayingCard';
 import { TABLE } from '../hand/PokerTable';
 import { fontFamily, fontSize, radius, spacing } from '../../design-system/theme';
@@ -18,6 +19,8 @@ import { ROW_CAPACITY, ROW_IDS } from '../../lib/ofc';
 // `key` per turn so the staging state resets with each new draw.
 
 interface Props {
+  disabled?: boolean;
+  draftKey?: string;
   cards: Card[]; // the pending draw (1 or 3)
   placeCount: number; // how many of them must be placed (1 or 2)
   grid: OfcGrid; // the actor's committed grid
@@ -27,10 +30,10 @@ interface Props {
 
 const DARK_CARD_BG = 'rgba(255, 255, 255, 0.05)';
 
-export function DrawPlacement({ cards, placeCount, grid, discards, onCommit }: Props) {
+export function DrawPlacement({ cards, placeCount, grid, discards, onCommit, disabled = false, draftKey }: Props) {
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
-  const [staged, setStaged] = useState<OfcPlacement[]>([]);
+  const [staged, setStaged] = useOfcPlacementDraft(draftKey);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const stagedKeys = useMemo(() => new Set(staged.map((p) => cardKey(p.card))), [staged]);
@@ -44,7 +47,7 @@ export function DrawPlacement({ cards, placeCount, grid, discards, onCommit }: P
     ROW_CAPACITY[row] - grid[row].length - stagedIn(row).length;
 
   const placeInto = (row: RowId) => {
-    if (!activeKey || capacityLeft(row) <= 0) return;
+    if (disabled || !activeKey || capacityLeft(row) <= 0) return;
     const card = tray.find((c) => cardKey(c) === activeKey);
     if (!card) return;
     Haptics.selectionAsync();
@@ -59,7 +62,7 @@ export function DrawPlacement({ cards, placeCount, grid, discards, onCommit }: P
 
   const takeBack = (placement: OfcPlacement) => {
     Haptics.selectionAsync();
-    setStaged((prev) => prev.filter((p) => cardKey(p.card) !== cardKey(placement.card)));
+    setStaged(staged.filter(p => cardKey(p.card) !== cardKey(placement.card)));
   };
 
   return (
@@ -140,9 +143,9 @@ export function DrawPlacement({ cards, placeCount, grid, discards, onCommit }: P
 
       {placeCount > 1 && (
         <TouchableOpacity
-          style={[styles.commitBtn, { backgroundColor: colors.accentBright }, !done && styles.disabledBtn]}
+          style={[styles.commitBtn, { backgroundColor: colors.accentBright }, (!done || disabled) && styles.disabledBtn]}
           onPress={() => onCommit(staged)}
-          disabled={!done}
+          disabled={!done || disabled}
           activeOpacity={0.85}
         >
           <Text style={styles.commitText}>{t('game.commit')}</Text>

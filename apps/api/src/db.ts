@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { OfcRepository } from './ofc.js';
 import { databasePool, transaction } from './postgres.js';
 export { closeDb } from './postgres.js';
 
@@ -43,7 +44,9 @@ export async function setPseudo(id: string, pseudo: string): Promise<UserRow | u
     [id, pseudo, new Date().toISOString()])).rows[0];
 }
 export async function deleteUser(id: string): Promise<void> {
-  await databasePool().query('DELETE FROM users WHERE id = $1', [id]);
+  await new OfcRepository(databasePool()).deleteAccount(id, async client => {
+    await client.query('DELETE FROM users WHERE id = $1', [id]);
+  });
 }
 export interface HandUpsertInput {
   id: string;

@@ -83,12 +83,46 @@
     "title": "Bluff en ligne",
     "headerCode": "Bluff · {{code}}",
     "waitingBoard": "{{name}} choisit le milieu…",
-    "waitingTurn": "Au tour de {{name}}…",
+    "waitingTurn": "En attente d’un joueur",
     "advancing": "On enchaîne…",
     "jeuMaxEnabled": "Règle Jeu Max activée",
     "jeuMaxDisabledLobby": "Règles classiques — sans Jeu Max",
     "variantStandard": "Variante classique — 2 cartes, éliminé à 5",
-    "variantQuick": "Variante rapide — 1 carte, éliminé à 4"
+    "variantQuick": "Variante rapide — 1 carte, éliminé à 4",
+    "myRooms": "Mes rooms",
+    "availableRooms": "Rooms disponibles",
+    "yourTurn": "À toi de jouer",
+    "waitingPlayers": "En attente · {{current}}/{{max}} joueurs",
+    "finished": "Terminée",
+    "abandoned": "Abandonnée",
+    "noGames": "Aucune partie pour le moment. Crée une room ou rejoins-en une.",
+    "noRooms": "Aucune room publique en attente.",
+    "joinByCode": "Rejoindre par code",
+    "codePlaceholder": "Code à 6 chiffres",
+    "seats_one": "{{count}} joueur",
+    "seats_other": "{{count}} joueurs",
+    "public": "Publique",
+    "private": "Privée",
+    "autoStartHint": "La partie commence automatiquement lorsque les {{count}} places sont occupées.",
+    "deletedPlayer": "Joueur supprimé",
+    "forfeited": "Abandon déclaré",
+    "errors": {
+      "network": "Impossible de joindre le serveur. Ton dernier état est conservé.",
+      "unauthorized": "Reconnecte-toi pour retrouver tes parties.",
+      "notFound": "Cette partie est introuvable ou inaccessible.",
+      "started": "Cette partie a déjà commencé.",
+      "full": "Cette room est complète.",
+      "stale": "La partie a avancé. Actualise puis valide à nouveau ton placement.",
+      "notPlaying": "Tu ne peux plus jouer dans cette partie.",
+      "invalid": "Cette demande n’est pas valide."
+    },
+    "gameSummary": "{{variant}} · Manche {{round}}",
+    "leaveTitle": "Quitter la partie ?",
+    "leaveWaitingMessage": "Ta place sera libérée dans cette room.",
+    "leaveConfirm": "Quitter",
+    "leaveRoom": "Quitter la room",
+    "forfeit": "Abandonner",
+    "forfeitMessage": "Tu seras éliminé. La manche en cours sera annulée et les autres joueurs pourront continuer."
   },
   "picker": {
     "title": "Annoncer",
@@ -114,5 +148,8 @@
     "eliminatedNow": "Éliminé !",
     "plusOneCard": "+1 carte",
     "minusOneCard": "−1 carte"
+  },
+  "local": {
+    "resume": "Reprendre — manche {{round}}"
   }
 }

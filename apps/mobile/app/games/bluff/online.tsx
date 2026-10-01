@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator , type LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { WifiOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { useKeepAwake } from 'expo-keep-awake';
 import { PlayingCard } from '../../../src/components/hand/PlayingCard';
 import { TABLE } from '../../../src/components/hand/PokerTable';
 import { WinCelebration } from '../../../src/components/hand/WinCelebration';
@@ -22,22 +21,13 @@ import { GameOverActions } from '../../../src/components/games/GameOverActions';
 import type { BluffSeatVM } from '../../../src/components/bluff/BluffTable';
 import { ClaimPickerSheet } from '../../../src/components/bluff/ClaimPickerSheet';
 import { DarkStepper } from '../../../src/components/bluff/DarkStepper';
-import { useBluffDraft } from '../../../src/store/useBluffDraft';
-import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
-import { useActionInFlight } from '../../../src/hooks/useActionInFlight';
-import { useAppStore } from '../../../src/store/useAppStore';
-import { recordBluffGameEnd, recordBluffReveal } from '../../../src/lib/gameStats';
-import { useBluffGuest, useBluffHost } from '../../../src/hooks/useBluffOnline';
+import { useBluffGame } from '../../../src/hooks/useBluffOnline';
 import type { BluffOnlineCommon } from '../../../src/hooks/useBluffOnline';
-import { MAX_BLUFF_PLAYERS, MAX_BOARD_CARDS, MIN_BLUFF_PLAYERS, claimLabel } from '../../../src/lib/bluff';
+import { MAX_BOARD_CARDS, claimLabel } from '../../../src/lib/bluff';
 import { bluffPlayView, bluffSeatData } from '../../../src/lib/bluff/view';
-import type { BluffVariant, Claim } from '../../../src/lib/bluff';
+import type { Claim } from '../../../src/lib/bluff';
 import { fontFamily, fontSize, radius, spacing } from '../../../src/design-system/theme';
 import { useTheme } from '../../../src/design-system/ThemeProvider';
-
-// How long a reveal stays up before the host's device rolls the next round on its own.
-// Longer than OFC's scoresheet hold: a reveal has the caught hand and the pool to read.
-const REVEAL_HOLD_MS = 7000;
 
 const TABLE_W = PLAY_TABLE.width;
 
@@ -49,73 +39,18 @@ const HAND_FAN_ANGLES: Record<number, number[]> = {
   5: [-14, -7, 0, 7, 14],
 };
 
-// Server/protocol disconnect enums → bluff namespace keys, translated at render.
-const DISCONNECT_KEYS = {
-  host_left: 'games:disconnect.host_left',
-  expired: 'games:disconnect.expired',
-  hostQuit: 'games:disconnect.hostQuit',
-} as const;
-
 export default function BluffOnlineScreen() {
-  const mode = useBluffDraft((s) => s.mode);
-  const pseudo = useBluffDraft((s) => s.pseudo);
-  const joinCode = useBluffDraft((s) => s.joinCode);
-
-  if (mode === 'guest' && joinCode) return <GuestFlow pseudo={pseudo} joinCode={joinCode} />;
-  return <HostFlow pseudo={pseudo} />;
+  const { id = '' } = useLocalSearchParams<{ id?: string }>();
+  const online = useBluffGame(id);
+  return <OnlineView online={online} />;
 }
-
-function HostFlow({ pseudo }: { pseudo: string }) {
-  const jeuMax = useBluffDraft((s) => s.jeuMax);
-  const variant = useBluffDraft((s) => s.variant);
-  const online = useBluffHost(pseudo);
-  return (
-    <OnlineView
-      online={online}
-      isHost
-      hostJeuMax={jeuMax}
-      hostVariant={variant}
-      onStart={() => online.startGame({ jeuMax, variant })}
-      onReplay={online.replay}
-    />
-  );
-}
-
-function GuestFlow({ pseudo, joinCode }: { pseudo: string; joinCode: string }) {
-  const online = useBluffGuest(pseudo, joinCode);
-  return <OnlineView online={online} isHost={false} />;
-}
-
-interface OnlineViewProps {
-  online: BluffOnlineCommon;
-  isHost: boolean;
-  // Lobby-only display of the host's chosen rules — guests learn them from the first
-  // state broadcast once the game starts.
-  hostJeuMax?: boolean;
-  hostVariant?: BluffVariant;
-  onStart?: () => void;
-  onReplay?: () => void;
-}
-
-function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay }: OnlineViewProps) {
-  // Locking the phone suspends the socket — fatal for the host, disruptive for guests.
-  useKeepAwake();
+function OnlineView({ online }: { online: BluffOnlineCommon }) {
   const { t } = useTranslation('bluff');
   const { colors } = useTheme();
   const router = useRouter();
-  const { status, code, myId, members, view, errorMsg, closedReason, reconnecting, sendAction, leave } = online;
+  const { status, code, myId, members, view, errorMsg, reconnecting, sendAction, sending: inFlight, game, leave } = online;
 
-  // Committing does nothing visible until the host's state comes back, which on a slow
-  // connection reads as a freeze. Player actions report themselves as in flight; the host's
-  // own auto-advance timer does NOT go through this, or the wrapper would swallow it.
-  const { inFlight, send } = useActionInFlight(view?.version);
-  const sendPlay = send(sendAction);
-
-  // The host holds the room: their exit closes it for everyone, so it needs confirming in
-  // the LOBBY too — that is where the ❌ used to kill a table with no dialog at all.
-  const gameLive = status === 'playing' && view?.phase !== 'gameOver';
-  const hostHoldsRoom = isHost && (status === 'lobby' || gameLive);
-  const confirmQuit = useConfirmQuitGame(hostHoldsRoom || gameLive, hostHoldsRoom ? 'closesTable' : 'progress');
+  const sendPlay = sendAction;
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [faceUpCount, setFaceUpCount] = useState(3);
@@ -149,75 +84,12 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     return () => clearTimeout(timer);
   }, [view?.phase]);
 
-  // Every device (host and guests) records local stats for all pseudos in the game.
-  // Broadcasts repeat states, so both effects dedupe: reveals by round number (reveal is
-  // cleared by the next deal), the game end by a latch reset when the phase moves on.
-  // Jeu Max reveals are a different mechanic and stay out of the catch counters.
-  const updateGameStats = useAppStore((s) => s.updateGameStats);
-  const revealRoundRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!view?.reveal) {
-      revealRoundRef.current = null;
-      return;
-    }
-    if (view.reveal.kind !== 'catch' || revealRoundRef.current === view.round) return;
-    revealRoundRef.current = view.round;
-    const nameOf = (id: string) => view.players.find((p) => p.id === id)?.name ?? '';
-    updateGameStats((s) =>
-      recordBluffReveal(s, {
-        catcher: nameOf(view.reveal!.catcherId),
-        claimer: nameOf(view.reveal!.claimerId),
-        holds: view.reveal!.holds,
-      })
-    );
-  }, [view, updateGameStats]);
-
-  // Nobody wants to press "next round" for the whole table — the reveal is the only reason
-  // to pause, so hold it long enough to read and move on. It is also what declares a
-  // finished game over, so it must fire even when the host is the player who just got
-  // knocked out (the engine now accepts table actions from an eliminated caller).
-  const autoAdvancedRef = useRef<number | null>(null);
-  useEffect(() => {
-    const phase = view?.phase;
-    if (!isHost || !view || (phase !== 'reveal' && phase !== 'roundEnd')) {
-      if (view && phase !== 'reveal' && phase !== 'roundEnd') autoAdvancedRef.current = null;
-      return;
-    }
-    if (autoAdvancedRef.current === view.round) return;
-    const round = view.round;
-    const timer = setTimeout(() => {
-      autoAdvancedRef.current = round;
-      if (phase === 'reveal') sendAction({ type: 'confirmReveal', playerId: myId! });
-      sendAction({ type: 'nextRound', playerId: myId! });
-    }, REVEAL_HOLD_MS);
-    return () => clearTimeout(timer);
-  }, [isHost, view, myId, sendAction]);
-
-  const gameOverRecordedRef = useRef(false);
-  useEffect(() => {
-    if (view?.phase !== 'gameOver') {
-      gameOverRecordedRef.current = false;
-      return;
-    }
-    if (gameOverRecordedRef.current || !view.winnerId) return;
-    gameOverRecordedRef.current = true;
-    const winnerPlayer = view.players.find((p) => p.id === view.winnerId);
-    if (!winnerPlayer) return;
-    updateGameStats((s) =>
-      recordBluffGameEnd(s, { players: view.players.map((p) => p.name), winner: winnerPlayer.name })
-    );
-  }, [view, updateGameStats]);
-
-  // Both ways off this screen are DELIBERATE exits, so both give the seat up (and close the
-  // room, if we host it) — only the destination differs. Every other way off keeps the seat,
-  // so coming back reclaims it instead of taking a new one.
-  const exitTo = async (go: () => void) => {
-    if (!(await confirmQuit())) return;
-    leave();
-    go();
-  };
-  const quit = () => exitTo(() => router.back());
-  const quitHome = () => exitTo(() => router.dismissTo('/'));
+  const quit = () => router.back();
+  const quitHome = () => router.dismissTo('/');
+  const abandon = () => Alert.alert(t('online.leaveTitle'), t(status === 'lobby' ? 'online.leaveWaitingMessage' : 'online.forfeitMessage'), [
+    { text: t('common:cancel'), style: 'cancel' },
+    { text: t('online.leaveConfirm'), style: 'destructive', onPress: () => { void leave().then(ok => { if (ok) quit(); }); } },
+  ]);
 
   // ── Pre-game states ──────────────────────────────────────────────────────────
 
@@ -234,11 +106,8 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
     );
   }
 
-  if (status === 'error' || status === 'closed') {
-    const message =
-      status === 'error'
-        ? errorMsg
-        : t(closedReason ? DISCONNECT_KEYS[closedReason] : 'games:disconnect.generic');
+  if (status === 'error') {
+    const message = errorMsg;
     return (
       <SafeAreaView style={[styles.screen, styles.centered]}>
         <StatusBar style="light" />
@@ -252,7 +121,6 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
   }
 
   if (status === 'lobby') {
-    const canStart = members.length >= MIN_BLUFF_PLAYERS && members.length <= MAX_BLUFF_PLAYERS;
     return (
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <StatusBar style="light" />
@@ -269,7 +137,7 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
                 name: m.playerId === myId ? t('games:online.youSuffix', { name: m.name }) : m.name,
               }))}
               onChange={() => {}}
-              maxPlayers={MAX_BLUFF_PLAYERS}
+              maxPlayers={game?.capacity ?? 2}
               seatsInteractive={false}
               emptySeatLabel={t('games:online.waitingSeat')}
               dimmedIds={members.filter((m) => !m.connected).map((m) => m.playerId)}
@@ -277,49 +145,31 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
                 <LobbyFelt
                   code={code ?? ''}
                   codeLabel={t('games:online.tableCode')}
-                  caption={isHost ? t('games:online.shareCode') : t('games:online.waitingHostStart')}
+                  caption={t('online.autoStartHint', { count: game?.capacity ?? 2 })}
                   inviteLabel={t('games:online.invite')}
                   onInvite={
-                    isHost && code
+                    code
                       ? () => shareTableCode(t('games:online.inviteMessage', { game: t('degen:names.bluff'), code }))
                       : undefined
                   }
-                  rules={
-                    isHost
-                      ? [
-                          t(hostJeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby'),
-                          t(hostVariant === 'quick' ? 'online.variantQuick' : 'online.variantStandard'),
-                        ]
-                      : []
-                  }
+                  rules={[
+                    t(game?.config.jeuMax ? 'online.jeuMaxEnabled' : 'online.jeuMaxDisabledLobby'),
+                    t(game?.config.variant === 'quick' ? 'online.variantQuick' : 'online.variantStandard'),
+                  ]}
                   width={feltWidth}
                 />
               )}
             />
           </Animated.View>
           <Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>
-            {t('games:online.players', { current: members.length, max: MAX_BLUFF_PLAYERS })}
+            {t('games:online.players', { current: members.length, max: game?.capacity ?? 2 })}
           </Text>
         </View>
 
         <View style={styles.footer}>
-          {isHost ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colors.accentBright }, !canStart && styles.disabledBtn]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onStart?.();
-              }}
-              disabled={!canStart}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryBtnText}>{t('games:online.startGame')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.mutedText, styles.waitingText, { color: colors.onDarkTertiary }]}>
-              {t('games:online.startsWhenHostLaunches')}
-            </Text>
-          )}
+          <TouchableOpacity onPress={abandon} disabled={inFlight} style={styles.secondaryBtn}>
+            <Text style={[styles.secondaryBtnText, { color: colors.onDarkSecondary }]}>{t('online.leaveRoom')}</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -608,20 +458,14 @@ function OnlineView({ online, isHost, hostJeuMax, hostVariant, onStart, onReplay
           </Text>
         )}
 
+        {phase !== 'gameOver' && <TouchableOpacity onPress={abandon} disabled={inFlight}><Text style={[styles.mutedText, { color: colors.onDarkTertiary }]}>{t('online.forfeit')}</Text></TouchableOpacity>}
         {phase === 'gameOver' && (
           <GameOverActions
             finishLabel={t('games:online.quit')}
             replayLabel={t('games:game.replay')}
             waitingLabel={t('games:online.waitingHostReplay')}
             onFinish={quitHome}
-            onReplay={
-              isHost
-                ? () => {
-                    setCelebrating(false);
-                    onReplay?.();
-                  }
-                : undefined
-            }
+            onReplay={() => router.replace('/games/bluff/create')}
           />
         )}
       </View>

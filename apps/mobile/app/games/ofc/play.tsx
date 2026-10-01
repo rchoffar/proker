@@ -16,8 +16,9 @@ import type { OfcSeatVM } from '../../../src/components/ofc/OfcSeatsStrip';
 import { PlacementBoard } from '../../../src/components/ofc/PlacementBoard';
 import { DrawPlacement } from '../../../src/components/ofc/DrawPlacement';
 import { ScoreSheet } from '../../../src/components/ofc/ScoreSheet';
+import * as Crypto from 'expo-crypto';
+import { useOfcLocalGames } from '../../../src/store/useOfcLocalGames';
 import { useOfcDraft } from '../../../src/store/useOfcDraft';
-import { useConfirmQuitGame } from '../../../src/hooks/useConfirmQuitGame';
 import { useGameExit } from '../../../src/hooks/useGameExit';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { recordOfcGameEnd, recordOfcHand } from '../../../src/lib/gameStats';
@@ -35,14 +36,24 @@ import { useTheme } from '../../../src/design-system/ThemeProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const resumeLater = () => Promise.resolve(true);
+
 export default function OfcPlayScreen() {
   useKeepAwake(); // the shared phone must not lock mid-game
   const { t } = useTranslation('ofc');
   const { colors } = useTheme();
   const router = useRouter();
-  const players = useOfcDraft((s) => s.players);
-  const startingStack = useOfcDraft((s) => s.startingStack);
-  const variant = useOfcDraft((s) => s.variant);
+  const [saved] = useState(() => {
+    const store = useOfcLocalGames.getState();
+    return store.activeId ? store.games[store.activeId] : undefined;
+  });
+  const [saveId] = useState(() => useOfcLocalGames.getState().activeId ?? Crypto.randomUUID());
+  const draftPlayers = useOfcDraft((s) => s.players);
+  const players = saved?.state.players ?? draftPlayers;
+  const draftStack = useOfcDraft((s) => s.startingStack);
+  const startingStack = saved?.startingStack ?? draftStack;
+  const draftVariant = useOfcDraft((s) => s.variant);
+  const variant = saved?.state.variant ?? draftVariant;
   const updateGameStats = useAppStore((s) => s.updateGameStats);
 
   // The engine leaves dealing to the controller (randomness stays out of reduce):
@@ -51,10 +62,9 @@ export default function OfcPlayScreen() {
     s.phase === 'dealing' ? reduce(s, createHandDeal(s)) : s;
 
   const [state, setState] = useState<OfcState | null>(() =>
-    players.length >= 2 ? withAutoDeal(initGame(players, startingStack, variant)) : null,
+    saved?.state ?? (players.length >= 2 ? withAutoDeal(initGame(players, startingStack, variant)) : null),
   );
-  const confirmQuit = useConfirmQuitGame(!!state && state.phase !== 'gameOver');
-  const exit = useGameExit(confirmQuit);
+  const exit = useGameExit(resumeLater);
 
   // Handoff lock: the phone must reach the right player before private cards can show.
   const [locked, setLocked] = useState(true);
@@ -78,7 +88,7 @@ export default function OfcPlayScreen() {
   // Per-hand stats (fouls, Fantasy Land entries): recorded once when the hand reaches
   // scoring, deduped by hand number. The ref clears while a hand is being played so a
   // replay whose game also ends at hand 1 still records.
-  const statsHandRef = useRef<number | null>(null);
+  const statsHandRef = useRef<number | null>(saved?.statsHand ?? null);
   useEffect(() => {
     if (!state) return;
     if (state.phase === 'dealing' || state.phase === 'placing') {
@@ -100,7 +110,7 @@ export default function OfcPlayScreen() {
     );
   }, [state, updateGameStats]);
 
-  const gameOverRecordedRef = useRef(false);
+  const gameOverRecordedRef = useRef(saved?.gameOverRecorded ?? false);
   useEffect(() => {
     if (state?.phase !== 'gameOver') {
       gameOverRecordedRef.current = false;
@@ -114,6 +124,12 @@ export default function OfcPlayScreen() {
       recordOfcGameEnd(s, { players: state.players.map((p) => p.name), winner: winnerPlayer.name })
     );
   }, [state, updateGameStats]);
+
+  useEffect(() => {
+    if (state) useOfcLocalGames.getState().save(saveId, {
+      state, startingStack, statsHand: statsHandRef.current, gameOverRecorded: gameOverRecordedRef.current,
+    });
+  }, [state, saveId, startingStack]);
 
   if (!state) {
     return <NoPlayersScreen message={t('games:play.noPlayers')} onBack={() => router.back()} onDark />;
